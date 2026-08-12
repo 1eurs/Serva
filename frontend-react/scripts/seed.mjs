@@ -14,7 +14,7 @@ const SLUG = 'mutrah-coffee';
 
 // Full café-owner permission set (matches Permission.ownerSet() on the backend).
 const OWNER_PERMS = [
-  'ORDERS', 'PAYMENTS', 'MENU', 'QR_TABLES', 'TEAM', 'ANALYTICS', 'PROFILE', 'BRANCHES',
+  'ORDERS', 'PAYMENTS', 'MENU', 'QR_TABLES', 'TEAM', 'ANALYTICS', 'PROFILE', 'BRANCHES', 'STOCK',
 ];
 
 let token = null;

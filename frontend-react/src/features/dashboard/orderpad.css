@@ -4,7 +4,7 @@
 /* ---- menu side ---- */
 .pad-menu{display:flex;flex-direction:column;gap:12px;min-height:0}
 .pad-search input{width:100%;background:var(--surface);border:1px solid var(--line);color:var(--text);border-radius:11px;padding:10px 13px;font-family:var(--font-ar);font-size:14px}
-.pad-search input:focus{outline:none;border-color:var(--accent)}
+.pad-search input:focus-visible{outline:none;border-color:var(--accent);box-shadow:var(--focus-shadow)}
 .pad-cats{display:flex;gap:7px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin}
 .pad-cats button{flex:0 0 auto;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:7px 14px;font-family:var(--font-ar);font-size:13px;font-weight:700;cursor:pointer}
 .pad-cats button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}

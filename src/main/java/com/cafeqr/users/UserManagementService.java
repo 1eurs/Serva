@@ -52,30 +52,54 @@ public class UserManagementService {
 
     @Transactional
     public UserResponse create(CreateUserRequest request) {
+        User user = buildMember(request.username(), request.fullName(), request.email(),
+                request.phone(), request.permissions(), request.restaurantId(), request.branchId());
+        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setActive(true);
+        return UserResponse.from(userRepository.save(user));
+    }
+
+    /**
+     * Creates the account shell an invitation will later activate: same validation and the same
+     * permission scoping as {@link #create}, but with no password and inactive until claimed.
+     *
+     * <p>The password hash is a random value nobody holds. It exists only because the column is
+     * NOT NULL — it must never be guessable, and the inactive flag means it can't be used anyway.
+     */
+    @Transactional
+    public User createPendingMember(com.cafeqr.users.dto.InviteRequest request) {
+        User user = buildMember(request.username(), request.fullName(), request.email(),
+                request.phone(), request.permissions(), request.restaurantId(), request.branchId());
+        user.setPasswordHash(passwordEncoder.encode(com.cafeqr.common.util.Tokens.random(48)));
+        user.setActive(false);
+        user.setInvitedAt(java.time.Instant.now());
+        return userRepository.save(user);
+    }
+
+    /** Shared validation + scoping for both the direct-create and invite paths. */
+    private User buildMember(String username, String fullName, String email, String phone,
+                             Set<Permission> requestedPermissions, Long restaurantId, Long branchId) {
         CustomUserDetails creator = SecurityUtils.currentUser();
-        if (userRepository.existsByUsernameIgnoreCase(request.username())) {
+        if (userRepository.existsByUsernameIgnoreCase(username)) {
             throw new ConflictException(ErrorCode.CONFLICT, "Username is already taken");
         }
-        if (request.email() != null && !request.email().isBlank()
-                && userRepository.existsByEmailIgnoreCase(request.email())) {
+        if (email != null && !email.isBlank() && userRepository.existsByEmailIgnoreCase(email)) {
             throw new ConflictException(ErrorCode.EMAIL_ALREADY_EXISTS, "Email is already registered");
         }
 
-        Set<Permission> permissions = grantable(creator, request.permissions());
-        Target target = resolveTarget(creator, permissions, request.restaurantId(), request.branchId());
+        Set<Permission> permissions = grantable(creator, requestedPermissions);
+        Target target = resolveTarget(creator, permissions, restaurantId, branchId);
 
         User user = new User();
-        user.setUsername(request.username().trim());
-        user.setFullName(blankToNull(request.fullName()) != null ? request.fullName().trim() : request.username().trim());
-        user.setEmail(blankToNull(request.email()));
-        user.setPhone(blankToNull(request.phone()));
-        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setUsername(username.trim());
+        user.setFullName(blankToNull(fullName) != null ? fullName.trim() : username.trim());
+        user.setEmail(blankToNull(email));
+        user.setPhone(blankToNull(phone));
         user.setOwner(false);
         user.setPermissions(permissions);
         user.setRestaurantId(target.restaurantId());
         user.setBranchId(target.branchId());
-        user.setActive(true);
-        return UserResponse.from(userRepository.save(user));
+        return user;
     }
 
     @Transactional(readOnly = true)

@@ -17,7 +17,8 @@ public record CreateOrderRequest(
         String tableToken,
         @NotNull OrderType orderType,
         @Size(max = 150) String customerName,
-        @NotBlank @Size(max = 40) String customerPhone,
+        /** Required for CAR orders; optional for DINE_IN — a table already identifies the order. */
+        @Size(max = 40) String customerPhone,
         /** Required for CAR orders; shown to staff for outdoor car delivery. */
         @Size(max = 40) String carPlate,
         /** Optional for CAR orders; helps staff spot the car (palette key, e.g. "white"). */

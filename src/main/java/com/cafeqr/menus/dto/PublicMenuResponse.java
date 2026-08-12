@@ -98,16 +98,25 @@ public record PublicMenuResponse(
             String imageUrl,
             List<String> images,
             boolean available,
+            /**
+             * Ran out rather than switched off: the ingredients aren't there, or today's limit
+             * is used up. Deliberately a plain sold-out flag and not a "only 2 left!" counter —
+             * a stale scarcity number costs more trust than it wins orders.
+             */
+            boolean soldOut,
             Integer preparationTimeMinutes,
             int displayOrder,
+            /** Rolled up from the recipe, so the badge is right without anyone maintaining it. */
+            List<String> allergens,
             List<PublicOptionGroup> optionGroups
     ) {
-        public static PublicItem from(MenuItem i, Instant now) {
+        public static PublicItem from(MenuItem i, Instant now, boolean soldOut, List<String> allergens) {
             BigDecimal salePrice = i.discountActive(now) ? i.effectivePrice(now) : null;
             return new PublicItem(i.getId(), i.getNameEn(), i.getNameAr(),
                     i.getDescriptionEn(), i.getDescriptionAr(), i.getPrice(), salePrice, i.getImageUrl(),
                     i.getImages().stream().map(MenuItemImage::getUrl).toList(),
-                    i.isAvailable(), i.getPreparationTimeMinutes(), i.getDisplayOrder(),
+                    i.isAvailable(), soldOut, i.getPreparationTimeMinutes(), i.getDisplayOrder(),
+                    allergens,
                     i.getOptionGroups().stream().map(PublicOptionGroup::from).toList());
         }
     }

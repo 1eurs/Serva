@@ -88,6 +88,12 @@ public class RestaurantService {
         if (request.vatEnabled() != null) {
             restaurant.setVatEnabled(request.vatEnabled());
         }
+        if (request.autoHideOutOfStock() != null) {
+            restaurant.setAutoHideOutOfStock(request.autoHideOutOfStock());
+        }
+        if (request.disposablesForDineIn() != null) {
+            restaurant.setDisposablesForDineIn(request.disposablesForDineIn());
+        }
         if (request.vatRate() != null) {
             restaurant.setVatRate(request.vatRate());
         }

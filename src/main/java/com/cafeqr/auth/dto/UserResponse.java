@@ -17,6 +17,12 @@ public record UserResponse(
         Long restaurantId,
         Long branchId,
         boolean active,
+        /**
+         * Invited but not yet claimed. Distinct from a deactivated account even though both read
+         * {@code active = false} — the team list must not show "disabled" next to someone who
+         * simply hasn't opened their link yet.
+         */
+        boolean pendingInvite,
         Instant createdAt
 ) {
     public static UserResponse from(User user) {
@@ -31,6 +37,7 @@ public record UserResponse(
                 user.getRestaurantId(),
                 user.getBranchId(),
                 user.isActive(),
+                user.isPendingInvite(),
                 user.getCreatedAt());
     }
 }

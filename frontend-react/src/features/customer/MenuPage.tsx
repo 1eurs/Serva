@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api, ApiError, consumePrimedMenu } from '../../lib/api';
+import { sellable } from '../../lib/types';
 import type { OrderType, PublicMenu, PublicItem, ReturningCustomer, SelectedOption } from '../../lib/types';
 import { deviceToken } from '../../lib/customerProfile';
 import { track } from '../../lib/analytics';
@@ -125,10 +126,10 @@ export default function MenuPage() {
   const usual = useMemo(() => {
     if (!returning || returning.orderCount < 2) return null;
     return returning.favorites.find((f) =>
-      f.ordersContaining * 2 >= returning.orderCount && itemsById.get(f.menuItemId)?.available) ?? null;
+      f.ordersContaining * 2 >= returning.orderCount && sellable(itemsById.get(f.menuItemId))) ?? null;
   }, [returning, itemsById]);
   const lastItems = useMemo(
-    () => (returning?.lastOrder?.items ?? []).filter((i) => itemsById.get(i.menuItemId)?.available),
+    () => (returning?.lastOrder?.items ?? []).filter((i) => sellable(itemsById.get(i.menuItemId))),
     [returning, itemsById]);
   // An item with options (e.g. a required size) can't be added blind: the last order only
   // stores the item + quantity, not the choices made, so it must go through the picker —
@@ -262,9 +263,8 @@ export default function MenuPage() {
           const ready = loy.availableRewards > 0;
           const dots = Math.min(loy.stampsRequired, 10);
           return (
-            <div className={'loy-strip on-menu' + (ready ? ' ready' : '')} style={loyaltyCardStyle(loy.cardColor)}
-              onClick={() => nav('/loyalty', { state: { from: pathname } })}
-              role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && nav('/loyalty', { state: { from: pathname } })}>
+            <Link to="/loyalty" state={{ from: pathname }}
+              className={'loy-strip on-menu' + (ready ? ' ready' : '')} style={loyaltyCardStyle(loy.cardColor)}>
               <span className="loy-spark">{ready ? '★' : '🎟️'}</span>
               <div className="loy-strip-main">
                 <b>{ready ? t('loyReady') : <><span className="num">{loy.stamps}</span> / <span className="num">{loy.stampsRequired}</span> {t('loyStamps')}</>}</b>
@@ -278,7 +278,7 @@ export default function MenuPage() {
                 ))}
               </div>
               <span className="loy-go">›</span>
-            </div>
+            </Link>
           );
         })()}
         {orderable && (usual || lastItems.length > 0) && (
@@ -323,16 +323,17 @@ export default function MenuPage() {
               const eager = ci === 0 && idx < 4;
               const open = () => setOpenItem(it);
               return (
-                <article className={'c-item' + (it.available ? '' : ' out')} style={{ animationDelay: `${idx * 60}ms` }} key={it.id}>
+                <article className={'c-item' + (sellable(it) ? '' : ' out')} style={{ animationDelay: `${idx * 60}ms` }} key={it.id}>
                   <button className="c-thumb" type="button" onClick={open}
                     style={it.imageUrl ? undefined : fallbackThumb(it)} aria-label={pick(it, 'name', lang)}>
                     {it.imageUrl
                       ? <img src={it.imageUrl} alt="" decoding="async" loading={eager ? 'eager' : 'lazy'}
+                          width={82} height={82}
                           {...({ fetchpriority: eager ? 'high' : 'low' } as object)} />
                       : <span className="glyph">{pick(it, 'name', lang).charAt(0)}</span>}
                     {it.images && it.images.length > 1 && <span className="c-thumb-more">＋{it.images.length}</span>}
                   </button>
-                  {!it.available && <span className="c-badge">{t('soldout')}</span>}
+                  {!sellable(it) && <span className="c-badge">{t('soldout')}</span>}
                   <div className="c-body">
                     <button className="c-body-btn" type="button" onClick={open}>
                       <h3>{pick(it, 'name', lang)}</h3>
@@ -358,7 +359,7 @@ export default function MenuPage() {
                       </div>
                       {!orderable
                         ? null
-                        : !it.available
+                        : !sellable(it)
                         ? <button className="c-add" disabled>+</button>
                         : hasOptions
                           ? <button className={'c-add' + (inCart > 0 ? ' c-add-in' : '')} onClick={open} aria-label="add">

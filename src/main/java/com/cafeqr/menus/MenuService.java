@@ -28,7 +28,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /** Menu management (dashboard) plus the order-time item validation helper. */
 @Service
@@ -384,34 +388,113 @@ public class MenuService {
         item.setDiscountEndsAt(endsAt);
     }
 
-    /** Full replace of an item's option groups (cascade + orphanRemoval handle the diff). */
+    /**
+     * Reconciles an item's option groups against the submitted list.
+     *
+     * <p>Rows are matched by English name and <em>updated in place</em> rather than dropped and
+     * recreated. That matters because option ids are now referenced from outside the menu: a
+     * modifier's stock recipe and its packaging rule both hang off {@code menu_item_options.id}
+     * with ON DELETE CASCADE. Recreating an option on an unrelated edit — renaming the item,
+     * changing its price — would silently delete the café's recipe work.
+     *
+     * <p>Anything not matched is removed, so orphanRemoval still does the real deleting.
+     */
     private void applyOptionGroups(MenuItem item, List<CreateMenuItemRequest.OptionGroupInput> groups) {
-        item.getOptionGroups().clear();
-        if (groups == null) return;
+        if (groups == null) {
+            return;
+        }
+        List<CreateMenuItemRequest.OptionGroupInput> inputs = groups;
+        List<MenuItemOptionGroup> existing = new ArrayList<>(item.getOptionGroups());
+
+        // Which existing group each input maps onto (null = brand new).
+        Map<Integer, MenuItemOptionGroup> matched = new HashMap<>();
+        Set<Long> claimed = new HashSet<>();
+        for (int i = 0; i < inputs.size(); i++) {
+            MenuItemOptionGroup hit = findByName(existing, claimed, inputs.get(i).nameEn());
+            // Single-group items (what the editor produces) are matched positionally as a
+            // fallback, so renaming the group doesn't count as replacing it.
+            if (hit == null && inputs.size() == 1 && existing.size() == 1
+                    && !claimed.contains(existing.get(0).getId())) {
+                hit = existing.get(0);
+            }
+            if (hit != null) {
+                matched.put(i, hit);
+                claimed.add(hit.getId());
+            }
+        }
+
+        item.getOptionGroups().removeIf(g -> !claimed.contains(g.getId()));
+
         int groupOrder = 0;
-        for (CreateMenuItemRequest.OptionGroupInput g : groups) {
-            OptionSelectionType type = parseSelectionType(g.selectionType());
-            MenuItemOptionGroup group = new MenuItemOptionGroup();
-            group.setMenuItem(item);
+        for (int i = 0; i < inputs.size(); i++) {
+            CreateMenuItemRequest.OptionGroupInput g = inputs.get(i);
+            MenuItemOptionGroup group = matched.get(i);
+            if (group == null) {
+                group = new MenuItemOptionGroup();
+                group.setMenuItem(item);
+                item.getOptionGroups().add(group);
+            }
             group.setNameEn(g.nameEn());
             group.setNameAr(g.nameAr());
-            group.setSelectionType(type);
+            group.setSelectionType(parseSelectionType(g.selectionType()));
             group.setRequired(Boolean.TRUE.equals(g.required()));
             group.setDisplayOrder(g.displayOrder() != null ? g.displayOrder() : groupOrder);
-            int optOrder = 0;
-            for (CreateMenuItemRequest.OptionInput o : g.options() == null ? List.<CreateMenuItemRequest.OptionInput>of() : g.options()) {
-                MenuItemOption opt = new MenuItemOption();
-                opt.setOptionGroup(group);
-                opt.setNameEn(o.nameEn());
-                opt.setNameAr(o.nameAr());
-                opt.setPriceDelta(o.priceDelta() != null ? o.priceDelta() : BigDecimal.ZERO);
-                opt.setDisplayOrder(o.displayOrder() != null ? o.displayOrder() : optOrder);
-                group.getOptions().add(opt);
-                optOrder++;
-            }
-            item.getOptionGroups().add(group);
+            applyOptions(group, g.options() == null ? List.of() : g.options());
             groupOrder++;
         }
+    }
+
+    /** Same name-matching reconciliation one level down, for the choices inside a group. */
+    private void applyOptions(MenuItemOptionGroup group, List<CreateMenuItemRequest.OptionInput> inputs) {
+        List<MenuItemOption> existing = new ArrayList<>(group.getOptions());
+        Map<Integer, MenuItemOption> matched = new HashMap<>();
+        Set<Long> claimed = new HashSet<>();
+        for (int i = 0; i < inputs.size(); i++) {
+            MenuItemOption hit = findOptionByName(existing, claimed, inputs.get(i).nameEn());
+            if (hit != null) {
+                matched.put(i, hit);
+                claimed.add(hit.getId());
+            }
+        }
+        group.getOptions().removeIf(o -> !claimed.contains(o.getId()));
+
+        int optOrder = 0;
+        for (int i = 0; i < inputs.size(); i++) {
+            CreateMenuItemRequest.OptionInput o = inputs.get(i);
+            MenuItemOption opt = matched.get(i);
+            if (opt == null) {
+                opt = new MenuItemOption();
+                opt.setOptionGroup(group);
+                group.getOptions().add(opt);
+            }
+            opt.setNameEn(o.nameEn());
+            opt.setNameAr(o.nameAr());
+            opt.setPriceDelta(o.priceDelta() != null ? o.priceDelta() : BigDecimal.ZERO);
+            opt.setDisplayOrder(o.displayOrder() != null ? o.displayOrder() : optOrder);
+            optOrder++;
+        }
+    }
+
+    private static MenuItemOptionGroup findByName(List<MenuItemOptionGroup> pool, Set<Long> claimed, String nameEn) {
+        if (nameEn == null) {
+            return null;
+        }
+        return pool.stream()
+                .filter(g -> g.getId() != null && !claimed.contains(g.getId()))
+                .filter(g -> nameEn.equalsIgnoreCase(g.getNameEn()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static MenuItemOption findOptionByName(List<MenuItemOption> pool, Set<Long> claimed, String nameEn) {
+        if (nameEn == null) {
+            return null;
+        }
+        return pool.stream()
+                .filter(o -> o.getId() != null && !claimed.contains(o.getId()))
+                .filter(o -> nameEn.equalsIgnoreCase(o.getNameEn()))
+                .findFirst()
+                .orElse(null);
     }
 
     private OptionSelectionType parseSelectionType(String raw) {

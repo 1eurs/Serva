@@ -25,6 +25,16 @@ public record MenuItemResponse(
         Instant discountEndsAt,
         String imageUrl,
         boolean available,
+        /** NONE | DAILY_LIMIT | SIMPLE | RECIPE — see {@code StockMode}. Configured via the stock API. */
+        String stockMode,
+        /** SIMPLE mode: the countable good backing this item. */
+        Long stockItemId,
+        Integer dailyLimit,
+        /** How many are still sellable today under a daily cap; null when not capped. */
+        Integer remainingToday,
+        /** True when Serva switched it off for lack of stock, rather than the owner doing so. */
+        boolean autoUnavailable,
+        Long packagingRuleId,
         Integer preparationTimeMinutes,
         int displayOrder,
         List<String> images,
@@ -39,7 +49,11 @@ public record MenuItemResponse(
                 i.getPrice(),
                 i.getDiscountType() == null ? null : i.getDiscountType().name(),
                 i.getDiscountValue(), i.getDiscountStartsAt(), i.getDiscountEndsAt(),
-                i.getImageUrl(), i.isAvailable(), i.getPreparationTimeMinutes(),
+                i.getImageUrl(), i.isAvailable(),
+                i.getStockMode().name(), i.getStockItemId(), i.getDailyLimit(),
+                i.remainingToday(java.time.LocalDate.now(com.cafeqr.common.util.TimeZones.CAFES)),
+                i.isAutoUnavailable(), i.getPackagingRuleId(),
+                i.getPreparationTimeMinutes(),
                 i.getDisplayOrder(),
                 i.getImages().stream().map(MenuItemImage::getUrl).toList(),
                 i.getOptionGroups().stream().map(OptionGroup::from).toList(),
@@ -67,11 +81,13 @@ public record MenuItemResponse(
             String nameEn,
             String nameAr,
             BigDecimal priceDelta,
-            int displayOrder
+            int displayOrder,
+            /** Disposables this choice implies — the size the customer picks decides the cup. */
+            Long packagingRuleId
     ) {
         public static Option from(MenuItemOption o) {
             return new Option(o.getId(), o.getNameEn(), o.getNameAr(),
-                    o.getPriceDelta(), o.getDisplayOrder());
+                    o.getPriceDelta(), o.getDisplayOrder(), o.getPackagingRuleId());
         }
     }
 }

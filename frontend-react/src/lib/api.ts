@@ -61,6 +61,7 @@ interface Opts { method?: string; body?: unknown; auth?: boolean; signal?: Abort
 
 async function raw<T>(path: string, opts: Opts, retry = true): Promise<T> {
   const { method = 'GET', body, auth = true, signal } = opts;
+  if (auth) await ensureFreshAccess();
   const res = await fetch(path, {
     method,
     signal,
@@ -71,11 +72,19 @@ async function raw<T>(path: string, opts: Opts, retry = true): Promise<T> {
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
-  // An expired/invalid token on an authed request: try one silent refresh, and if that can't
-  // recover, clear the session so the app cleanly drops to the login screen (instead of looping 401s).
+  // An expired/invalid token on an authed request: try one silent refresh, then retry once.
+  // Only drop the session when the server actually rejects the refresh token — a dropped
+  // connection or a 5xx must never log the user out, or a one-second signal blip on mobile
+  // data ends a shift mid-service.
   if (res.status === 401 && auth && retry) {
-    if (refreshToken && (await tryRefresh())) return raw<T>(path, opts, false);
-    clearSession();
+    if (!refreshToken) {
+      clearSession();
+    } else {
+      const outcome = await tryRefresh();
+      if (outcome === 'ok') return raw<T>(path, opts, false);
+      if (outcome === 'rejected') clearSession();
+      // 'unavailable' → keep the session; let the 401 surface so the caller can retry later.
+    }
   }
 
   let env: ApiEnvelope<T>;
@@ -107,21 +116,50 @@ export async function freshStreamToken(): Promise<string | null> {
   return accessToken;
 }
 
-let refreshing: Promise<boolean> | null = null;
-function tryRefresh(): Promise<boolean> {
+/**
+ * Why a refresh attempt ended, so callers can tell "the session is over" apart from "the
+ * network ate the request". Collapsing these two into a single false is what used to log
+ * people out on a flaky connection.
+ */
+type RefreshOutcome =
+  | 'ok'           // new token pair stored
+  | 'rejected'     // the server saw the token and refused it — the session is genuinely over
+  | 'unavailable'; // no verdict (offline, timeout, 5xx, rate-limited) — keep the session
+
+/** How close to expiry, in seconds, an access token gets swapped out ahead of time. */
+const REFRESH_SKEW_SECONDS = 60;
+
+/**
+ * Swaps the access token out before it expires. Without this, every request path has to eat a
+ * 401 first, which turns each token expiry into a visible stall — and into one more chance to
+ * be logged out by a badly timed dropped packet.
+ */
+async function ensureFreshAccess(): Promise<void> {
+  if (!accessToken || !refreshToken) return;
+  if (jwtSecondsLeft(accessToken) > REFRESH_SKEW_SECONDS) return;
+  if ((await tryRefresh()) === 'rejected') clearSession();
+}
+
+let refreshing: Promise<RefreshOutcome> | null = null;
+function tryRefresh(): Promise<RefreshOutcome> {
   if (refreshing) return refreshing;
-  refreshing = (async () => {
+  refreshing = (async (): Promise<RefreshOutcome> => {
     try {
       const res = await fetch('/api/auth/refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
       });
-      if (!res.ok) return false;
-      const env = (await res.json()) as ApiEnvelope<AuthResponse>;
-      if (env.success && env.data) { setSession(env.data); return true; }
-      return false;
-    } catch { return false; }
+      if (res.ok) {
+        const env = (await res.json()) as ApiEnvelope<AuthResponse>;
+        if (env.success && env.data) { setSession(env.data); return 'ok'; }
+        return 'rejected';
+      }
+      // Rate-limited or timed out: the token was never judged, so it may still be good.
+      if (res.status === 429 || res.status === 408) return 'unavailable';
+      // Any other 4xx is the server refusing the token itself; 5xx never got that far.
+      return res.status < 500 ? 'rejected' : 'unavailable';
+    } catch { return 'unavailable'; } // offline, DNS, TLS, timeout
     finally { refreshing = null; }
   })();
   return refreshing;
@@ -158,6 +196,7 @@ export const api = {
   get: <T>(p: string, o: Omit<Opts, 'method' | 'body'> = {}) => raw<T>(p, { ...o, method: 'GET' }),
   post: <T>(p: string, body?: unknown, o: Omit<Opts, 'method' | 'body'> = {}) => raw<T>(p, { ...o, method: 'POST', body }),
   patch: <T>(p: string, body?: unknown, o: Omit<Opts, 'method' | 'body'> = {}) => raw<T>(p, { ...o, method: 'PATCH', body }),
+  put: <T>(p: string, body?: unknown, o: Omit<Opts, 'method' | 'body'> = {}) => raw<T>(p, { ...o, method: 'PUT', body }),
   del: <T>(p: string, o: Omit<Opts, 'method' | 'body'> = {}) => raw<T>(p, { ...o, method: 'DELETE' }),
 };
 
@@ -165,12 +204,17 @@ export const api = {
 export async function upload<T = { url: string }>(path: string, file: File, retry = true): Promise<T> {
   const fd = new FormData();
   fd.append('file', file);
+  if (retry) await ensureFreshAccess();
   const res = await fetch(path, {
     method: 'POST',
     headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
     body: fd,
   });
-  if (res.status === 401 && retry && refreshToken && (await tryRefresh())) return upload<T>(path, file, false);
+  if (res.status === 401 && retry && refreshToken) {
+    const outcome = await tryRefresh();
+    if (outcome === 'ok') return upload<T>(path, file, false);
+    if (outcome === 'rejected') clearSession();
+  }
   let env: ApiEnvelope<T>;
   try { env = (await res.json()) as ApiEnvelope<T>; } catch { env = { success: res.ok } as ApiEnvelope<T>; }
   if (!res.ok || env.success === false) throw new ApiError(env.message || 'Upload failed', res.status, env.errorCode);
@@ -194,6 +238,16 @@ export async function syncUser(): Promise<void> {
     if (changed && refreshToken) await tryRefresh();
     else setUser(fresh);
   } catch { /* offline or session expired — the normal 401 path handles it */ }
+}
+
+/**
+ * Stores a session the server handed us through a route other than the login form — currently
+ * only accepting a staff invite, where the accept response already contains a full token pair.
+ * Kept next to `login` so there is exactly one place that writes session state.
+ */
+export function adoptSession(auth: AuthResponse): UserResponse {
+  setSession(auth);
+  return auth.user;
 }
 
 export async function login(username: string, password: string): Promise<UserResponse> {

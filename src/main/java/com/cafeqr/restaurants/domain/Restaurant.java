@@ -43,6 +43,25 @@ public class Restaurant extends BaseEntity {
     @Column(name = "payment_method_selection_enabled", nullable = false)
     private boolean paymentMethodSelectionEnabled = false;
 
+    /**
+     * Whether dine-in orders consume disposables. Some cafés serve dine-in in ceramic and only
+     * burn cups on car orders; others use paper for everything. Packaging rules resolve against
+     * this rather than the product assuming one style.
+     */
+    @Column(name = "disposables_for_dine_in", nullable = false)
+    private boolean disposablesForDineIn = false;
+
+    /**
+     * Whether running out of an ingredient may take a menu item off sale by itself.
+     *
+     * <p>True keeps the automatic behaviour. False keeps every calculation — the draw-down,
+     * the ledger, the cost, the low-stock warnings — and only stops stock from hiding
+     * anything on its own, because a count that has drifted must not be allowed to refuse
+     * a drink the café can plainly make.
+     */
+    @Column(name = "auto_hide_out_of_stock", nullable = false)
+    private boolean autoHideOutOfStock = true;
+
     @Column(name = "menu_theme", nullable = false, length = 40)
     private String theme = "onyx";
 
@@ -127,6 +146,22 @@ public class Restaurant extends BaseEntity {
 
     public void setVatEnabled(boolean vatEnabled) {
         this.vatEnabled = vatEnabled;
+    }
+
+    public boolean isDisposablesForDineIn() {
+        return disposablesForDineIn;
+    }
+
+    public void setDisposablesForDineIn(boolean disposablesForDineIn) {
+        this.disposablesForDineIn = disposablesForDineIn;
+    }
+
+    public boolean isAutoHideOutOfStock() {
+        return autoHideOutOfStock;
+    }
+
+    public void setAutoHideOutOfStock(boolean autoHideOutOfStock) {
+        this.autoHideOutOfStock = autoHideOutOfStock;
     }
 
     public BigDecimal getVatRate() {

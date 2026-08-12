@@ -18,6 +18,9 @@ public record RestaurantResponse(
         boolean vatEnabled,
         BigDecimal vatRate,
         boolean paymentMethodSelectionEnabled,
+        boolean disposablesForDineIn,
+        /** False means stock warns about sold-out items but never hides them itself. */
+        boolean autoHideOutOfStock,
         String theme,
         String themeCustomJson,
         String receiptSettingsJson,
@@ -31,7 +34,8 @@ public record RestaurantResponse(
         return new RestaurantResponse(
                 r.getId(), r.getName(), r.getSlug(), r.getLogoUrl(), r.getPhone(), r.getEmail(),
                 r.getInstagramUrl(), r.getCurrency(), r.isVatEnabled(), r.getVatRate(),
-                r.isPaymentMethodSelectionEnabled(), r.getTheme(), r.getThemeCustomJson(),
+                r.isPaymentMethodSelectionEnabled(), r.isDisposablesForDineIn(), r.isAutoHideOutOfStock(),
+                r.getTheme(), r.getThemeCustomJson(),
                 r.getReceiptSettingsJson(), r.isActive(),
                 r.isPremiumLook(), r.getPlan(), r.getCreatedAt(), r.getUpdatedAt());
     }

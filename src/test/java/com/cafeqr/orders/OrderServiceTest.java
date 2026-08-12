@@ -61,6 +61,7 @@ class OrderServiceTest {
     @Mock private OtpService otpService;
     @Mock private EventLogService eventLogService;
     @Mock private LoyaltyService loyaltyService;
+    @Mock private com.cafeqr.stock.StockConsumptionService stockConsumptionService;
 
     private OrderService orderService;
 
@@ -68,7 +69,7 @@ class OrderServiceTest {
     void setUp() {
         orderService = new OrderService(orderRepository, restaurantService, branchService, tableService,
                 menuService, accessGuard, notificationService, streamService, events, customerService,
-                otpService, eventLogService, loyaltyService, new ObjectMapper());
+                otpService, eventLogService, loyaltyService, stockConsumptionService, new ObjectMapper());
         lenient().when(otpService.isPhoneTokenValid(any(), any())).thenReturn(true);
     }
 
@@ -194,7 +195,9 @@ class OrderServiceTest {
     }
 
     @Test
-    void dineInRequiresPhone() {
+    void dineInAllowsMissingPhone() {
+        // A table order already carries a table id — the phone is only for loyalty, so DINE_IN
+        // must succeed without one (unlike CAR, see carOrderRequiresPhone below).
         when(restaurantService.getActiveBySlug("demo")).thenReturn(restaurant());
         when(branchService.getEntityInRestaurant(1L, 5L)).thenReturn(branch());
         RestaurantTable table = new RestaurantTable();
@@ -202,14 +205,25 @@ class OrderServiceTest {
         table.setBranchId(5L);
         table.setRestaurantId(1L);
         when(tableService.getActiveByToken("tok")).thenReturn(table);
+        when(menuService.getOrderableItem(1L, 5L, 100L)).thenReturn(menuItem());
+        when(orderRepository.nextOrderNumber()).thenReturn(1004L);
+        org.mockito.ArgumentCaptor<Order> savedOrder = org.mockito.ArgumentCaptor.forClass(Order.class);
+        when(orderRepository.save(savedOrder.capture())).thenAnswer(inv -> {
+            Order o = inv.getArgument(0);
+            o.setId(4L);
+            return o;
+        });
 
         CreateOrderRequest request = new CreateOrderRequest(
                 "demo", 5L, "tok", OrderType.DINE_IN, "Sara", null, null, null, null, null, null,
                 false, null, List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
 
-        assertThatThrownBy(() -> orderService.createOrder(request))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("Phone is required");
+        OrderTrackingResponse response = orderService.createOrder(request);
+
+        assertThat(response.status()).isEqualTo(OrderStatus.PENDING);
+        assertThat(savedOrder.getValue().getCustomerPhone()).isNull();
+        // No phone means isBlocked/OTP/notification/loyalty must all no-op rather than NPE.
+        verify(notificationService, times(1)).send(any());
     }
 
     @Test

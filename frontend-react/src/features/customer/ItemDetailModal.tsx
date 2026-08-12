@@ -4,15 +4,16 @@ import { discountPercent } from '../../lib/format';
 import { Money } from '../../lib/Money';
 import { effectiveBasePrice } from '../../lib/cart';
 import { useI18n, useT, pick, type Dict } from '../../lib/i18n';
+import { sellable } from '../../lib/types';
 import type { PublicItem, SelectedOption } from '../../lib/types';
 
 const DICT: Dict = {
   ar: { cur: 'ر.ع', add: 'أضف للسلة', from: 'يبدأ من', req: 'يرجى اختيار', choose: 'اختر', optional: 'اختياري',
         qty: 'الكمية', close: 'إغلاق', chooseOne: 'اختر واحداً', chooseAny: 'اختر أي منها', soldout: 'غير متوفر',
-        min: 'د', prep: 'وقت التحضير' },
+        min: 'د', prep: 'وقت التحضير', qtyMinus: 'إنقاص الكمية', qtyPlus: 'زيادة الكمية' },
   en: { cur: 'OMR', add: 'Add to cart', from: 'from', req: 'Please choose', choose: 'Choose', optional: 'optional',
         qty: 'Quantity', close: 'Close', chooseOne: 'Choose one', chooseAny: 'Choose any', soldout: 'Sold out',
-        min: 'min', prep: 'Prep time' },
+        min: 'min', prep: 'Prep time', qtyMinus: 'Decrease quantity', qtyPlus: 'Increase quantity' },
 };
 
 interface Props {
@@ -34,6 +35,7 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
   const [single, setSingle] = useState<Record<number, number | null>>({});
   const [multi, setMulti] = useState<Record<number, Set<number>>>({});
   const sentViewRef = useRef(false);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   // Fire ITEM_VIEW once when the modal opens — feeds the Pro conversion radar + funnel.
   useEffect(() => {
@@ -42,13 +44,37 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
     track('ITEM_VIEW', { restaurantSlug, branchId, qrTableToken }, { menuItemId: item.id });
   }, [item.id, restaurantSlug, branchId, qrTableToken]);
 
-  // Close on Escape and lock background scroll while open.
+  // Close on Escape, trap Tab focus inside the card, lock background scroll while open, and
+  // hand focus back to whatever opened the modal (the item's thumb/name button) once it closes —
+  // without this, a keyboard user's focus is silently dropped into the body on close.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const opener = document.activeElement as HTMLElement | null;
+    const focusables = () => Array.from(
+      cardRef.current?.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      ) ?? [],
+    ).filter((el) => !el.hasAttribute('disabled'));
+    focusables()[0]?.focus();
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key !== 'Tab') return;
+      const els = focusables();
+      if (els.length === 0) return;
+      const first = els[0];
+      const last = els[els.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+      opener?.focus?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onClose]);
 
   const groups = item.optionGroups ?? [];
@@ -89,7 +115,7 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
   }, [item, selectedOptions, groups]);
 
   const missingRequired = groups.some((g) => g.selectionType === 'SINGLE' && g.required && single[g.id] == null);
-  const canAdd = item.available && !missingRequired;
+  const canAdd = sellable(item) && !missingRequired;
   const lineTotal = unitPrice * qty;
 
   const setSingleChoice = (groupId: number, optionId: number) =>
@@ -109,7 +135,7 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
 
   return (
     <div className="modal-bg c-modal" onClick={onClose} role="dialog" aria-modal="true" aria-label={name}>
-      <div className="c-modal-card" onClick={(e) => e.stopPropagation()}>
+      <div className="c-modal-card" ref={cardRef} onClick={(e) => e.stopPropagation()}>
         <button className="c-modal-x" onClick={onClose} aria-label={t('close')}>×</button>
 
         <div className="c-modal-scroll">
@@ -180,12 +206,12 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
         {orderable && (
           <div className="c-modal-foot">
             <div className="c-qty">
-              <button onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
+              <button type="button" aria-label={t('qtyMinus')} onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
               <span className="n num">{qty}</span>
-              <button onClick={() => setQty((q) => q + 1)}>+</button>
+              <button type="button" aria-label={t('qtyPlus')} onClick={() => setQty((q) => q + 1)}>+</button>
             </div>
             <button className="btn c-modal-add" disabled={!canAdd} onClick={submit}>
-              {!item.available ? t('soldout')
+              {!sellable(item) ? t('soldout')
                 : missingRequired ? t('choose')
                 : <>{t('add')} · <Money value={lineTotal} className="num" /></>}
             </button>

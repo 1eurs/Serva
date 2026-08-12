@@ -100,7 +100,7 @@
   border: 1px solid var(--line, rgba(255, 255, 255, .12)); border-radius: 999px; width: 34px; height: 34px; cursor: pointer; font-size: 14px;
 }
 .loy-back:hover { background: color-mix(in srgb, var(--text, #fff) 12%, transparent); }
-.loy-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.loy-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
 
 /* rewards-ready treat banner (only shown when something is claimable) — a little
    golden celebration: wiggling gift, shimmer sweep, warm copy. */

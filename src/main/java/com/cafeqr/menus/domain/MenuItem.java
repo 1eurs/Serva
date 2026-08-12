@@ -1,6 +1,7 @@
 package com.cafeqr.menus.domain;
 
 import com.cafeqr.common.domain.BaseEntity;
+import com.cafeqr.stock.domain.StockMode;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -15,6 +16,7 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -69,6 +71,42 @@ public class MenuItem extends BaseEntity {
 
     @Column(name = "available", nullable = false)
     private boolean available = true;
+
+    /**
+     * How much inventory tracking this item opts into. See {@link StockMode} — the ladder runs
+     * NONE -> DAILY_LIMIT -> SIMPLE -> RECIPE and every rung is useful on its own.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "stock_mode", nullable = false, length = 16)
+    private StockMode stockMode = StockMode.NONE;
+
+    /** SIMPLE mode only: the countable good backing this item (auto-created when the mode is set). */
+    @Column(name = "stock_item_id")
+    private Long stockItemId;
+
+    /** DAILY_LIMIT mode only: the cap. Null means uncapped even while the mode is set. */
+    @Column(name = "daily_limit")
+    private Integer dailyLimit;
+
+    /** How many have gone out on {@link #dailyLimitDate}. */
+    @Column(name = "daily_limit_sold", nullable = false)
+    private int dailyLimitSold = 0;
+
+    /** The café-local day {@link #dailyLimitSold} belongs to; a different day means it has reset. */
+    @Column(name = "daily_limit_date")
+    private LocalDate dailyLimitDate;
+
+    /**
+     * True when Serva switched this item off because stock ran out, rather than the owner
+     * switching it off deliberately. Restocking only re-enables items carrying this flag — an
+     * item the owner meant to keep hidden stays hidden.
+     */
+    @Column(name = "auto_unavailable", nullable = false)
+    private boolean autoUnavailable = false;
+
+    /** Disposables consumed when this item has no size option carrying its own rule. */
+    @Column(name = "packaging_rule_id")
+    private Long packagingRuleId;
 
     @Column(name = "preparation_time_minutes")
     private Integer preparationTimeMinutes;
@@ -229,6 +267,103 @@ public class MenuItem extends BaseEntity {
 
     public void setAvailable(boolean available) {
         this.available = available;
+    }
+
+    // --------------------------------------------------------------- stock
+
+    /**
+     * How many are still sellable today under {@link StockMode#DAILY_LIMIT}, or null when this
+     * item isn't capped. The tally resets implicitly: a {@code dailyLimitDate} that isn't
+     * {@code today} means nothing has gone out yet today, so no scheduled job is needed.
+     */
+    public Integer remainingToday(LocalDate today) {
+        if (stockMode != StockMode.DAILY_LIMIT || dailyLimit == null) {
+            return null;
+        }
+        int soldToday = today.equals(dailyLimitDate) ? dailyLimitSold : 0;
+        return Math.max(0, dailyLimit - soldToday);
+    }
+
+    /**
+     * Books {@code quantity} against today's cap, rolling the tally over to a new day first.
+     * Returns false (changing nothing) when the cap can't cover it.
+     */
+    public boolean consumeDailyLimit(LocalDate today, int quantity) {
+        if (stockMode != StockMode.DAILY_LIMIT || dailyLimit == null) {
+            return true;
+        }
+        if (!today.equals(dailyLimitDate)) {
+            dailyLimitDate = today;
+            dailyLimitSold = 0;
+        }
+        if (dailyLimitSold + quantity > dailyLimit) {
+            return false;
+        }
+        dailyLimitSold += quantity;
+        return true;
+    }
+
+    /** Gives back {@code quantity} when an accepted order is cancelled the same day. */
+    public void releaseDailyLimit(LocalDate today, int quantity) {
+        if (stockMode == StockMode.DAILY_LIMIT && today.equals(dailyLimitDate)) {
+            dailyLimitSold = Math.max(0, dailyLimitSold - quantity);
+        }
+    }
+
+    public StockMode getStockMode() {
+        return stockMode;
+    }
+
+    public void setStockMode(StockMode stockMode) {
+        this.stockMode = stockMode;
+    }
+
+    public Long getStockItemId() {
+        return stockItemId;
+    }
+
+    public void setStockItemId(Long stockItemId) {
+        this.stockItemId = stockItemId;
+    }
+
+    public Integer getDailyLimit() {
+        return dailyLimit;
+    }
+
+    public void setDailyLimit(Integer dailyLimit) {
+        this.dailyLimit = dailyLimit;
+    }
+
+    public int getDailyLimitSold() {
+        return dailyLimitSold;
+    }
+
+    public void setDailyLimitSold(int dailyLimitSold) {
+        this.dailyLimitSold = dailyLimitSold;
+    }
+
+    public LocalDate getDailyLimitDate() {
+        return dailyLimitDate;
+    }
+
+    public void setDailyLimitDate(LocalDate dailyLimitDate) {
+        this.dailyLimitDate = dailyLimitDate;
+    }
+
+    public boolean isAutoUnavailable() {
+        return autoUnavailable;
+    }
+
+    public void setAutoUnavailable(boolean autoUnavailable) {
+        this.autoUnavailable = autoUnavailable;
+    }
+
+    public Long getPackagingRuleId() {
+        return packagingRuleId;
+    }
+
+    public void setPackagingRuleId(Long packagingRuleId) {
+        this.packagingRuleId = packagingRuleId;
     }
 
     public Integer getPreparationTimeMinutes() {

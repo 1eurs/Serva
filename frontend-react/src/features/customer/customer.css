@@ -44,7 +44,7 @@
 .c-closed-card h3{font-size:22px}.c-closed-card p{margin:8px auto 22px;color:var(--muted);font-size:14px;line-height:1.6}
 
 /* category nav */
-.c-nav{position:sticky;top:0;z-index:20;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:12px 18px;
+.c-nav{position:sticky;top:0;z-index:20;display:flex;gap:8px;overflow-x:auto;overscroll-behavior:contain;scrollbar-width:none;padding:12px 18px;
   background:var(--glass);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
 .c-nav::-webkit-scrollbar{display:none}
 .c-nav button{white-space:nowrap;border:1px solid var(--line-2);background:transparent;color:var(--muted);font-family:var(--font-ar);
@@ -54,7 +54,7 @@
 .c-nav button.on em{background:color-mix(in srgb,var(--accent-ink) 14%,transparent);color:var(--accent-ink);border-color:color-mix(in srgb,var(--accent-ink) 24%,transparent)}
 
 /* menu */
-.c-scroll{flex:1;overflow-y:auto;scroll-behavior:smooth;scroll-padding-top:72px}
+.c-scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;scroll-behavior:smooth;scroll-padding-top:72px}
 .c-scroll::-webkit-scrollbar{width:0}
 .c-cat{padding:24px 18px 4px;scroll-margin-top:72px}
 .c-cat-head{display:flex;align-items:center;gap:14px;margin-bottom:6px}
@@ -70,7 +70,7 @@ html[dir="ltr"] .c-rule{background:linear-gradient(270deg,var(--line-2),transpar
 .c-item.out{opacity:.5}
 .c-thumb{position:relative;flex:0 0 82px;width:82px;height:82px;border-radius:var(--r-thumb,14px);overflow:hidden;background-size:cover;background-position:center;
   box-shadow:inset 0 0 0 1px var(--menu-paper-edge,rgba(255,255,255,.06))}
-.c-thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.c-thumb img{position:absolute;inset:0;width:100%;height:100%;aspect-ratio:1/1;object-fit:cover}
 .c-thumb .glyph{position:absolute;inset:0;display:grid;place-items:center;font-weight:600;font-size:30px;color:rgba(255,255,255,.55)}
 .c-body{flex:1;min-width:0;display:flex;flex-direction:column}
 .c-body h3{font-family:var(--font-display);font-weight:600;font-size:16px;line-height:1.25;color:var(--text)}
@@ -157,7 +157,7 @@ html[dir="ltr"] .c-rule{background:linear-gradient(270deg,var(--line-2),transpar
 .c-back{width:40px;height:40px;border-radius:12px;border:1px solid var(--line-2);background:var(--surface);color:var(--text);font-size:20px;cursor:pointer;display:grid;place-items:center;flex:0 0 auto}
 html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
 .c-vhdr h2{font-family:var(--font-display);font-size:19px;font-weight:700}
-.c-vbody{flex:1;overflow-y:auto;padding:18px}.c-vbody::-webkit-scrollbar{width:0}
+.c-vbody{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:18px}.c-vbody::-webkit-scrollbar{width:0}
 .c-foot-bar{padding:14px 18px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--glass);backdrop-filter:blur(10px)}
 
 /* cart lines */
@@ -171,6 +171,10 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
 .c-notein::placeholder{color:var(--faint)}
 .c-line-side{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between}
 .c-line-side .lt{font-family:var(--font-mono);font-weight:600;font-size:15px}
+
+/* inline field validation (cart checkout) */
+.field-error{margin:6px 0 0;font-size:12px;line-height:1.4;color:var(--bad,#ff6b5a)}
+.field input[aria-invalid="true"]{border-color:var(--bad,#ff6b5a)}
 
 .c-seg{display:flex;gap:8px}
 .c-seg button{flex:1;padding:11px;border-radius:12px;border:1px solid var(--line-2);background:transparent;font-family:var(--font-ar);font-weight:600;color:var(--muted);cursor:pointer;transition:.2s}
@@ -213,6 +217,11 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
 .oman-plate .op-num,.oman-plate .op-code{
   border:0;background:transparent;outline:none;text-align:center;min-width:0;
   color:#0b0c0f;font-weight:800;padding:6px 6px;
+}
+/* The compound plate widget shows a focus ring on its own container (:focus-within above),
+   but keyboard users still benefit from a ring on the specific sub-field that has focus. */
+.oman-plate .op-num:focus-visible,.oman-plate .op-code:focus-visible{
+  outline:2px solid var(--accent);outline-offset:-2px;border-radius:6px;
 }
 .oman-plate .op-num{flex:1;font-family:var(--font-mono);font-size:36px;letter-spacing:.07em}
 .oman-plate .op-code{flex:0 0 34%;font-family:var(--font-ar);font-size:31px;font-weight:800}
@@ -313,13 +322,13 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
   background:rgba(15,18,20,.42);color:#fff;border:0;font-size:22px;line-height:1;cursor:pointer;
   display:grid;place-items:center;backdrop-filter:blur(6px)}
 .c-modal-x:hover{background:rgba(15,18,20,.62)}
-.c-modal-scroll{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch}
+.c-modal-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .c-modal-body{padding:18px 18px 8px}
 
 /* ---- photo slider ---- */
 .c-slider{position:relative;width:100%;aspect-ratio:4/3;overflow:hidden;
   border-radius:var(--r-lg,18px) var(--r-lg,18px) 0 0;background:var(--surface)}
-.c-slider-track{position:absolute;inset:0;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;
+.c-slider-track{position:absolute;inset:0;display:flex;overflow-x:auto;overscroll-behavior:contain;scroll-snap-type:x mandatory;
   scrollbar-width:none}
 .c-slider-track::-webkit-scrollbar{display:none}
 .c-slider-slide{flex:0 0 100%;height:100%;scroll-snap-align:start;background-size:cover;background-position:center}

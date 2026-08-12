@@ -4,6 +4,7 @@ import MenuPage from './features/customer/MenuPage';
 import CartPage from './features/customer/CartPage';
 import TrackPage from './features/customer/TrackPage';
 import { useAuth } from './lib/auth';
+import JoinPage from './features/auth/JoinPage';
 
 const LandingPage = lazy(() => import('./features/site/LandingPage'));
 const LoyaltyPortal = lazy(() => import('./features/customer/LoyaltyPortal'));
@@ -32,6 +33,9 @@ export default function App() {
         <Route path="/cart" element={<CartPage />} />
         <Route path="/order/:trackingToken" element={<TrackPage />} />
         <Route path="/loyalty" element={<LoyaltyPortal />} />
+
+        {/* An invited staff member setting their password. Public: they have no account yet. */}
+        <Route path="/join/:token" element={<JoinPage />} />
 
         {/* App B — Serva dashboard (JWT) */}
         <Route path="/dashboard/*" element={<DashboardApp />} />

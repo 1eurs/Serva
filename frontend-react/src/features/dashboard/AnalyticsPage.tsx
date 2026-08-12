@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { motion, AnimatePresence, useSpring, useTransform, useReducedMotion, type Variants } from 'motion/react';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { motion, AnimatePresence, useReducedMotion, type Variants } from 'motion/react';
+import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
+import { useSkin } from '../../lib/skin';
 import { useI18n, useT, type Dict } from '../../lib/i18n';
-import { omr, omanDate } from '../../lib/format';
+import { omr, omanDate, omanHour } from '../../lib/format';
 import { isPlanRequiredError, isProPlan } from '../../lib/plan';
 import type { Restaurant, BranchResponse, PageResponse } from '../../lib/types';
 import './analytics.css';
@@ -47,6 +48,8 @@ interface KitchenTiming {
 
 type Range = 'today' | '7d' | '30d' | '90d' | 'custom';
 type Section = 'overview' | 'menu' | 'team' | 'customers';
+/** The figure the primary chart plots. All three come off a DailyPoint. */
+type Metric = 'revenue' | 'orders' | 'aov';
 type T = (k: string) => string;
 
 const DICT: Dict = {
@@ -54,13 +57,15 @@ const DICT: Dict = {
     a_today: 'اليوم', a_7d: '٧ أيام', a_30d: '٣٠ يوم', a_90d: '٩٠ يوم', a_custom: 'مخصّص', a_pro: 'برو',
     a_orders: 'طلبات', a_revenue: 'الإيرادات', a_aov: 'متوسط الطلب',
     a_avgShort: 'المتوسط', a_doneShort: 'مكتمل',
-    a_vsLast: 'مقابل {d} الماضي', a_vsPrevN: 'مقابل {n} يوماً سابقة', a_new: 'جديد',
+    a_comparedWith: 'مقارنة بـ {d}', a_new: 'جديد',
+    a_byHour: 'بالساعة', a_byDay: 'باليوم',
     a_busiest: 'أكثر الساعات ازدحامًا', a_bestsellers: 'الأكثر مبيعًا',
     a_status: 'حالة الطلبات', a_pending: 'معلّقة', a_accepted: 'مقبولة', a_preparing: 'تُحضَّر', a_inprogress: 'قيد التنفيذ',
     a_ready: 'جاهزة', a_completed: 'مكتملة', a_cancelled: 'ملغاة', a_declined: 'مرفوضة',
     a_noOrders: 'لا توجد طلبات بعد — ستظهر هنا فور وصولها.',
     a_noData: 'لا توجد بيانات لهذه الفترة.', a_retry: 'حاول مرة أخرى',
     a_secOverview: 'نظرة عامة', a_secMenu: 'القائمة', a_secTeam: 'الفريق', a_secCustomers: 'العملاء',
+    a_secService: 'الخدمة', a_secItems: 'الأصناف',
     a_lockTitle: 'افتح تحليلات برو', a_lockCta: 'الترقية إلى برو',
     a_lockRange: 'استعلم حتى ٩٠ يومًا من السجل وافتح طبقة التحليلات التشخيصية.',
     a_lockMenu: 'اعرف أي الأصناف تُشاهَد كثيرًا وتُطلب قليلًا، وما الذي يُطلب معًا.',
@@ -78,37 +83,40 @@ const DICT: Dict = {
     a_searchCustomers: 'ابحث بالاسم أو رقم الهاتف', a_search: 'بحث', a_name: 'الاسم', a_phone: 'رقم الهاتف', a_lastOrder: 'آخر طلب',
     a_paymentSplit: 'الإيرادات حسب الدفع', a_paymentHint: 'حسب طريقة الدفع المسجّلة عند التحصيل.', a_cash: 'نقداً', a_card: 'بطاقة / فيزا', a_transactions: 'دفعات',
     a_cbase: 'قاعدة العملاء', a_cb_repeat: 'نسبة العائدين', a_cb_repeatSub: '{r} من {n} عميلًا يعيدون الطلب',
-    a_cb_avg: 'متوسط الطلبات/عميل', a_cb_new: 'جدد هذا الشهر', a_cb_active: 'نشطون (٣٠ يومًا)', a_cb_repeatShare: 'حصة الطلبات المتكررة',
+    a_cb_avg: 'طلبات/عميل', a_cb_new: 'جدد هذا الشهر', a_cb_active: 'نشطون (٣٠ يومًا)', a_cb_repeatShare: 'حصة الطلبات المتكررة',
     a_cb_newOrders: 'أوائل', a_cb_returningOrders: 'متكررة',
     a_benchmark: 'مقارنة مرجعية', a_you: 'مطعمك', a_median: 'الوسيط', a_percentile: 'المئين', a_vsCafes: 'مقابل {n} مطعمًا',
     a_daypart: 'حسب وقت اليوم',
     a_dp_morning: 'الصباح', a_dp_midday: 'الظهيرة', a_dp_afternoon: 'العصر', a_dp_evening: 'المساء', a_dp_late: 'وقت متأخر',
     a_kitchen: 'توقيت المطبخ', a_kt_accept: 'حتى القبول', a_kt_prep: 'التحضير', a_kt_handoff: 'التسليم',
     a_kt_toReady: 'حتى الجاهزية', a_kt_total: 'الإجمالي', a_kt_bottleneck: 'أبطأ خطوة', a_kt_sample: 'عبر {n} طلبًا', a_min: 'د',
-    a_sec: 'ث', a_trend: 'الاتجاه', a_trendSub: 'آخر ٧ أيام',
-    a_metricRev: 'الإيرادات', a_metricOrd: 'الطلبات', a_less: 'أقل', a_more: 'أكثر',
+    a_sec: 'ث',
+    a_item: 'الصنف', a_qty: 'الكمية', a_share: 'الحصة', a_member: 'العضو', a_done: 'مكتمل', a_rate: 'النسبة',
     a_allBranches: 'كل الفروع',
+    a_tagPeak: 'الذروة', a_tagTop: 'الأعلى', a_tagWeak: 'ضعيف', a_tagQuiet: 'هدوء',
     a_insBusiest: '{h} هي أكثر ساعاتك ازدحامًا', a_insTop: '{name} يمثل {p}٪ من الإيرادات',
     a_insWeak: '{name} يحصل على مشاهدات بطلبات قليلة', a_insRisk: '{n} من عملائك الدائمين بدأوا يبتعدون',
     a_insBench: 'متوسط طلبك يتفوق على {p}٪ من المطاعم',
   },
   en: {
     a_today: 'Today', a_7d: '7 days', a_30d: '30 days', a_90d: '90 days', a_custom: 'Custom', a_pro: 'Pro',
-    a_orders: 'orders', a_revenue: 'Revenue', a_aov: 'Avg order',
+    a_orders: 'Orders', a_revenue: 'Revenue', a_aov: 'Avg order',
     a_avgShort: 'avg', a_doneShort: 'done',
-    a_vsLast: 'vs last {d}', a_vsPrevN: 'vs previous {n} days', a_new: 'new',
+    a_comparedWith: 'compared with {d}', a_new: 'new',
+    a_byHour: 'by hour', a_byDay: 'by day',
     a_busiest: 'Busiest hours', a_bestsellers: 'Best sellers',
     a_status: 'Order status', a_pending: 'Pending', a_accepted: 'Accepted', a_preparing: 'Preparing', a_inprogress: 'In progress',
     a_ready: 'Ready', a_completed: 'Completed', a_cancelled: 'Cancelled', a_declined: 'Declined',
     a_noOrders: "No orders yet — they'll appear here as they come in.",
     a_noData: 'No data for this period.', a_retry: 'Try again',
     a_secOverview: 'Overview', a_secMenu: 'Menu', a_secTeam: 'Team', a_secCustomers: 'Customers',
+    a_secService: 'Service', a_secItems: 'Items',
     a_lockTitle: 'Unlock Pro analytics', a_lockCta: 'Upgrade to Pro',
     a_lockRange: 'Query up to 90 days of history and unlock the diagnostic layer.',
     a_lockMenu: 'See which items get views but few orders, and what sells together.',
     a_lockTeam: 'Track accept times and throughput for each team member.',
     a_lockCustomers: 'Spot your regulars and win back customers going quiet.',
-    a_conv: 'Item conversion', a_convSub: 'view → order', a_views: 'views', a_low: 'low',
+    a_conv: 'Item conversion', a_convSub: 'view → order', a_views: 'Views', a_low: 'low',
     a_funnel: 'Conversion funnel', a_fn_sub: 'menu view → order',
     a_fn_views: 'Menu views', a_fn_cart: 'Added to cart', a_fn_checkout: 'Checkout started', a_fn_orders: 'Order placed',
     a_basket: 'Ordered together', a_together: '×',
@@ -120,26 +128,29 @@ const DICT: Dict = {
     a_searchCustomers: 'Search name or phone number', a_search: 'Search', a_name: 'Name', a_phone: 'Phone number', a_lastOrder: 'Last order',
     a_paymentSplit: 'Revenue by payment', a_paymentHint: 'Based on the payment method recorded at collection.', a_cash: 'Cash', a_card: 'Card / Visa', a_transactions: 'payments',
     a_cbase: 'Customer base', a_cb_repeat: 'Repeat rate', a_cb_repeatSub: '{r} of {n} customers reorder',
-    a_cb_avg: 'Avg orders/customer', a_cb_new: 'New this month', a_cb_active: 'Active (30d)', a_cb_repeatShare: 'Repeat-order share',
+    a_cb_avg: 'Orders/customer', a_cb_new: 'New this month', a_cb_active: 'Active (30d)', a_cb_repeatShare: 'Repeat-order share',
     a_cb_newOrders: 'First-time', a_cb_returningOrders: 'Repeat',
     a_benchmark: 'Benchmark', a_you: 'You', a_median: 'Median', a_percentile: 'percentile', a_vsCafes: 'vs {n} cafés',
     a_daypart: 'By time of day',
     a_dp_morning: 'Morning', a_dp_midday: 'Midday', a_dp_afternoon: 'Afternoon', a_dp_evening: 'Evening', a_dp_late: 'Late night',
     a_kitchen: 'Kitchen timing', a_kt_accept: 'To accept', a_kt_prep: 'Prep', a_kt_handoff: 'Handoff',
     a_kt_toReady: 'To ready', a_kt_total: 'Total', a_kt_bottleneck: 'Slowest step', a_kt_sample: 'across {n} orders', a_min: 'm',
-    a_sec: 's', a_trend: 'Trend', a_trendSub: 'last 7 days',
-    a_metricRev: 'Revenue', a_metricOrd: 'Orders', a_less: 'less', a_more: 'more',
+    a_sec: 's',
+    a_item: 'Item', a_qty: 'Qty', a_share: 'Share', a_member: 'Member', a_done: 'Done', a_rate: 'Rate',
     a_allBranches: 'All branches',
+    a_tagPeak: 'Peak', a_tagTop: 'Top', a_tagWeak: 'Weak', a_tagQuiet: 'Quiet',
     a_insBusiest: '{h} is your busiest hour', a_insTop: '{name} is {p}% of revenue',
     a_insWeak: '{name} gets views but few orders', a_insRisk: '{n} regulars have gone quiet',
     a_insBench: 'Your avg order beats {p}% of cafés',
   },
 };
 
-const INK = '#15181C';
-const LIME = '#10b981';
-const MUTED = '#566058';
 const DAY = 86_400_000;
+
+/* Minimum views before we'll call an item a weak seller. At the old threshold of 5 a
+   single quiet afternoon was enough to name-and-shame an item, which is worse than
+   saying nothing — the owner acts on it and the advice turns out to be noise. */
+const MIN_VIEWS_FOR_WEAK = 20;
 
 const hourLabel = (h: number) => { const am = h < 12; const v = h % 12 === 0 ? 12 : h % 12; return `${v}${am ? 'am' : 'pm'}`; };
 const WEEK_AR = ['', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'];
@@ -147,10 +158,48 @@ const WEEK_EN = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const dowIndex = (iso: string) => { const d = new Date(iso + 'T00:00:00').getDay(); return d === 0 ? 7 : d; };
 const fmtDate = (iso: string, lang: string, opts: Intl.DateTimeFormatOptions) =>
   new Intl.DateTimeFormat(lang === 'ar' ? 'ar-u-nu-latn' : 'en-GB', opts).format(new Date(iso + 'T00:00:00'));
+const ymd = (ms: number) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+/** Every ISO date in a window, so a day the API omitted (no orders) still gets a point. */
+const dayList = (fromIso: string, n: number) => {
+  const t0 = new Date(fromIso + 'T00:00:00').getTime();
+  return Array.from({ length: n }, (_, i) => ymd(t0 + i * DAY));
+};
 
-/* staggered reveal for the insight strip + weekly rhythm */
-const listV: Variants = { show: { transition: { staggerChildren: 0.07, delayChildren: 0.04 } } };
-const itemV: Variants = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0 } };
+/* staggered reveal for lists that read top-to-bottom */
+const listV: Variants = { show: { transition: { staggerChildren: 0.06, delayChildren: 0.03 } } };
+const itemV: Variants = { hidden: { opacity: 0, y: 5 }, show: { opacity: 1, y: 0 } };
+
+/* =====================================================================
+   Chart palette.
+
+   Recharts writes stroke/fill as SVG presentation attributes, where a
+   var() reference does not resolve — so the palette has to be read off
+   the DOM rather than declared in CSS, and re-read whenever the skin
+   flips. This replaces three hardcoded hexes that were emerald under the
+   pro skin, whose primary is zinc-900 and whose surfaces are neutral.
+   ===================================================================== */
+const CHART_TOKENS = ['--accent-text', '--lime', '--faint', '--muted', '--line-2', '--bg-2'] as const;
+type ChartTokens = Record<(typeof CHART_TOKENS)[number], string>;
+const CHART_FALLBACK: ChartTokens = {
+  '--accent-text': '#047857', '--lime': '#10b981', '--faint': '#8A938B',
+  '--muted': '#566058', '--line-2': 'rgba(21,24,28,.42)', '--bg-2': '#FFFFFF',
+};
+function useChartTokens(ref: RefObject<HTMLElement | null>): ChartTokens {
+  const { skin } = useSkin();
+  const [tok, setTok] = useState<ChartTokens>(CHART_FALLBACK);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const cs = getComputedStyle(el);
+    const next = { ...CHART_FALLBACK };
+    for (const k of CHART_TOKENS) {
+      const v = cs.getPropertyValue(k).trim();
+      if (v) next[k] = v;
+    }
+    setTok(next);
+  }, [ref, skin]);
+  return tok;
+}
 
 /* up/down/flat/new delta vs a comparable previous period */
 interface Delta { dir: 'up' | 'down' | 'flat' | 'new' | 'none'; pct: number; abs: number }
@@ -163,13 +212,26 @@ function delta(now: number, prev: number | null | undefined): Delta {
   return { dir: change > 0 ? 'up' : 'down', pct: Math.abs(Math.round(change)), abs };
 }
 
+/** One plotted point: the current window, and the same slot one window back. */
+interface Point { x: string; now: number | null; was: number | null }
+const pickMetric = (d: DailyPoint | undefined, m: Metric): number => {
+  if (!d) return 0;
+  if (m === 'orders') return d.orders;
+  const rev = Number(d.revenue);
+  if (m === 'revenue') return rev;
+  return d.orders > 0 ? rev / d.orders : 0;
+};
+
 export default function AnalyticsPage({ branches }: { branches: BranchResponse[] }) {
   const { user } = useAuth();
   const { lang } = useI18n();
   const t = useT(DICT);
   const reduce = useReducedMotion();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const tok = useChartTokens(rootRef);
   const [range, setRange] = useState<Range>('today');
   const [section, setSection] = useState<Section>('overview');
+  const [metric, setMetric] = useState<Metric>('revenue');
   const [customerDirectoryOpen, setCustomerDirectoryOpen] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
@@ -209,7 +271,6 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
   const isMulti = queryRange !== 'today';
   const spanDays = Math.max(1, Math.round((new Date(to + 'T00:00:00').getTime() - new Date(from + 'T00:00:00').getTime()) / DAY) + 1);
 
-  const ymd = (ms: number) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const prev = queryRange === 'today'
     ? { from: omanDate(new Date(Date.now() - 7 * DAY)), to: omanDate(new Date(Date.now() - 7 * DAY)) }
     : (() => { const fromMs = new Date(from + 'T00:00:00').getTime(); return { from: ymd(fromMs - spanDays * DAY), to: ymd(fromMs - DAY) }; })();
@@ -239,6 +300,17 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
     queryKey: ['an-daily', queryRange, from, to, branchFilter],
     enabled: planReady && isMulti,
     queryFn: () => api.get<DailyPoint[]>(`/api/dashboard/analytics/daily?${rangeQs}${branchQs}`),
+  });
+
+  /* The ghost series behind the current one. /daily caps the SPAN, not how far
+     back you may look, so the previous window is the same length as the current
+     one and stays inside a Standard plan's allowance. If it does fail the chart
+     simply renders without a comparison rather than erroring. */
+  const prevDailyQ = useQuery({
+    queryKey: ['an-daily-prev', queryRange, prev.from, prev.to, branchFilter],
+    enabled: planReady && isMulti,
+    retry: false,
+    queryFn: () => api.get<DailyPoint[]>(`/api/dashboard/analytics/daily?from=${prev.from}&to=${prev.to}${branchQs}`),
   });
 
   const daypartQ = useQuery({
@@ -277,55 +349,83 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
 
   const s = summaryQ.data;
 
-  // Plain-language insights, prioritised & capped at 3 — same voice as the weekly email.
-  const insights = useMemo(() => {
-    if (!s) return [] as Array<{ icon: string; text: string }>;
-    const out: Array<{ icon: string; text: string }> = [];
+  /* Plain-language notes, prioritised & capped at 3 — same voice as the weekly
+     email. The tag names the KIND of finding, which is information; the emoji
+     it replaced only said "friendly product". */
+  const notes = useMemo(() => {
+    if (!s) return [] as Array<{ tag: string; text: string }>;
+    const out: Array<{ tag: string; text: string }> = [];
     if (queryRange === 'today' && s.busiestHours.length) {
       const peak = [...s.busiestHours].sort((a, b) => b.orders - a.orders)[0];
-      out.push({ icon: '☕', text: t('a_insBusiest').replace('{h}', hourLabel(peak.hour)) });
+      out.push({ tag: t('a_tagPeak'), text: t('a_insBusiest').replace('{h}', hourLabel(peak.hour)) });
     }
     const top = s.bestSellingItems[0];
     const totalRev = Number(s.totalRevenue);
     if (top && totalRev > 0) {
       const share = Math.round((Number(top.totalRevenue) / totalRev) * 100);
-      if (share > 0) out.push({ icon: '⭐', text: t('a_insTop').replace('{name}', nm(top.nameEn, top.nameAr)).replace('{p}', String(share)) });
+      if (share > 0) out.push({ tag: t('a_tagTop'), text: t('a_insTop').replace('{name}', nm(top.nameEn, top.nameAr)).replace('{p}', String(share)) });
     }
     if (isPro) {
-      const weak = (convQ.data ?? []).filter((c) => c.views >= 5).sort((a, b) => Number(a.conversionRate) - Number(b.conversionRate))[0];
-      if (weak) out.push({ icon: '💡', text: t('a_insWeak').replace('{name}', nm(weak.nameEn, weak.nameAr)) });
+      const weak = (convQ.data ?? []).filter((c) => c.views >= MIN_VIEWS_FOR_WEAK).sort((a, b) => Number(a.conversionRate) - Number(b.conversionRate))[0];
+      if (weak) out.push({ tag: t('a_tagWeak'), text: t('a_insWeak').replace('{name}', nm(weak.nameEn, weak.nameAr)) });
       const risk = customersQ.data?.atRisk.length ?? 0;
-      if (risk > 0) out.push({ icon: '👋', text: t('a_insRisk').replace('{n}', String(risk)) });
-      // Benchmark insight temporarily disabled.
-      // const b = benchmarkQ.data;
-      // if (b && b.comparableCafes >= 5) out.push({ icon: '📈', text: t('a_insBench').replace('{p}', String(Math.max(0, Math.min(100, b.aovPercentile)))) });
+      if (risk > 0) out.push({ tag: t('a_tagQuiet'), text: t('a_insRisk').replace('{n}', String(risk)) });
     }
     return out.slice(0, 3);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s, queryRange, isPro, convQ.data, customersQ.data, lang]);
 
-  const sparkBars = useMemo(() => {
-    if (!s) return [];
-    if (queryRange === 'today') {
-      return [...s.busiestHours].sort((a, b) => a.hour - b.hour)
-        .map((h) => ({ label: hourLabel(h.hour), value: h.orders, hint: `${hourLabel(h.hour)} · ${h.orders}` }));
+  /* What the primary chart plots. On Today only hourly ORDER counts exist —
+     revenue is not bucketed by hour — so the ledger stops driving the chart and
+     the header says what is actually on screen. */
+  const plotted: Metric = isMulti ? metric : 'orders';
+
+  const chart = useMemo(() => {
+    if (!isMulti) {
+      const nowH = omanHour();
+      const cur = new Map((s?.busiestHours ?? []).map((h) => [h.hour, h.orders]));
+      const was = new Map((prevQ.data?.busiestHours ?? []).map((h) => [h.hour, h.orders]));
+      const hrs = [...new Set([...cur.keys(), ...was.keys()])].sort((a, b) => a - b);
+      if (!hrs.length) return [] as Point[];
+      const pts: Point[] = [];
+      for (let h = hrs[0]; h <= hrs[hrs.length - 1]; h++) {
+        pts.push({
+          x: hourLabel(h),
+          /* The day is still running. Past the current hour there is no data
+             yet, and plotting a zero there reads as demand collapsing rather
+             than as the day not having happened — so the line stops instead.
+             The ghost keeps going, which is the whole point: you can see where
+             last week was by this hour, and where it finished. */
+          now: h <= nowH ? cur.get(h) ?? 0 : null,
+          was: was.size ? was.get(h) ?? 0 : null,
+        });
+      }
+      return pts;
     }
-    return (dailyQ.data ?? []).map((d) => ({
-      label: (lang === 'ar' ? WEEK_AR : WEEK_EN)[dowIndex(d.date)],
-      value: Number(d.revenue),
-      hint: `${fmtDate(d.date, lang, { day: 'numeric', month: 'short' })} · ${omr(d.revenue)}`,
+    const curMap = new Map((dailyQ.data ?? []).map((d) => [d.date, d]));
+    const wasMap = new Map((prevDailyQ.data ?? []).map((d) => [d.date, d]));
+    const hasWas = wasMap.size > 0;
+    const curDays = dayList(from, spanDays);
+    const wasDays = dayList(prev.from, spanDays);
+    const week = lang === 'ar' ? WEEK_AR : WEEK_EN;
+    return curDays.map((iso, i) => ({
+      x: spanDays <= 8 ? week[dowIndex(iso)] : fmtDate(iso, lang, { day: 'numeric', month: 'short' }),
+      now: pickMetric(curMap.get(iso), metric),
+      was: hasWas ? pickMetric(wasMap.get(wasDays[i]), metric) : null,
     }));
-  }, [s, queryRange, dailyQ.data, lang]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMulti, s, prevQ.data, dailyQ.data, prevDailyQ.data, metric, from, prev.from, spanDays, lang]);
 
-  const rangeLabel = queryRange === 'today' ? t('a_today') : queryRange === '7d' ? t('a_7d') : queryRange === '30d' ? t('a_30d') : queryRange === '90d' ? t('a_90d') : t('a_custom');
-  const eyebrow = queryRange === 'today'
-    ? `${t('a_today')} · ${fmtDate(to, lang, { weekday: 'short', day: 'numeric', month: 'short' })}`
-    : `${rangeLabel} · ${fmtDate(from, lang, { day: 'numeric', month: 'short' })} – ${fmtDate(to, lang, { day: 'numeric', month: 'short' })}`;
-  const vsLabel = queryRange === 'today'
-    ? t('a_vsLast').replace('{d}', fmtDate(prev.to, lang, { weekday: 'short' }))
-    : t('a_vsPrevN').replace('{n}', String(spanDays));
+  const shortWin = (a: string, b: string) => (a === b
+    ? fmtDate(a, lang, { day: 'numeric', month: 'short' })
+    : `${fmtDate(a, lang, { day: 'numeric', month: 'short' })} – ${fmtDate(b, lang, { day: 'numeric', month: 'short' })}`);
+  const curLabel = shortWin(from, to);
+  const prevLabel = shortWin(prev.from, prev.to);
+  const windowLabel = queryRange === 'today'
+    ? fmtDate(to, lang, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+    : `${fmtDate(from, lang, { day: 'numeric', month: 'short' })} – ${fmtDate(to, lang, { day: 'numeric', month: 'short', year: 'numeric' })}`;
+
   const presets: Range[] = isPro ? ['today', '7d', '30d', '90d', 'custom'] : ['today', '7d'];
-
   const tabs: Array<{ key: Section; label: string; locked: boolean }> = [
     { key: 'overview', label: t('a_secOverview'), locked: false },
     { key: 'menu', label: t('a_secMenu'), locked: false },
@@ -333,6 +433,7 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
     { key: 'customers', label: t('a_secCustomers'), locked: !isPro },
   ];
   const bestSellerCap = isPro ? 8 : 5;
+  const metricLabel: Record<Metric, string> = { revenue: t('a_revenue'), orders: t('a_orders'), aov: t('a_aov') };
 
   if (restaurantQ.isError) {
     return (
@@ -346,41 +447,43 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
   if (restaurantQ.isLoading || !planReady) return <Skeleton />;
 
   return (
-    <div className="an">
-      <div className="an-rangebar">
-        <div className="an-seg" role="tablist" aria-label={rangeLabel}>
-          {presets.map((p) => (
-            <button key={p} role="tab" aria-selected={range === p} className={range === p ? 'on' : ''}
-              onClick={() => setRange(p)}>{p === 'today' ? t('a_today') : p === '7d' ? t('a_7d') : p === '30d' ? t('a_30d') : p === '90d' ? t('a_90d') : t('a_custom')}</button>
+    <div className="an" ref={rootRef}>
+      <div className="an-bar">
+        <div className="an-nav" role="tablist" aria-label={t('a_secOverview')}>
+          {tabs.map((tab) => (
+            <button key={tab.key} role="tab" id={`an-tab-${tab.key}`} aria-selected={section === tab.key}
+              aria-controls="an-pane" className={section === tab.key ? 'on' : ''}
+              onClick={() => setSection(tab.key)}>
+              {tab.label}{tab.locked && <span className="an-lock-ic" aria-hidden>🔒</span>}
+            </button>
           ))}
         </div>
-        {isPro && range === 'custom' && (
-          <div className="an-daterange">
-            <input type="date" value={customFrom} max={customTo || todayD} onChange={(e) => setCustomFrom(e.target.value)} aria-label={t('a_custom')} />
-            <span className="an-dr-sep">–</span>
-            <input type="date" value={customTo} min={customFrom} max={todayD} onChange={(e) => setCustomTo(e.target.value)} aria-label={t('a_custom')} />
+        <div className="an-ctl">
+          <div className="an-seg" role="group" aria-label={t('a_custom')}>
+            {presets.map((p) => (
+              <button key={p} aria-pressed={range === p} className={range === p ? 'on' : ''}
+                onClick={() => setRange(p)}>{p === 'today' ? t('a_today') : p === '7d' ? t('a_7d') : p === '30d' ? t('a_30d') : p === '90d' ? t('a_90d') : t('a_custom')}</button>
+            ))}
           </div>
-        )}
-        {canPickBranch && (
-          <select className="an-branch-sel" value={branchFilter} aria-label={t('a_allBranches')} onChange={(e) => setBranchFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}>
-            <option value="all">{t('a_allBranches')}</option>
-            {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </select>
-        )}
-      </div>
-
-      <div className="an-tabs" role="tablist">
-        {tabs.map((tab) => (
-          <button key={tab.key} role="tab" aria-selected={section === tab.key}
-            className={section === tab.key ? 'on' : ''}
-            onClick={() => setSection(tab.key)}>
-            {tab.label}{tab.locked && <span className="an-tab-lock" aria-hidden> 🔒</span>}
-          </button>
-        ))}
+          {isPro && range === 'custom' && (
+            <div className="an-daterange">
+              <input type="date" value={customFrom} max={customTo || todayD} onChange={(e) => setCustomFrom(e.target.value)} aria-label={t('a_custom')} />
+              <span className="an-dr-sep">–</span>
+              <input type="date" value={customTo} min={customFrom} max={todayD} onChange={(e) => setCustomTo(e.target.value)} aria-label={t('a_custom')} />
+            </div>
+          )}
+          {canPickBranch && (
+            <select className="an-branch-sel" value={branchFilter} aria-label={t('a_allBranches')} onChange={(e) => setBranchFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}>
+              <option value="all">{t('a_allBranches')}</option>
+              {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          )}
+        </div>
       </div>
 
       <AnimatePresence mode="wait">
-        <motion.div className="an-pane" key={section + range + branchFilter} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.16 }}>
+        <motion.div className="an-pane" id="an-pane" role="tabpanel" aria-labelledby={`an-tab-${section}`}
+          key={section + range + branchFilter} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.16 }}>
 
           {/* ---------- OVERVIEW ---------- */}
           {section === 'overview' && (
@@ -393,62 +496,62 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
             ) :
             s ? (
               <>
-                <Hero
-                  s={s} cur={cur} t={t} eyebrow={eyebrow}
-                  revDelta={delta(Number(s.totalRevenue), prevQ.data ? Number(prevQ.data.totalRevenue) : null)}
-                  ordDelta={delta(s.totalOrders, prevQ.data ? prevQ.data.totalOrders : null)}
-                  aovDelta={delta(Number(s.averageOrderValue), prevQ.data ? Number(prevQ.data.averageOrderValue) : null)}
-                  vsLabel={vsLabel}
-                  spark={sparkBars}
-                />
+                <p className="an-ctx">
+                  <span>{windowLabel}</span>
+                  {prevQ.data && <b>{t('a_comparedWith').replace('{d}', prevLabel)}</b>}
+                </p>
 
-                {insights.length > 0 && (
-                  <motion.ul className="an-insights" variants={listV} initial={reduce ? false : 'hidden'} animate="show">
-                    {insights.map((it, i) => (
-                      <motion.li key={i} className="an-insight" variants={itemV}><span className="an-insight-ic" aria-hidden>{it.icon}</span>{it.text}</motion.li>
+                <div className="an-ledger">
+                  <LedgerCell k={t('a_revenue')} v={omr(s.totalRevenue)} unit={cur} on={plotted === 'revenue'}
+                    d={delta(Number(s.totalRevenue), prevQ.data ? Number(prevQ.data.totalRevenue) : null)}
+                    pick={isMulti ? () => setMetric('revenue') : undefined} t={t} />
+                  <LedgerCell k={t('a_orders')} v={s.totalOrders.toLocaleString()} on={plotted === 'orders'}
+                    d={delta(s.totalOrders, prevQ.data ? prevQ.data.totalOrders : null)}
+                    pick={isMulti ? () => setMetric('orders') : undefined} t={t} />
+                  <LedgerCell k={t('a_aov')} v={omr(s.averageOrderValue)} unit={cur} on={plotted === 'aov'}
+                    d={delta(Number(s.averageOrderValue), prevQ.data ? Number(prevQ.data.averageOrderValue) : null)}
+                    pick={isMulti ? () => setMetric('aov') : undefined} t={t} />
+                </div>
+
+                <ChartPanel points={chart} hourly={!isMulti} metric={plotted} label={metricLabel[plotted]}
+                  curLabel={curLabel} prevLabel={prevLabel} cur={cur} tok={tok} t={t} />
+
+                {notes.length > 0 && (
+                  <motion.ul className="an-notes" variants={listV} initial={reduce ? false : 'hidden'} animate="show">
+                    {notes.map((n, i) => (
+                      <motion.li key={i} className="an-note" variants={itemV}>
+                        <span className="an-note-tag">{n.tag}</span>{n.text}
+                      </motion.li>
                     ))}
                   </motion.ul>
                 )}
 
-                {isMulti && dailyQ.data && <TrendCard data={dailyQ.data} lang={lang} cur={cur} t={t} days={spanDays} />}
+                <section className="an-sec">
+                  <div className="an-sec-hd"><h2>{t('a_secService')}</h2></div>
+                  <div className="an-cols">
+                    <section className="an-block">
+                      <h3>{t('a_status')}</h3>
+                      <StatusBreakdown s={s} t={t} />
+                    </section>
+                    {daypartQ.data && (
+                      <section className="an-block">
+                        <h3>{t('a_daypart')}</h3>
+                        <DaypartCard rows={daypartQ.data} t={t} />
+                      </section>
+                    )}
+                    {paymentMethodsQ.data && (
+                      <section className="an-block">
+                        <h3>{t('a_paymentSplit')}</h3>
+                        <PaymentSplitCard rows={paymentMethodsQ.data} t={t} />
+                      </section>
+                    )}
+                  </div>
+                </section>
 
-                <div className="an-grid">
-                  <section className="an-card">
-                    <h3>{t('a_status')}</h3>
-                    <StatusBreakdown s={s} t={t} />
-                  </section>
-                  {daypartQ.data && (
-                    <section className="an-card">
-                      <h3>{t('a_daypart')}</h3>
-                      <DaypartCard rows={daypartQ.data} t={t} />
-                    </section>
-                  )}
-                  {paymentMethodsQ.data && (
-                    <section className="an-card">
-                      <h3>{t('a_paymentSplit')}</h3>
-                      <PaymentSplitCard rows={paymentMethodsQ.data} t={t} />
-                    </section>
-                  )}
-                  {/* Benchmark card temporarily disabled — needs rework (small-sample UX,
-                      per-café volume floor, like-for-like cohort). Re-enable benchmarkQ above to restore.
-                  {isPro && benchmarkQ.data && (
-                    <section className="an-card">
-                      <h3>{t('a_benchmark')}</h3>
-                      <div className="an-bench">
-                        <BenchRow label={t('a_aov')} you={omr(benchmarkQ.data.yourAov)} median={omr(benchmarkQ.data.medianAov)} pct={benchmarkQ.data.aovPercentile} t={t} />
-                        <BenchRow
-                          label={t('a_avgAccept')}
-                          you={benchmarkQ.data.yourAcceptSeconds == null ? t('a_never') : `${Math.round(benchmarkQ.data.yourAcceptSeconds)}${t('a_sec')}`}
-                          median={benchmarkQ.data.medianAcceptSeconds == null ? t('a_never') : `${Math.round(benchmarkQ.data.medianAcceptSeconds)}${t('a_sec')}`}
-                          pct={benchmarkQ.data.acceptPercentile}
-                          t={t}
-                        />
-                        <p className="an-bench-foot">{t('a_vsCafes').replace('{n}', String(benchmarkQ.data.comparableCafes))}</p>
-                      </div>
-                    </section>
-                  )}
-                  */}
-                </div>
+                {/* Benchmark card temporarily disabled — needs rework (small-sample UX,
+                    per-café volume floor, like-for-like cohort). Re-enable benchmarkQ above
+                    to restore. NOTE: the daybook-era .an-bench styles were dropped in the
+                    console redesign, so BenchRow needs a restyle when it comes back. */}
               </>
             ) : null}
 
@@ -456,9 +559,11 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
                 range — kept outside the summary gate so it doesn't blank out while the
                 summary above refetches on a range change. */}
             {isPro && forecastQ.data?.length ? (
-              <section className="an-card">
-                <h3>{t('a_forecast')}</h3>
-                <WeeklyRhythm slots={forecastQ.data} lang={lang} t={t} />
+              <section className="an-sec">
+                <div className="an-sec-hd"><h2>{t('a_forecast')}</h2></div>
+                <section className="an-block narrow">
+                  <WeeklyRhythm slots={forecastQ.data} lang={lang} t={t} />
+                </section>
               </section>
             ) : null}
             </>
@@ -469,58 +574,73 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
             summaryQ.isLoading ? <Skeleton /> : (
               <>
                 {isPro && funnelQ.data && <FunnelCard data={funnelQ.data} t={t} />}
-                <div className="an-grid">
-                  <section className="an-card">
-                    <h3>{t('a_bestsellers')}</h3>
-                    {!s || s.bestSellingItems.length === 0 ? <p className="an-empty">{t('a_noOrders')}</p> : (
-                      <motion.ol className="an-list ranked" variants={listV} initial={reduce ? false : 'hidden'} animate="show">
-                        {(() => {
-                          const maxRev = Math.max(...s.bestSellingItems.map((it) => Number(it.totalRevenue)), 1);
-                          return s.bestSellingItems.slice(0, bestSellerCap).map((it, i) => (
-                            <motion.li key={it.menuItemId} className="an-rankrow" variants={itemV}>
-                              <span className="an-li-rank">{i + 1}</span>
-                              <div className="an-rankrow-main">
-                                <div className="an-rankrow-top">
-                                  <span className="an-li-name">{nm(it.nameEn, it.nameAr)}</span>
-                                  <span className="an-li-val">{it.totalQuantity} · {omr(it.totalRevenue)}</span>
-                                </div>
-                                <div className="an-bar"><motion.div className="an-bar-fill" style={{ width: `${(Number(it.totalRevenue) / maxRev) * 100}%` }}
-                                  initial={reduce ? false : { scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ delay: reduce ? 0 : 0.12 + i * 0.06, duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }} /></div>
-                              </div>
-                            </motion.li>
-                          ));
+
+                <section className="an-sec">
+                  <div className="an-sec-hd"><h2>{t('a_secItems')}</h2></div>
+                  <div className="an-cols pair">
+                    <section className="an-block">
+                      <h3>{t('a_bestsellers')}</h3>
+                      {!s || s.bestSellingItems.length === 0 ? <p className="an-empty">{t('a_noOrders')}</p> : (() => {
+                        const rows = s.bestSellingItems.slice(0, bestSellerCap);
+                        /* Tint by quantity, not revenue: the API ranks these by
+                           SUM(quantity) DESC, so tinting by revenue makes row 5 wider
+                           than row 1 and the weight contradicts the rank. */
+                        const maxQty = Math.max(...rows.map((it) => it.totalQuantity), 1);
+                        return (
+                          <RankTable
+                            head={[t('a_item'), t('a_qty'), t('a_revenue')]}
+                            rows={rows.map((it) => ({
+                              key: it.menuItemId,
+                              name: nm(it.nameEn, it.nameAr),
+                              share: (it.totalQuantity / maxQty) * 100,
+                              cells: [String(it.totalQuantity), omr(it.totalRevenue)],
+                            }))}
+                          />
+                        );
+                      })()}
+                    </section>
+
+                    {isPro && (
+                      <section className="an-block">
+                        <h3>{t('a_conv')} <small>{t('a_convSub')}</small></h3>
+                        {!convQ.data?.length ? <p className="an-empty">{t('a_noData')}</p> : (() => {
+                          const rows = convQ.data.slice(0, 8);
+                          const weakId = rows.filter((c) => c.views >= MIN_VIEWS_FOR_WEAK)
+                            .sort((a, b) => Number(a.conversionRate) - Number(b.conversionRate))[0]?.menuItemId;
+                          return (
+                            <RankTable
+                              head={[t('a_item'), t('a_views'), t('a_rate')]}
+                              rows={rows.map((c) => ({
+                                key: c.menuItemId,
+                                name: <>{nm(c.nameEn, c.nameAr)}{c.menuItemId === weakId && <i className="an-tag">{t('a_low')}</i>}</>,
+                                share: Math.min(100, Math.round(Number(c.conversionRate) * 100)),
+                                cells: [String(c.views), `${Math.round(Number(c.conversionRate) * 100)}%`],
+                              }))}
+                            />
+                          );
                         })()}
-                      </motion.ol>
+                      </section>
                     )}
-                  </section>
 
-                  {isPro && (
-                    <section className="an-card">
-                      <h3>{t('a_conv')} <small>{t('a_convSub')}</small></h3>
-                      {!convQ.data?.length ? <p className="an-empty">{t('a_noData')}</p> : (
-                        <ConversionBars rows={convQ.data.slice(0, 6)} nm={nm} t={t} />
-                      )}
-                    </section>
-                  )}
-
-                  {isPro && (
-                    <section className="an-card">
-                      <h3>{t('a_basket')}</h3>
-                      {!basketQ.data?.length ? (
-                        <p className="an-empty hint">{t('a_basketHint')}</p>
-                      ) : (
-                        <motion.ul className="an-pairs" variants={listV} initial={reduce ? false : 'hidden'} animate="show">
-                          {basketQ.data.map((p) => (
-                            <motion.li key={`${p.itemAId}-${p.itemBId}`} className="an-pair" variants={itemV}>
-                              <span className="an-pair-names">{nm(p.aNameEn, p.aNameAr)} <i>+</i> {nm(p.bNameEn, p.bNameAr)}</span>
-                              <span className="an-pair-n">{p.coOrders}{t('a_together')}</span>
-                            </motion.li>
-                          ))}
-                        </motion.ul>
-                      )}
-                    </section>
-                  )}
-                </div>
+                    {isPro && (
+                      <section className="an-block">
+                        <h3>{t('a_basket')}</h3>
+                        {!basketQ.data?.length ? (
+                          <p className="an-empty hint">{t('a_basketHint')}</p>
+                        ) : (
+                          <motion.ul className="an-pairs" variants={listV} initial={reduce ? false : 'hidden'} animate="show">
+                            {basketQ.data.map((p) => (
+                              <motion.li key={`${p.itemAId}-${p.itemBId}`} className="an-pair" variants={itemV}>
+                                <span className="an-pair-names">{nm(p.aNameEn, p.aNameAr)} <i>+</i> {nm(p.bNameEn, p.bNameAr)}</span>
+                                <span className="an-pair-n">{p.coOrders}{t('a_together')}</span>
+                              </motion.li>
+                            ))}
+                          </motion.ul>
+                        )}
+                      </section>
+                    )}
+                  </div>
+                </section>
 
                 {!isPro && <ProUpsell desc={t('a_lockMenu')} tags={[t('a_conv'), t('a_basket')]} t={t} />}
               </>
@@ -531,26 +651,27 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
           {section === 'team' && (
             !isPro ? <ProUpsell desc={t('a_lockTeam')} tags={[t('a_staff')]} t={t} /> :
             staffQ.isLoading ? <Skeleton cards={1} /> : (
-              <div className="an-grid">
-                <section className="an-card">
+              <div className="an-cols pair">
+                <section className="an-block">
                   <h3>{t('a_staff')}</h3>
-                  {!staffQ.data?.length ? <p className="an-empty">{t('a_noData')}</p> : (
-                    <motion.ol className="an-list ranked" variants={listV} initial={reduce ? false : 'hidden'} animate="show">
-                      {[...staffQ.data].sort((a, b) => b.completed - a.completed).map((m, i) => (
-                        <motion.li key={m.actorUserId} className="an-staffrow" variants={itemV}>
-                          <span className={'an-li-rank' + (i === 0 ? ' top' : ' ghost')}>{i + 1}</span>
-                          <span className="an-li-name">{m.actorName}</span>
-                          <span className="an-staff-meta">
-                            <b>{m.completed}</b>
-                            <small>{m.avgAcceptSeconds == null ? t('a_never') : `${Math.round(m.avgAcceptSeconds)}${t('a_sec')}`}</small>
-                          </span>
-                        </motion.li>
-                      ))}
-                    </motion.ol>
-                  )}
+                  {!staffQ.data?.length ? <p className="an-empty">{t('a_noData')}</p> : (() => {
+                    const rows = [...staffQ.data].sort((a, b) => b.completed - a.completed);
+                    const max = Math.max(...rows.map((m) => m.completed), 1);
+                    return (
+                      <RankTable
+                        head={[t('a_member'), t('a_done'), t('a_avgAccept')]}
+                        rows={rows.map((m) => ({
+                          key: m.actorUserId,
+                          name: m.actorName,
+                          share: (m.completed / max) * 100,
+                          cells: [String(m.completed), m.avgAcceptSeconds == null ? t('a_never') : `${Math.round(m.avgAcceptSeconds)}${t('a_sec')}`],
+                        }))}
+                      />
+                    );
+                  })()}
                 </section>
                 {kitchenQ.data && (
-                  <section className="an-card">
+                  <section className="an-block">
                     <h3>{t('a_kitchen')}</h3>
                     <KitchenCard d={kitchenQ.data} t={t} />
                   </section>
@@ -577,39 +698,45 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
               />
             ) : customersQ.isLoading ? <Skeleton cards={2} /> : (
               <>
-                <div className="an-customer-actions">
-                  <button className="an-directory-btn" onClick={() => setCustomerDirectoryOpen(true)}>
-                    <span aria-hidden="true">☷</span>{t('a_allCustomers')}
-                  </button>
+                <div className="an-actions">
+                  <button className="an-btn" onClick={() => setCustomerDirectoryOpen(true)}>{t('a_allCustomers')}</button>
                 </div>
                 {customerBaseQ.data && customerBaseQ.data.totalCustomers > 0 && (
-                  <section className="an-card">
+                  <section className="an-block">
                     <h3>{t('a_cbase')}</h3>
                     <CustomerBaseCard d={customerBaseQ.data} t={t} />
                   </section>
                 )}
-                <div className="an-grid">
-                <section className="an-card">
-                  <h3>{t('a_regulars')}</h3>
-                  {!customersQ.data?.topRegulars.length ? <p className="an-empty">{t('a_noData')}</p> : (
-                    <motion.ul className="an-people" variants={listV} initial={reduce ? false : 'hidden'} animate="show">
-                      {customersQ.data.topRegulars.slice(0, 8).map((c) => (
-                        <motion.li key={c.profileId} variants={itemV}><span className="an-av">{(c.name || c.phone).slice(0, 1)}</span><span className="an-li-name">{c.name || c.phone}</span><span className="an-li-val">{c.orderCount} {t('a_ordersN')}</span></motion.li>
-                      ))}
-                    </motion.ul>
-                  )}
-                </section>
-                <section className="an-card">
-                  <h3>{t('a_atrisk')}</h3>
-                  {!customersQ.data?.atRisk.length ? <p className="an-empty">{t('a_noData')}</p> : (
-                    <motion.ul className="an-people" variants={listV} initial={reduce ? false : 'hidden'} animate="show">
-                      {customersQ.data.atRisk.slice(0, 8).map((c) => (
-                        <motion.li key={c.profileId} variants={itemV}><span className="an-av quiet">{(c.name || c.phone).slice(0, 1)}</span><span className="an-li-name">{c.name || c.phone}</span><span className="an-li-val">{c.lastOrderAt ? fmtDate(c.lastOrderAt.slice(0, 10), lang, { day: 'numeric', month: 'short' }) : t('a_never')}</span></motion.li>
-                      ))}
-                    </motion.ul>
-                  )}
-                </section>
-              </div>
+                <div className="an-cols pair">
+                  <section className="an-block">
+                    <h3>{t('a_regulars')}</h3>
+                    {!customersQ.data?.topRegulars.length ? <p className="an-empty">{t('a_noData')}</p> : (
+                      <motion.ul className="an-people" variants={listV} initial={reduce ? false : 'hidden'} animate="show">
+                        {customersQ.data.topRegulars.slice(0, 8).map((c) => (
+                          <motion.li key={c.profileId} variants={itemV}>
+                            <span className="an-av on">{(c.name || c.phone).slice(0, 1)}</span>
+                            <span className="an-li-name">{c.name || c.phone}</span>
+                            <span className="an-li-val">{c.orderCount} {t('a_ordersN')}</span>
+                          </motion.li>
+                        ))}
+                      </motion.ul>
+                    )}
+                  </section>
+                  <section className="an-block">
+                    <h3>{t('a_atrisk')}</h3>
+                    {!customersQ.data?.atRisk.length ? <p className="an-empty">{t('a_noData')}</p> : (
+                      <motion.ul className="an-people" variants={listV} initial={reduce ? false : 'hidden'} animate="show">
+                        {customersQ.data.atRisk.slice(0, 8).map((c) => (
+                          <motion.li key={c.profileId} variants={itemV}>
+                            <span className="an-av">{(c.name || c.phone).slice(0, 1)}</span>
+                            <span className="an-li-name">{c.name || c.phone}</span>
+                            <span className="an-li-val">{c.lastOrderAt ? fmtDate(c.lastOrderAt.slice(0, 10), lang, { day: 'numeric', month: 'short' }) : t('a_never')}</span>
+                          </motion.li>
+                        ))}
+                      </motion.ul>
+                    )}
+                  </section>
+                </div>
               </>
             )
           )}
@@ -620,85 +747,153 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
   );
 }
 
-/* ===================================================================== */
-/* Hero — the daybook headline                                            */
-/* ===================================================================== */
-function Hero({ s, cur, t, eyebrow, revDelta, ordDelta, aovDelta, vsLabel, spark }: {
-  s: Summary; cur: string; t: T; eyebrow: string;
-  revDelta: Delta; ordDelta: Delta; aovDelta: Delta; vsLabel: string; spark: Array<{ label: string; value: number; hint: string }>;
+/* =====================================================================
+   Ledger cell — one column of the rail. A button when it can drive the
+   chart (multi-day), plain text when it can't (Today has no hourly
+   revenue to plot), so the affordance never lies about what will happen.
+   ===================================================================== */
+function LedgerCell({ k, v, unit, d, on, pick, t }: {
+  k: string; v: string; unit?: string; d: Delta; on: boolean; pick?: () => void; t: T;
 }) {
-  const empty = s.totalOrders === 0;
-
+  const body = (
+    <>
+      <span className="an-led-k">{k}</span>
+      <span className="an-led-r">
+        <span className="an-led-v">{v}{unit && <small>{unit}</small>}</span>
+        <DeltaText d={d} t={t} />
+      </span>
+    </>
+  );
+  if (!pick) return <div className="an-led" data-on={on || undefined}>{body}</div>;
   return (
-    <section className="an-hero">
-      <div className="an-hero-left">
-        <span className="an-hero-eyebrow">{eyebrow}</span>
-        <div className="an-hero-main">
-          <span className="an-hero-cur">{cur}</span>
-          <span className="an-hero-rev"><CountUp value={Number(s.totalRevenue)} decimals={3} /></span>
-          <DeltaPill d={revDelta} t={t} />
-        </div>
-        <div className="an-hero-sub">
-          <span><b><CountUp value={s.totalOrders} /></b> {t('a_orders')}{ordDelta.dir !== 'none' && ordDelta.abs !== 0 && <i className={'an-sub-delta ' + (ordDelta.abs > 0 ? 'up' : 'down')}>{ordDelta.abs > 0 ? '▲' : '▼'}{Math.abs(ordDelta.abs)}</i>}</span>
-          <span className="dot">·</span>
-          <span>{t('a_avgShort')} <b className="num">{omr(s.averageOrderValue)}</b>{(aovDelta.dir === 'up' || aovDelta.dir === 'down') && <i className={'an-sub-delta ' + aovDelta.dir}>{aovDelta.dir === 'up' ? '▲' : '▼'}{aovDelta.pct}%</i>}</span>
-          <span className="dot">·</span>
-          <span><b className="num">{s.completedOrders}</b> {t('a_doneShort')}</span>
-          {revDelta.dir !== 'none' && <span className="an-hero-vs">{vsLabel}</span>}
+    <button type="button" className="an-led" data-pick="" data-on={on || undefined}
+      aria-pressed={on} onClick={pick}>{body}</button>
+  );
+}
+
+function DeltaText({ d, t }: { d: Delta; t: T }) {
+  if (d.dir === 'none') return <span className="an-led-d">—</span>;
+  if (d.dir === 'new') return <span className="an-led-d up">{t('a_new')}</span>;
+  if (d.dir === 'flat') return <span className="an-led-d">0%</span>;
+  return <span className={'an-led-d ' + d.dir}>{d.dir === 'up' ? '▲' : '▼'} {d.pct}%</span>;
+}
+
+/* =====================================================================
+   Primary chart — the current window solid, the one before it dashed.
+   ===================================================================== */
+function ChartPanel({ points, hourly, metric, label, curLabel, prevLabel, cur, tok, t }: {
+  points: Point[]; hourly: boolean; metric: Metric; label: string;
+  curLabel: string; prevLabel: string; cur: string; tok: ChartTokens; t: T;
+}) {
+  const hasWas = points.some((p) => p.was != null);
+  const fmtY = (v: number) => (metric === 'orders' || v % 1 === 0 || v >= 100 ? String(Math.round(v)) : v.toFixed(1));
+  return (
+    <section className="an-panel">
+      <div className="an-panel-hd">
+        <h3>{label} <small>{hourly ? t('a_byHour') : t('a_byDay')}</small></h3>
+        <div className="an-legend">
+          <span><i />{curLabel}</span>
+          {hasWas && <span><i className="was" />{prevLabel}</span>}
         </div>
       </div>
-      <div className="an-hero-spark">
-        {empty || spark.length === 0 ? <p className="an-empty">{t('a_noOrders')}</p> : <Spark bars={spark} />}
-      </div>
+      {points.length === 0 ? <p className="an-empty">{t('a_noOrders')}</p> : (
+        <div className="an-plot">
+          <ResponsiveContainer>
+            <AreaChart data={points} margin={{ top: 6, right: 6, left: -10, bottom: 0 }}>
+              <defs>
+                <linearGradient id="anNowFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={tok['--lime']} stopOpacity={0.24} />
+                  <stop offset="100%" stopColor={tok['--lime']} stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid vertical={false} stroke={tok['--line-2']} strokeOpacity={0.45} />
+              <XAxis dataKey="x" tick={{ fill: tok['--faint'], fontSize: 10, fontFamily: 'IBM Plex Mono, monospace' }}
+                axisLine={{ stroke: tok['--line-2'] }} tickLine={false} interval="preserveStartEnd" minTickGap={26} />
+              <YAxis tick={{ fill: tok['--faint'], fontSize: 10, fontFamily: 'IBM Plex Mono, monospace' }}
+                axisLine={false} tickLine={false} width={46} tickFormatter={fmtY} />
+              <Tooltip cursor={{ stroke: tok['--muted'], strokeWidth: 1, strokeDasharray: '3 3' }}
+                content={<ChartTip metric={metric} cur={cur} curLabel={curLabel} prevLabel={prevLabel} />} />
+              {/* drawn first so the current window sits on top of it */}
+              {hasWas && (
+                <Area type="monotone" dataKey="was" stroke={tok['--faint']} strokeWidth={1.5} strokeDasharray="4 3"
+                  fill="none" dot={false} connectNulls isAnimationActive={false} />
+              )}
+              <Area type="monotone" dataKey="now" stroke={tok['--accent-text']} strokeWidth={2} fill="url(#anNowFill)"
+                dot={false} connectNulls={false}
+                activeDot={{ r: 4, fill: tok['--accent-text'], stroke: tok['--bg-2'], strokeWidth: 1.5 }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </section>
   );
 }
 
-function DeltaPill({ d, t }: { d: Delta; t: T }) {
-  if (d.dir === 'none') return null;
-  if (d.dir === 'new') return <span className="an-delta" data-dir="up">{t('a_new')}</span>;
-  if (d.dir === 'flat') return <span className="an-delta" data-dir="flat">—</span>;
-  return <span className="an-delta" data-dir={d.dir}>{d.dir === 'up' ? '▲' : '▼'}{d.pct}%</span>;
-}
-
-/* count-up that respects reduced motion */
-function CountUp({ value, decimals = 0 }: { value: number; decimals?: number }) {
-  const reduce = useReducedMotion();
-  const spring = useSpring(reduce ? value : 0, { stiffness: 90, damping: 20 });
-  useEffect(() => { spring.set(value); }, [value, spring]);
-  const text = useTransform(spring, (v) => (decimals ? v.toFixed(decimals) : Math.round(v).toLocaleString()));
-  if (reduce) return <>{decimals ? value.toFixed(decimals) : Math.round(value).toLocaleString()}</>;
-  return <motion.span>{text}</motion.span>;
-}
-
-/* CSS mini bar chart — peak bar is highlighted */
-function Spark({ bars }: { bars: Array<{ label: string; value: number; hint: string }> }) {
-  const reduce = useReducedMotion();
-  if (!bars.length) return null;
-  const max = Math.max(...bars.map((b) => b.value)) || 1;
-  const peak = bars.reduce((mi, b, i, arr) => (b.value > arr[mi].value ? i : mi), 0);
-  const showLabels = bars.length <= 14;
+function ChartTip({ active, payload, label, metric, cur, curLabel, prevLabel }: {
+  active?: boolean; payload?: Array<{ dataKey?: string | number; value?: number }>; label?: string;
+  metric: Metric; cur: string; curLabel: string; prevLabel: string;
+}) {
+  if (!active || !payload?.length) return null;
+  const at = (k: string) => payload.find((p) => p.dataKey === k)?.value;
+  const now = at('now');
+  const was = at('was');
+  if (now == null && was == null) return null;
+  const fmt = (v: number) => (metric === 'orders' ? String(Math.round(v)) : `${omr(v)} ${cur}`);
+  const d = now != null && was != null ? delta(now, was) : null;
   return (
-    <div className={'an-spark' + (showLabels ? '' : ' nolabels')} role="img" aria-label={bars.map((b) => b.hint).join(', ')}>
-      {bars.map((b, i) => (
-        <div className="an-spark-col" key={i} title={b.hint}>
-          <motion.div className="an-spark-bar" data-on={i === peak || undefined}
-            initial={reduce ? false : { height: 0 }} animate={{ height: `${Math.max(8, (b.value / max) * 100)}%` }}
-            transition={{ delay: reduce ? 0 : 0.05 + Math.min(i, 20) * 0.03, duration: 0.45, ease: [0.2, 0.8, 0.2, 1] }} />
-          {showLabels && <span className="an-spark-lbl">{b.label}</span>}
-        </div>
-      ))}
+    <div className="an-tip">
+      <span className="an-tip-k">{label}</span>
+      {now != null && <div className="an-tip-row"><span>{curLabel}</span><b>{fmt(now)}</b></div>}
+      {was != null && <div className="an-tip-row was"><span>{prevLabel}</span><b>{fmt(was)}</b></div>}
+      {d && (d.dir === 'up' || d.dir === 'down') && (
+        <div className={'an-tip-d ' + d.dir}>{d.dir === 'up' ? '▲' : '▼'} {d.pct}%</div>
+      )}
     </div>
   );
 }
 
-/* ===================================================================== */
-/* Order-status segmented bar                                             */
-/* ===================================================================== */
+/* =====================================================================
+   Ranked table — the share is the row's own background. One element per
+   row instead of a name, a value and a separate bar track.
+   ===================================================================== */
+function RankTable({ head, rows }: {
+  head: [string, string, string];
+  rows: Array<{ key: React.Key; name: ReactNode; share: number; cells: [string, string] }>;
+}) {
+  return (
+    <table className="an-tbl">
+      <thead>
+        <tr>
+          <th className="rk"><span className="sr-only" /></th>
+          <th>{head[0]}</th>
+          <th className="n">{head[1]}</th>
+          <th className="n">{head[2]}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r, i) => (
+          <tr key={r.key} className="sh"
+            style={{ '--sh': `${Math.max(0, Math.min(100, r.share))}%` } as CSSProperties}>
+            <td className="rk">{i + 1}</td>
+            <td className="name">{r.name}</td>
+            <td className="n q">{r.cells[0]}</td>
+            <td className="n">{r.cells[1]}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/* =====================================================================
+   Order status — one stacked bar, numbers underneath
+   ===================================================================== */
 function StatusBreakdown({ s, t }: { s: Summary; t: T }) {
-  const reduce = useReducedMotion();
   const segs = [
-    { k: 'a_completed', n: s.completedOrders, c: 'var(--lime)' },
+    // Completed uses the darker accent, not --lime: against --ready's light green the two
+    // sat at ΔE 11.4 (floor is 15), so the bar's two biggest segments were hard to tell
+    // apart even with full colour vision. --ready stays as-is; it's shared with the KDS.
+    { k: 'a_completed', n: s.completedOrders, c: 'var(--accent-text)' },
     { k: 'a_ready', n: s.readyOrders, c: 'var(--ready)' },
     { k: 'a_inprogress', n: s.acceptedOrders + s.preparingOrders, c: 'var(--accepted)' },
     { k: 'a_pending', n: s.pendingOrders, c: 'var(--pending)' },
@@ -708,21 +903,29 @@ function StatusBreakdown({ s, t }: { s: Summary; t: T }) {
   if (total === 0) return <p className="an-empty">{t('a_noOrders')}</p>;
   return (
     <>
-      <motion.div className="an-status-bar" initial={reduce ? false : { scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}>
-        {segs.map((g) => <div key={g.k} className="an-status-seg" style={{ flex: g.n, background: g.c }} title={`${t(g.k)} · ${g.n}`} />)}
-      </motion.div>
-      <motion.ul className="an-status-legend" variants={listV} initial={reduce ? false : 'hidden'} animate="show">
-        {segs.map((g) => (
-          <motion.li key={g.k} variants={itemV}><span className="an-dot" style={{ background: g.c }} />{t(g.k)} <b className="num">{g.n}</b></motion.li>
-        ))}
-      </motion.ul>
+      {/* The bar is decorative on its own — the table below carries the numbers, so
+          screen readers get one summary here rather than five unlabelled divs. */}
+      <div className="an-stack" role="img" aria-label={segs.map((g) => `${t(g.k)}: ${g.n}`).join(', ')}>
+        {segs.map((g) => <div key={g.k} className="an-stack-seg" style={{ flex: g.n, background: g.c }} />)}
+      </div>
+      <table className="an-tbl">
+        <tbody>
+          {segs.map((g) => (
+            <tr key={g.k}>
+              <td className="name"><span className="an-key" style={{ background: g.c }} />{t(g.k)}</td>
+              <td className="n">{g.n}</td>
+              <td className="n q">{Math.round((g.n / total) * 100)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </>
   );
 }
 
-/* ===================================================================== */
-/* Pro · conversion funnel (menu view → cart → checkout → order)          */
-/* ===================================================================== */
+/* =====================================================================
+   Pro · conversion funnel (menu view → cart → checkout → order)
+   ===================================================================== */
 function FunnelCard({ data, t }: { data: Funnel; t: T }) {
   const reduce = useReducedMotion();
   const stages = [
@@ -734,8 +937,8 @@ function FunnelCard({ data, t }: { data: Funnel; t: T }) {
   const top = stages[0].n || 1;
   const overall = data.menuViews > 0 ? Math.round((data.ordersPlaced / data.menuViews) * 100) : 0;
   return (
-    <section className="an-card">
-      <div className="an-card-head">
+    <section className="an-block">
+      <div className="an-block-hd">
         <h3>{t('a_funnel')} <small>{t('a_fn_sub')}</small></h3>
         <span className="an-fn-overall">{overall}<small>%</small></span>
       </div>
@@ -747,7 +950,7 @@ function FunnelCard({ data, t }: { data: Funnel; t: T }) {
               <motion.li className="an-fn-row" key={s.key} variants={itemV}>
                 <div className="an-fn-top">
                   <span className="an-fn-label">{t(s.key)}</span>
-                  <span className="an-fn-n num">{s.n.toLocaleString()}{step !== null && <i className="an-fn-step">{step}%</i>}</span>
+                  <span className="an-fn-n">{s.n.toLocaleString()}{step !== null && <i className="an-fn-step">{step}%</i>}</span>
                 </div>
                 <div className="an-fn-track">
                   <motion.div className="an-fn-fill" style={{ width: `${(s.n / top) * 100}%` }}
@@ -761,72 +964,6 @@ function FunnelCard({ data, t }: { data: Funnel; t: T }) {
       )}
     </section>
   );
-}
-
-/* ===================================================================== */
-/* Pro · item conversion as horizontal bars                               */
-/* ===================================================================== */
-function ConversionBars({ rows, nm, t }: { rows: Conversion[]; nm: (en: string, ar: string) => string; t: T }) {
-  const reduce = useReducedMotion();
-  const weakId = rows.filter((c) => c.views >= 5).sort((a, b) => Number(a.conversionRate) - Number(b.conversionRate))[0]?.menuItemId;
-  return (
-    <motion.ul className="an-convbars" variants={listV} initial={reduce ? false : 'hidden'} animate="show">
-      {rows.map((c, i) => {
-        const pct = Math.round(Number(c.conversionRate) * 100);
-        return (
-          <motion.li key={c.menuItemId} variants={itemV}>
-            <div className="an-rankrow-top">
-              <span className="an-li-name">{nm(c.nameEn, c.nameAr)}{c.menuItemId === weakId && <i className="an-flag">{t('a_low')}</i>}</span>
-              <span className="an-li-val">{pct}% · {c.views} {t('a_views')}</span>
-            </div>
-            <div className="an-bar"><motion.div className={'an-bar-fill' + (c.menuItemId === weakId ? ' warn' : '')} style={{ width: `${Math.min(100, pct)}%` }}
-              initial={reduce ? false : { scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ delay: reduce ? 0 : 0.12 + i * 0.06, duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }} /></div>
-          </motion.li>
-        );
-      })}
-    </motion.ul>
-  );
-}
-
-/* ---- Trend chart (multi-day) ---- */
-function TrendCard({ data, lang, cur, t, days }: { data: DailyPoint[]; lang: string; cur: string; t: T; days: number }) {
-  const [metric, setMetric] = useState<'revenue' | 'orders'>('revenue');
-  const byWeekday = days <= 8;
-  const chartData = useMemo(() => data.map((d) => ({
-    day: byWeekday ? (lang === 'ar' ? WEEK_AR : WEEK_EN)[dowIndex(d.date)] : fmtDate(d.date, lang, { day: 'numeric', month: 'short' }),
-    revenue: Number(d.revenue), orders: d.orders,
-  })), [data, lang, byWeekday]);
-  const sub = byWeekday ? t('a_trendSub') : `${data.length} ${t('a_daysN')}`;
-
-  return (
-    <section className="an-card">
-      <div className="an-card-head">
-        <h3>{t('a_trend')} <small>{sub}</small></h3>
-        <div className="an-trend-toggle">
-          <button className={metric === 'revenue' ? 'on' : ''} onClick={() => setMetric('revenue')}>{t('a_metricRev')}</button>
-          <button className={metric === 'orders' ? 'on' : ''} onClick={() => setMetric('orders')}>{t('a_metricOrd')}</button>
-        </div>
-      </div>
-      <div className="an-chart tall">
-        <ResponsiveContainer>
-          <AreaChart data={chartData} margin={{ top: 6, right: 6, left: -8, bottom: 0 }}>
-            <defs><linearGradient id="limeFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={LIME} stopOpacity={0.35} /><stop offset="100%" stopColor={LIME} stopOpacity={0.02} /></linearGradient></defs>
-            <XAxis dataKey="day" tick={{ fill: MUTED, fontSize: 10, fontFamily: 'IBM Plex Mono, monospace' }} axisLine={{ stroke: INK, strokeWidth: 1.5 }} tickLine={false} interval="preserveStartEnd" minTickGap={28} />
-            <YAxis tick={{ fill: MUTED, fontSize: 10, fontFamily: 'IBM Plex Mono, monospace' }} axisLine={false} tickLine={false} width={44} />
-            <Tooltip content={<TrendTooltip metric={metric} cur={cur} t={t} />} cursor={{ stroke: INK, strokeWidth: 1, strokeDasharray: '3 3' }} />
-            <Area type="monotone" dataKey={metric} stroke={INK} strokeWidth={2} fill="url(#limeFill)" dot={byWeekday ? { r: 3, fill: LIME, stroke: INK, strokeWidth: 1 } : false} activeDot={{ r: 5, fill: LIME, stroke: INK, strokeWidth: 1.5 }} />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-    </section>
-  );
-}
-
-function TrendTooltip({ active, payload, label, metric, cur, t }: { active?: boolean; payload?: Array<{ value: number }>; label?: string; metric: string; cur: string; t: T }) {
-  if (!active || !payload?.length) return null;
-  const v = payload[0].value;
-  const formatted = metric === 'revenue' ? `${Number(v).toFixed(3)} ${cur}` : `${Math.round(v)} ${t('a_ordersN')}`;
-  return <div className="an-tip"><b>{label}</b><br /><span className="v">{formatted}</span></div>;
 }
 
 /* ---- Weekly rhythm — one self-drawing demand curve per weekday ---- */
@@ -869,55 +1006,57 @@ function WeeklyRhythm({ slots, lang, t }: { slots: ForecastSlot[]; lang: string;
   const week = lang === 'ar' ? WEEK_AR : WEEK_EN;
 
   return (
-    <motion.div className="an-rhythm" variants={listV} initial={reduce ? false : 'hidden'} animate="show">
-      {rows.map((r, i) => {
-        const h = hover?.row === i ? hover.idx : null;
-        return (
-          <motion.div className={'an-rhythm-row' + (i === busiest ? ' is-peak' : '')} key={r.d} variants={itemV}>
-            <span className={'an-rhythm-day' + (r.d >= 5 ? ' wknd' : '')}>{week[r.d]}</span>
-            <div className="an-rhythm-plot"
-              onMouseMove={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const x = rect.width ? (e.clientX - rect.left) / rect.width : 0;
-                setHover({ row: i, idx: Math.max(0, Math.min(n - 1, Math.round(x * (n - 1)))) });
-              }}
-              onMouseLeave={() => setHover(null)}>
-              <svg viewBox={`0 0 ${RH_W} ${RH_H}`} preserveAspectRatio="none" aria-hidden>
-                <motion.path d={r.area} className="an-rhythm-area"
-                  initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }}
-                  transition={{ delay: reduce ? 0 : 0.1 + i * 0.07, duration: 0.5 }} />
-                <motion.path d={r.line} className="an-rhythm-line" vectorEffect="non-scaling-stroke"
-                  initial={reduce ? false : { pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 1 }}
-                  transition={{ delay: reduce ? 0 : 0.12 + i * 0.07, duration: 0.8, ease: [0.2, 0.8, 0.2, 1] }} />
-              </svg>
-              {r.peakVal > 0 && h === null && (
-                <motion.span className="an-rhythm-dot" style={{ left: `${r.peakX}%`, bottom: `${r.peakY}%` }}
-                  initial={reduce ? false : { scale: 0 }} animate={{ scale: 1 }}
-                  transition={{ delay: reduce ? 0 : 0.55 + i * 0.07, type: 'spring', stiffness: 320, damping: 18 }} />
-              )}
-              {h !== null && (
-                <>
-                  <span className="an-rhythm-guide" style={{ left: `${xPct(h)}%` }} />
-                  <span className="an-rhythm-hoverdot" style={{ left: `${xPct(h)}%`, bottom: `${bottomPct(r.vals[h])}%` }} />
-                  <span className="an-rhythm-tip" style={{ left: `${xPct(h)}%` }}>
-                    <b>{hourLabel(hours[h])}</b> · {r.vals[h].toFixed(1)}
-                  </span>
-                </>
-              )}
-            </div>
-            <span className="an-rhythm-peak">{r.peakVal > 0 ? <b>{hourLabel(r.peakHour)}</b> : <i className="an-rhythm-quiet">—</i>}</span>
-          </motion.div>
-        );
-      })}
-      <div className="an-rhythm-axis">
-        <span />
-        <div className="an-rhythm-axis-track">
-          {ticks.map((idx) => <span key={idx} className="an-rhythm-tick">{hourLabel(hours[idx])}</span>)}
+    <>
+      <motion.div className="an-rhythm" variants={listV} initial={reduce ? false : 'hidden'} animate="show">
+        {rows.map((r, i) => {
+          const h = hover?.row === i ? hover.idx : null;
+          return (
+            <motion.div className={'an-rhythm-row' + (i === busiest ? ' is-peak' : '')} key={r.d} variants={itemV}>
+              <span className="an-rhythm-day">{week[r.d]}</span>
+              <div className="an-rhythm-plot"
+                onMouseMove={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = rect.width ? (e.clientX - rect.left) / rect.width : 0;
+                  setHover({ row: i, idx: Math.max(0, Math.min(n - 1, Math.round(x * (n - 1)))) });
+                }}
+                onMouseLeave={() => setHover(null)}>
+                <svg viewBox={`0 0 ${RH_W} ${RH_H}`} preserveAspectRatio="none" aria-hidden>
+                  <motion.path d={r.area} className="an-rhythm-area"
+                    initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }}
+                    transition={{ delay: reduce ? 0 : 0.1 + i * 0.07, duration: 0.5 }} />
+                  <motion.path d={r.line} className="an-rhythm-line" vectorEffect="non-scaling-stroke"
+                    initial={reduce ? false : { pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 1 }}
+                    transition={{ delay: reduce ? 0 : 0.12 + i * 0.07, duration: 0.8, ease: [0.2, 0.8, 0.2, 1] }} />
+                </svg>
+                {r.peakVal > 0 && h === null && (
+                  <motion.span className="an-rhythm-dot" style={{ left: `${r.peakX}%`, bottom: `${r.peakY}%` }}
+                    initial={reduce ? false : { scale: 0 }} animate={{ scale: 1 }}
+                    transition={{ delay: reduce ? 0 : 0.55 + i * 0.07, type: 'spring', stiffness: 320, damping: 18 }} />
+                )}
+                {h !== null && (
+                  <>
+                    <span className="an-rhythm-guide" style={{ left: `${xPct(h)}%` }} />
+                    <span className="an-rhythm-hoverdot" style={{ left: `${xPct(h)}%`, bottom: `${bottomPct(r.vals[h])}%` }} />
+                    <span className="an-rhythm-tip" style={{ left: `${xPct(h)}%` }}>
+                      <b>{hourLabel(hours[h])}</b> · {r.vals[h].toFixed(1)}
+                    </span>
+                  </>
+                )}
+              </div>
+              <span className="an-rhythm-peak">{r.peakVal > 0 ? <b>{hourLabel(r.peakHour)}</b> : <i className="an-rhythm-quiet">—</i>}</span>
+            </motion.div>
+          );
+        })}
+        <div className="an-rhythm-axis">
+          <span />
+          <div className="an-rhythm-axis-track">
+            {ticks.map((idx) => <span key={idx} className="an-rhythm-tick">{hourLabel(hours[idx])}</span>)}
+          </div>
+          <span />
         </div>
-        <span />
-      </div>
-      <div className="an-rhythm-foot">{t('a_rhythmHint')}</div>
-    </motion.div>
+      </motion.div>
+      <p className="an-foot">{t('a_rhythmHint')}</p>
+    </>
   );
 }
 
@@ -989,9 +1128,9 @@ function KitchenCard({ d, t }: { d: KitchenTiming; t: T }) {
         <span>{t('a_kt_toReady')} <b>{fmtDur(d.toReadySeconds, t)}</b></span>
         <span className="dot">·</span>
         <span>{t('a_kt_total')} <b>{fmtDur(d.toCompleteSeconds, t)}</b></span>
-        {slowIdx >= 0 && <span className="an-kt-slow">{t('a_kt_bottleneck')}: {t(stages[slowIdx].k)}</span>}
+        {slowIdx >= 0 && <span>{t('a_kt_bottleneck')} <b>{t(stages[slowIdx].k)}</b></span>}
       </div>
-      <p className="an-kt-sample">{t('a_kt_sample').replace('{n}', String(d.sampleOrders))}</p>
+      <p className="an-foot">{t('a_kt_sample').replace('{n}', String(d.sampleOrders))}</p>
     </>
   );
 }
@@ -1005,22 +1144,28 @@ function PaymentSplitCard({ rows, t }: { rows: PaymentMethodRevenue[]; t: T }) {
   const total = cashRevenue + cardRevenue;
   if (total <= 0) return <p className="an-empty">{t('a_noData')}</p>;
   const cashPct = Math.round((cashRevenue / total) * 100);
+  const legs = [
+    { k: t('a_cash'), c: 'var(--amber)', rev: cashRevenue, n: cash?.paymentCount ?? 0, pct: cashPct },
+    { k: t('a_card'), c: 'var(--accent-text)', rev: cardRevenue, n: card?.paymentCount ?? 0, pct: 100 - cashPct },
+  ];
   return (
-    <div className="an-paymix">
-      <p className="an-paymix-hint">{t('a_paymentHint')}</p>
-      <div className="an-paymix-bar" aria-label={`${t('a_cash')} ${cashPct}%`}>
-        <span className="cash" style={{ width: `${cashPct}%` }} />
-        <span className="card" style={{ width: `${100 - cashPct}%` }} />
+    <>
+      <div className="an-stack" role="img" aria-label={`${t('a_cash')} ${cashPct}%`}>
+        {legs.map((l) => <div key={l.k} className="an-stack-seg" style={{ flex: Math.max(l.pct, 0.001), background: l.c }} />)}
       </div>
-      <div className="an-paymix-row">
-        <span className="an-paymix-key cash" /><span><b>{t('a_cash')}</b><small>{cash?.paymentCount ?? 0} {t('a_transactions')}</small></span>
-        <strong>{omr(cashRevenue)}</strong><em>{cashPct}%</em>
-      </div>
-      <div className="an-paymix-row">
-        <span className="an-paymix-key card" /><span><b>{t('a_card')}</b><small>{card?.paymentCount ?? 0} {t('a_transactions')}</small></span>
-        <strong>{omr(cardRevenue)}</strong><em>{100 - cashPct}%</em>
-      </div>
-    </div>
+      <table className="an-tbl">
+        <tbody>
+          {legs.map((l) => (
+            <tr key={l.k}>
+              <td className="name"><span className="an-key" style={{ background: l.c }} />{l.k}</td>
+              <td className="n q">{l.n} {t('a_transactions')}</td>
+              <td className="n">{omr(l.rev)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="an-foot">{t('a_paymentHint')}</p>
+    </>
   );
 }
 
@@ -1030,27 +1175,27 @@ function CustomerDirectoryTable({ data, loading, search, page, lang, t, onSearch
   onSearch: (value: string) => void; onSubmit: () => void; onPage: (page: number) => void; onBack: () => void;
 }) {
   return (
-    <section className="an-card an-directory">
-      <div className="an-directory-head">
-        <div><h3>{t('a_customerDirectory')}</h3><small>{data?.totalElements ?? 0} {t('a_customers')}</small></div>
-        <button className="an-directory-back" onClick={onBack}>← {t('a_backInsights')}</button>
+    <section className="an-block">
+      <div className="an-block-hd">
+        <h3>{t('a_customerDirectory')} <small>{data?.totalElements ?? 0}</small></h3>
+        <button className="an-btn" onClick={onBack}>← {t('a_backInsights')}</button>
       </div>
       <form className="an-directory-search" onSubmit={(e) => { e.preventDefault(); onSubmit(); }}>
         <input value={search} onChange={(e) => onSearch(e.target.value)} placeholder={t('a_searchCustomers')} />
-        <button type="submit">{t('a_search')}</button>
+        <button type="submit" className="an-btn primary">{t('a_search')}</button>
       </form>
       {loading ? <div className="an-skel card" /> : !data?.content.length ? <p className="an-empty">{t('a_noData')}</p> : (
         <>
-          <div className="an-directory-table-wrap">
-            <table className="an-directory-table">
-              <thead><tr><th>{t('a_name')}</th><th>{t('a_phone')}</th><th>{t('a_orders')}</th><th>{t('a_lastOrder')}</th></tr></thead>
+          <div className="an-tbl-wrap">
+            <table className="an-tbl dir">
+              <thead><tr><th>{t('a_name')}</th><th>{t('a_phone')}</th><th className="n">{t('a_orders')}</th><th className="n">{t('a_lastOrder')}</th></tr></thead>
               <tbody>
                 {data.content.map((customer) => (
                   <tr key={customer.phone}>
-                    <td><span className="an-customer-name"><i>{(customer.name || customer.phone).slice(0, 1)}</i>{customer.name || '—'}</span></td>
+                    <td className="name">{customer.name || '—'}</td>
                     <td><a href={`tel:${customer.phone}`} dir="ltr">{customer.phone}</a></td>
-                    <td className="num">{customer.orderCount}</td>
-                    <td>{customer.lastOrderAt
+                    <td className="n">{customer.orderCount}</td>
+                    <td className="n q">{customer.lastOrderAt
                       ? new Intl.DateTimeFormat(lang === 'ar' ? 'ar-u-nu-latn' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(customer.lastOrderAt))
                       : t('a_never')}</td>
                   </tr>
@@ -1058,10 +1203,10 @@ function CustomerDirectoryTable({ data, loading, search, page, lang, t, onSearch
               </tbody>
             </table>
           </div>
-          <div className="an-directory-pager">
-            <button disabled={page === 0} onClick={() => onPage(page - 1)}>‹</button>
-            <span className="num">{page + 1} / {Math.max(1, data.totalPages)}</span>
-            <button disabled={data.last} onClick={() => onPage(page + 1)}>›</button>
+          <div className="an-pager">
+            <button disabled={page === 0} onClick={() => onPage(page - 1)} aria-label="Previous">‹</button>
+            <span>{page + 1} / {Math.max(1, data.totalPages)}</span>
+            <button disabled={data.last} onClick={() => onPage(page + 1)} aria-label="Next">›</button>
           </div>
         </>
       )}
@@ -1075,9 +1220,9 @@ function CustomerBaseCard({ d, t }: { d: CustomerBase; t: T }) {
   const repeatShare = Math.min(100, Math.max(0, d.repeatOrderSharePercent));
   return (
     <div className="an-cb">
-      <div className="an-cb-head">
+      <div>
         <div className="an-cb-rate">
-          <span className="an-cb-pct"><CountUp value={d.repeatRatePercent} /><small>%</small></span>
+          <span className="an-cb-pct">{d.repeatRatePercent}<small>%</small></span>
           <span className="an-cb-rate-lbl">{t('a_cb_repeat')}</span>
         </div>
         <p className="an-cb-sub">{t('a_cb_repeatSub').replace('{r}', String(d.repeatCustomers)).replace('{n}', String(d.totalCustomers))}</p>
@@ -1094,21 +1239,21 @@ function CustomerBaseCard({ d, t }: { d: CustomerBase; t: T }) {
             transition={{ duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }} />
         </div>
         <div className="an-cb-split-legend">
-          <span><i className="dot-repeat" /> {t('a_cb_returningOrders')} {repeatShare}%</span>
-          <span><i className="dot-new" /> {t('a_cb_newOrders')} {100 - repeatShare}%</span>
+          <span>{t('a_cb_returningOrders')} {repeatShare}%</span>
+          <span>{t('a_cb_newOrders')} {100 - repeatShare}%</span>
         </div>
       </div>
     </div>
   );
 }
 
-/* ---- Benchmark row ---- */
+/* ---- Benchmark row — parked with the benchmark card above ---- */
 function BenchRow({ label, you, median, pct, t }: { label: string; you: string; median: string; pct: number; t: T }) {
   return (
-    <div className="an-bench-row">
-      <div className="an-bench-top"><span>{label}</span><b>{pct}<small>%</small> {t('a_percentile')}</b></div>
-      <div className="an-bench-vals"><span>{t('a_you')}: <b>{you}</b></span><span>{t('a_median')}: {median}</span></div>
-      <div className="an-bench-bar"><div className="an-bench-fill" style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} /></div>
+    <div className="an-meter-row">
+      <span className="an-meter-lbl">{label}</span>
+      <span className="an-meter-track"><span className="an-meter-fill" style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} /></span>
+      <span className="an-meter-val">{you} <small>/ {median} {t('a_median')}</small></span>
     </div>
   );
 }
@@ -1122,7 +1267,7 @@ function ProUpsell({ desc, tags, t }: { desc: string; tags: string[]; t: T }) {
         <p>{desc}</p>
         <div className="an-lock-tags">{tags.map((x) => <span key={x}>{x}</span>)}</div>
       </div>
-      <button className="an-lock-cta">{t('a_lockCta')} →</button>
+      <button className="an-btn primary">{t('a_lockCta')} →</button>
     </div>
   );
 }
@@ -1132,7 +1277,7 @@ function ErrCard({ message, onRetry, t }: { message: string; onRetry: () => void
   return (
     <div className="an-errcard">
       <p>{message}</p>
-      <button className="an-retry" onClick={onRetry}>{t('a_retry')}</button>
+      <button className="an-btn" onClick={onRetry}>{t('a_retry')}</button>
     </div>
   );
 }
@@ -1141,16 +1286,16 @@ function ErrCard({ message, onRetry, t }: { message: string; onRetry: () => void
 function Skeleton({ cards }: { cards?: number }) {
   if (cards) {
     return (
-      <div className="an-grid" aria-hidden>
+      <div className="an-cols" aria-hidden>
         {Array.from({ length: cards }).map((_, i) => <div key={i} className="an-skel card" />)}
       </div>
     );
   }
   return (
     <div className="an-skel-wrap" aria-hidden>
-      <div className="an-skel hero" />
-      <div className="an-skel strip" />
-      <div className="an-grid">
+      <div className="an-skel ledger" />
+      <div className="an-skel panel" />
+      <div className="an-cols">
         <div className="an-skel card" />
         <div className="an-skel card" />
       </div>

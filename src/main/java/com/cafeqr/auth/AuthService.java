@@ -92,8 +92,23 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.username(), request.password()));
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.username(), request.password()));
+        } catch (org.springframework.security.authentication.DisabledException e) {
+            // An invited member who hasn't opened their link is also "disabled", but the generic
+            // message talks about bank transfers and would send them to the wrong place entirely.
+            // No extra disclosure: Spring already rejects a disabled account before checking the
+            // password, so the account's existence was visible either way.
+            userRepository.findByUsernameIgnoreCase(request.username())
+                    .filter(User::isPendingInvite)
+                    .ifPresent(pending -> {
+                        throw new BadRequestException(ErrorCode.ACCOUNT_DISABLED,
+                                "Open the invite link the café sent you to finish setting up your account.");
+                    });
+            throw e;
+        }
         CustomUserDetails principal = (CustomUserDetails) authentication.getPrincipal();
         User user = userRepository.findById(principal.getUserId())
                 .orElseThrow(() -> ResourceNotFoundException.of("User", principal.getUserId()));
@@ -225,6 +240,19 @@ public class AuthService {
         return userRepository.findById(userId)
                 .map(UserResponse::from)
                 .orElseThrow(() -> ResourceNotFoundException.of("User", userId));
+    }
+
+    /**
+     * Issues a session for a user who has just proved themselves by some route other than typing
+     * a password — currently only accepting a staff invite, where the member set the password a
+     * moment ago and bouncing them to a login screen to retype it would be pointless friction.
+     *
+     * <p>Callers are responsible for having authenticated the user; this method does not check
+     * credentials.
+     */
+    @Transactional
+    public AuthResponse issueSessionFor(User user) {
+        return issueTokens(CustomUserDetails.from(user), user);
     }
 
     private AuthResponse issueTokens(CustomUserDetails principal, User user) {

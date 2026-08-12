@@ -38,6 +38,14 @@ public class MenuItemOption extends BaseEntity {
     @Column(name = "display_order", nullable = false)
     private int displayOrder = 0;
 
+    /**
+     * Disposables this choice implies — the size the customer picked decides the cup. Set here
+     * it wins over the item's own rule, which is what makes "Large uses a 12 oz cup" one click
+     * instead of a pair of hand-typed +1/-1 recipe lines.
+     */
+    @Column(name = "packaging_rule_id")
+    private Long packagingRuleId;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public MenuItemOptionGroup getOptionGroup() { return optionGroup; }
@@ -50,4 +58,6 @@ public class MenuItemOption extends BaseEntity {
     public void setPriceDelta(BigDecimal priceDelta) { this.priceDelta = priceDelta; }
     public int getDisplayOrder() { return displayOrder; }
     public void setDisplayOrder(int displayOrder) { this.displayOrder = displayOrder; }
+    public Long getPackagingRuleId() { return packagingRuleId; }
+    public void setPackagingRuleId(Long packagingRuleId) { this.packagingRuleId = packagingRuleId; }
 }

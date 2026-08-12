@@ -38,6 +38,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.cafeqr.restaurants.RestaurantService;
 import com.cafeqr.restaurants.domain.Restaurant;
+import com.cafeqr.stock.StockConsumptionService;
 import com.cafeqr.tables.domain.RestaurantTable;
 import com.cafeqr.tables.TableService;
 import org.springframework.data.domain.Page;
@@ -75,6 +76,7 @@ public class OrderService {
     private final OtpService otpService;
     private final EventLogService eventLogService;
     private final LoyaltyService loyaltyService;
+    private final StockConsumptionService stockConsumptionService;
     private final ObjectMapper objectMapper;
 
     public OrderService(OrderRepository orderRepository,
@@ -90,6 +92,7 @@ public class OrderService {
                         OtpService otpService,
                         EventLogService eventLogService,
                         LoyaltyService loyaltyService,
+                        StockConsumptionService stockConsumptionService,
                         ObjectMapper objectMapper) {
         this.orderRepository = orderRepository;
         this.restaurantService = restaurantService;
@@ -104,6 +107,7 @@ public class OrderService {
         this.otpService = otpService;
         this.eventLogService = eventLogService;
         this.loyaltyService = loyaltyService;
+        this.stockConsumptionService = stockConsumptionService;
         this.objectMapper = objectMapper;
     }
 
@@ -123,19 +127,24 @@ public class OrderService {
                 throw new BadRequestException(ErrorCode.VALIDATION_ERROR,
                         "Name is required for car orders.");
             }
-        }
-        if (request.customerPhone() == null || request.customerPhone().isBlank()) {
-            throw new BadRequestException(ErrorCode.VALIDATION_ERROR,
-                    "Phone is required.");
+            // A car order has no table to anchor it to, so the phone is the only way staff can
+            // reach the customer / match the car. DINE_IN already carries a table id, so the
+            // phone there is purely opt-in (it only exists to attach loyalty stamps).
+            if (request.customerPhone() == null || request.customerPhone().isBlank()) {
+                throw new BadRequestException(ErrorCode.VALIDATION_ERROR,
+                        "Phone is required for car orders.");
+            }
         }
 
         String customerPhone = Phones.normalize(request.customerPhone());
-        if (customerService.isBlocked(restaurant.getId(), customerPhone)) {
+        if (customerPhone != null && customerService.isBlocked(restaurant.getId(), customerPhone)) {
             throw new BadRequestException(ErrorCode.PHONE_BLOCKED,
                     "Ordering from this phone number is not accepted. Please contact the cafe.");
         }
-        // OTP disabled — validate token only when one is present (re-enable once provider is set up)
-        if (request.phoneToken() != null && !request.phoneToken().isBlank()
+        // OTP disabled — validate token only when one is present (re-enable once provider is set up).
+        // Guarded on customerPhone != null too: without a phone there's nothing to verify a token
+        // against (isPhoneTokenValid matches the token's subject against the normalized phone).
+        if (customerPhone != null && request.phoneToken() != null && !request.phoneToken().isBlank()
                 && !otpService.isPhoneTokenValid(customerPhone, request.phoneToken())) {
             throw new BadRequestException(ErrorCode.VALIDATION_ERROR,
                     "Phone verification required. Please verify your number via WhatsApp.");
@@ -230,6 +239,8 @@ public class OrderService {
         order.setTrackingToken(Tokens.random(18));
 
         Order saved = orderRepository.save(order);
+        // A staff order opens as ACCEPTED, so it draws stock the moment it is taken.
+        stockConsumptionService.onOrderAccepted(saved, restaurant);
         eventLogService.recordOrderEvent(saved, OrderStatus.ACCEPTED, "Manual order (staff)");
         notifyAndStream(saved, NotificationType.NEW_ORDER, "order.created",
                 "New manual order " + saved.getOrderNumber());
@@ -289,6 +300,10 @@ public class OrderService {
         if (request != null && request.prepTimeMinutes() != null) {
             order.setPrepTimeMinutes(request.prepTimeMinutes());
         }
+        // Accepting is the moment the kitchen commits to making it, so it is where stock moves —
+        // earlier would drain inventory for orders that end up declined, later would be too late
+        // to stop the next customer ordering the last croissant.
+        stockConsumptionService.onOrderAccepted(order, restaurantService.getEntity(order.getRestaurantId()));
         eventLogService.recordOrderEvent(order, OrderStatus.ACCEPTED, null);
         notifyAndStream(order, NotificationType.ORDER_ACCEPTED, "order.accepted",
                 "Order " + order.getOrderNumber() + " accepted");
@@ -300,9 +315,13 @@ public class OrderService {
         // "Decline" is the pre-accept reject; it now lands in the merged CANCELLED state (the
         // reason is still surfaced to the customer), so cafés have one "didn't happen" bucket.
         Order order = loadGuarded(orderId);
+        OrderStatus previous = order.getStatus();
         transition(order, OrderStatus.CANCELLED);
         order.setCancelledAt(Instant.now());
         loyaltyService.onOrderCancelled(order); // return any reserved reward
+        if (StockConsumptionService.hadBeenAccepted(previous)) {
+            stockConsumptionService.onOrderCancelled(order); // give back what it drew
+        }
         String trimmed = (reason == null || reason.isBlank()) ? null : reason.trim();
         order.setDeclineReason(trimmed);
         eventLogService.recordOrderEvent(order, OrderStatus.CANCELLED, trimmed);
@@ -340,9 +359,13 @@ public class OrderService {
     @Transactional
     public OrderResponse cancel(Long orderId, String reason) {
         Order order = loadGuarded(orderId);
+        OrderStatus previous = order.getStatus();
         transition(order, OrderStatus.CANCELLED);
         order.setCancelledAt(Instant.now());
         loyaltyService.onOrderCancelled(order); // return any reserved reward
+        if (StockConsumptionService.hadBeenAccepted(previous)) {
+            stockConsumptionService.onOrderCancelled(order); // give back what it drew
+        }
         String trimmed = (reason == null || reason.isBlank()) ? null : reason.trim();
         if (trimmed != null) {
             order.setInternalNote(trimmed);
@@ -408,6 +431,13 @@ public class OrderService {
             MenuItem menuItem = menuService.getOrderableItem(restaurant.getId(), branch.getId(), line.menuItemId());
             ResolvedOptions resolved = resolveOptions(menuItem, line.selectedOptions());
 
+            // Stock is checked here rather than in getOrderableItem because only here do we know
+            // the quantity, the chosen options and the service style — which is what catches
+            // "no oat milk left" on a drink whose dairy version is perfectly makeable.
+            stockConsumptionService.requireSellable(menuItem, branch.getId(), line.quantity(),
+                    selectedOptionIds(line.selectedOptions()), order.getOrderType(),
+                    restaurant.isDisposablesForDineIn());
+
             // effectivePrice honours any active discount/window; option deltas stack on top.
             BigDecimal unitPrice = menuItem.effectivePrice(pricedAt).add(resolved.priceDelta());
             BigDecimal lineTotal = unitPrice
@@ -430,6 +460,14 @@ public class OrderService {
             subtotal = subtotal.add(lineTotal);
         }
         return subtotal;
+    }
+
+    /** Just the option ids from a request line — what the stock check needs from the selection. */
+    private static List<Long> selectedOptionIds(List<CreateOrderRequest.SelectedOption> selections) {
+        if (selections == null || selections.isEmpty()) {
+            return List.of();
+        }
+        return selections.stream().map(CreateOrderRequest.SelectedOption::optionId).toList();
     }
 
     private static String blankToNull(String s) {

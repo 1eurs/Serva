@@ -28,6 +28,8 @@ public enum Permission {
     PROFILE,
     /** Create / manage branches (add, rename, activate / deactivate). */
     BRANCHES,
+    /** Inventory: stock levels, deliveries, waste, recipes, counts and purchasing. */
+    STOCK,
     /**
      * @deprecated Reserved, not enforced anywhere. Subscription viewing is gated by {@link #PROFILE}
      * and platform billing by {@link #PLATFORM_ADMIN}, so granting this to staff does nothing. Kept
@@ -39,7 +41,7 @@ public enum Permission {
 
     /** Every permission an owner gets: full control of their restaurant, but not the platform. */
     public static Set<Permission> ownerSet() {
-        return EnumSet.of(ORDERS, PAYMENTS, MENU, QR_TABLES, TEAM, ANALYTICS, PROFILE, BRANCHES);
+        return EnumSet.of(ORDERS, PAYMENTS, MENU, QR_TABLES, TEAM, ANALYTICS, PROFILE, BRANCHES, STOCK);
     }
 
     /** Everything, including platform-wide control — for platform admins. */

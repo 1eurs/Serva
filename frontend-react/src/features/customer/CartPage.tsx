@@ -22,8 +22,8 @@ const DICT: Dict = {
         carPlate: 'رقم لوحة السيارة العُمانية', carPlatePh: 'مثال: 1234 أ ب',
         carPlateHint: 'اختياري — اكتب الأرقام ثم الرمز', plateNum: 'الأرقام', plateCode: 'الرمز', carColor: 'لون السيارة',
         name: 'الاسم (اختياري)', nameReq: 'الاسم', nameRequired: 'الاسم مطلوب لطلبات السيارة',
-        phoneRequired: 'الجوال مطلوب',
-        phone: 'الجوال', myCars: 'سياراتك المحفوظة', myPhones: 'أرقامك المحفوظة',
+        phoneRequired: 'الجوال مطلوب لطلبات السيارة',
+        phone: 'الجوال', phoneOpt: 'الجوال (اختياري)', myCars: 'سياراتك المحفوظة', myPhones: 'أرقامك المحفوظة',
         note: 'ملاحظة على الطلب', notePh: 'مثال: بدون سكر…', itemNote: 'ملاحظة على الصنف…',
         subtotal: 'المجموع الفرعي', vat: 'ضريبة القيمة المضافة', total: 'الإجمالي',
         finalNote: 'يُحتسب الإجمالي النهائي من المقهى عند تأكيد الطلب.', place: 'إرسال الطلب', placing: 'جارٍ الإرسال…',
@@ -36,8 +36,8 @@ const DICT: Dict = {
         carPlate: 'Oman car plate', carPlatePh: 'e.g. 1234 AB',
         carPlateHint: 'Optional — numbers, then the letter code', plateNum: 'Numbers', plateCode: 'Code', carColor: 'Car color',
         name: 'Name (optional)', nameReq: 'Name', nameRequired: 'Name is required for car orders',
-        phoneRequired: 'Phone is required',
-        phone: 'Phone', myCars: 'Your saved cars', myPhones: 'Your saved numbers',
+        phoneRequired: 'Phone is required for car orders',
+        phone: 'Phone', phoneOpt: 'Phone (optional)', myCars: 'Your saved cars', myPhones: 'Your saved numbers',
         note: 'Order note', notePh: 'e.g. no sugar…', itemNote: 'Note for this item…',
         subtotal: 'Subtotal', vat: 'VAT', total: 'Total',
         finalNote: 'Final total is confirmed by the cafe when your order is accepted.', place: 'Place order', placing: 'Sending…',
@@ -100,6 +100,12 @@ export default function CartPage() {
   const [note, setOrderNote] = useState('');
   const savedPhones = saved?.phones ?? [];
   const savedCars = saved?.cars ?? [];
+
+  // Inline validation: which fields failed on the last submit attempt, and refs so a failed
+  // submit can move focus to the first offending field instead of just showing a toast.
+  const [errors, setErrors] = useState<{ name?: string; phone?: string }>({});
+  const nameRef = useRef<HTMLInputElement>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
 
 
   const subtotal = round3(cart.reduce((s, l) => {
@@ -197,8 +203,14 @@ export default function CartPage() {
     ),
   });
   const submit = () => {
-    if (orderType === 'CAR' && !name.trim()) { toast(t('nameRequired')); return; }
-    if (!phone.trim()) { toast(t('phoneRequired')); return; }
+    // Phone is only mandatory for CAR orders (no table to anchor the order to); a table order
+    // already carries its table id, so the phone there is purely opt-in for loyalty stamps.
+    const nextErrors: { name?: string; phone?: string } = {};
+    if (orderType === 'CAR' && !name.trim()) nextErrors.name = t('nameRequired');
+    if (orderType === 'CAR' && !phone.trim()) nextErrors.phone = t('phoneRequired');
+    setErrors(nextErrors);
+    if (nextErrors.name) { nameRef.current?.focus(); return; }
+    if (nextErrors.phone) { phoneRef.current?.focus(); return; }
     place.mutate();
   };
 
@@ -331,13 +343,20 @@ export default function CartPage() {
               </>
             )}
             <div className="field">
-              <label>{orderType === 'CAR' ? t('nameReq') : t('name')}</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="…" />
+              <label htmlFor="c-name">{orderType === 'CAR' ? t('nameReq') : t('name')}</label>
+              <input id="c-name" ref={nameRef} value={name} autoComplete="name"
+                aria-invalid={!!errors.name} aria-describedby={errors.name ? 'c-name-err' : undefined}
+                onChange={(e) => { setName(e.target.value); if (errors.name) setErrors((er) => ({ ...er, name: undefined })); }}
+                placeholder="…" />
+              {errors.name && <p id="c-name-err" className="field-error" aria-live="polite">{errors.name}</p>}
             </div>
             <div className="field">
-              <label>{t('phone')}</label>
-              <input className="num" inputMode="tel" value={phone} placeholder="9XXXXXXX"
-                onChange={(e) => setPhone(sanitizePhone(e.target.value))} />
+              <label htmlFor="c-phone">{orderType === 'CAR' ? t('phone') : t('phoneOpt')}</label>
+              <input id="c-phone" ref={phoneRef} className="num" type="tel" inputMode="tel" autoComplete="tel"
+                value={phone} placeholder="9XXXXXXX"
+                aria-invalid={!!errors.phone} aria-describedby={errors.phone ? 'c-phone-err' : undefined}
+                onChange={(e) => { setPhone(sanitizePhone(e.target.value)); if (errors.phone) setErrors((er) => ({ ...er, phone: undefined })); }} />
+              {errors.phone && <p id="c-phone-err" className="field-error" aria-live="polite">{errors.phone}</p>}
               {savedPhones.length > 1 && (
                 <div className="saved-chips">
                   {savedPhones.map((p) => (

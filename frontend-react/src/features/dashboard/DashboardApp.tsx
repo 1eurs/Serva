@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { create as createQrMatrix } from 'qrcode/lib/core/qrcode.js';
 import { api, upload, ApiError, logout, accessTokenValue, changeEmail, freshStreamToken, onAuthChange, syncUser } from '../../lib/api';
@@ -14,6 +14,7 @@ import { useWakeLock } from '../../lib/wakeLock';
 import { fmtElapsed } from '../../lib/format';
 import { Money } from '../../lib/Money';
 import { carColorOf } from '../../lib/carColors';
+import { useSkin } from '../../lib/skin';
 import ReceiptCapture, { type PendingReceipt } from './ReceiptCapture';
 import { ReceiptPrinterProvider, useReceiptPrinter } from './receiptPrinter';
 import type { OrderResponse, OrderStatus, BranchResponse, TableResponse, Restaurant, QrActivity, QrCartItem } from '../../lib/types';
@@ -22,21 +23,22 @@ import { ensureGoogleFonts, BOLD_FONTS } from '../../lib/fonts';
 import { canCustomizeQr } from '../../lib/plan';
 import { FONT_STACKS, type MenuFontKey } from '../customer/menuThemes';
 import Login from '../auth/Login';
-import MenuManager, { MenuLookManager } from './MenuManager';
+import MenuManager from './MenuManager';
 import OrdersPage from './OrdersPage';
-import RestaurantProfile from './RestaurantProfile';
+import SettingsPage, { type SettingsSection } from './SettingsPage';
 import TeamPage from './TeamPage';
 // Analytics pulls in recharts + motion (~150KB gzipped), so code-split it — staff on the
 // live board never download those bytes unless they open the analytics tab.
 const AnalyticsPage = lazy(() => import('./AnalyticsPage'));
 import OrderPad from './OrderPad';
 import LoyaltyPage from './LoyaltyPage';
-import LoyaltySetup from './LoyaltySetup';
+import StockPage from './StockPage';
 import './dashboard.css';
+import './settings.css';
 
 const DICT: Dict = {
   ar: { title: 'شاشة المطبخ', live: 'مباشر', logoutT: 'خروج', cur: 'ر.ع', min: 'د', empty: 'لا طلبات',
-        nav_board: 'الطلبات المباشرة', nav_tables: 'الطاولات ورموز QR', nav_orders: 'سجل الطلبات', nav_menu: 'إدارة القائمة', nav_look: 'شكل قائمة العملاء', nav_team: 'الفريق', nav_analytics: 'التحليلات', nav_neworder: 'طلب جديد', nav_profile: 'ملف المطعم', nav_loyalty: 'الولاء', nav_loyaltySetup: 'إعدادات الولاء', more: 'المزيد',
+        nav_board: 'الطلبات المباشرة', nav_tables: 'الطاولات ورموز QR', nav_orders: 'سجل الطلبات', nav_menu: 'إدارة القائمة', nav_look: 'شكل قائمة العملاء', nav_team: 'الفريق', nav_analytics: 'التحليلات', nav_neworder: 'طلب جديد', nav_profile: 'ملف المطعم', nav_loyalty: 'الولاء', nav_loyaltySetup: 'إعدادات الولاء', nav_stock: 'المخزون', nav_settings: 'الإعدادات', more: 'المزيد',
         col_PENDING: 'جديد', col_ACCEPTED: 'قيد التنفيذ', col_PREPARING: 'قيد التحضير', col_READY: 'جاهز',
         table: 'طاولة', car: 'خدمة السيارة', note: 'ملاحظة', loyaltyReward: 'مكافأة ولاء',
         paymentTitle: 'كيف دفع العميل؟', paymentSub: 'اختر طريقة الدفع قبل إنهاء الطلب.', paymentCash: 'نقداً', paymentCard: 'بطاقة / فيزا',
@@ -75,7 +77,7 @@ const DICT: Dict = {
         emailChanged: 'تم تغيير البريد الإلكتروني', emailInvalid: 'أدخل بريدًا صحيحًا',
         role_owner: 'مالك المطعم', role_staff: 'موظف' },
   en: { title: 'Kitchen Display', live: 'Live', logoutT: 'Logout', cur: 'OMR', min: 'min', empty: 'No orders',
-        nav_board: 'Live orders', nav_tables: 'Tables & QR', nav_orders: 'Order history', nav_menu: 'Menu', nav_look: 'Customer menu look', nav_team: 'Team', nav_analytics: 'Analytics', nav_neworder: 'New order', nav_profile: 'Restaurant profile', nav_loyalty: 'Loyalty', nav_loyaltySetup: 'Loyalty settings', more: 'More',
+        nav_board: 'Live orders', nav_tables: 'Tables & QR', nav_orders: 'Order history', nav_menu: 'Menu', nav_look: 'Customer menu look', nav_team: 'Team', nav_analytics: 'Analytics', nav_neworder: 'New order', nav_profile: 'Restaurant profile', nav_loyalty: 'Loyalty', nav_loyaltySetup: 'Loyalty settings', nav_stock: 'Stock', nav_settings: 'Settings', more: 'More',
         col_PENDING: 'New', col_ACCEPTED: 'In progress', col_PREPARING: 'Preparing', col_READY: 'Ready',
         table: 'Table', car: 'Outdoor car', note: 'Note', loyaltyReward: 'Loyalty reward',
         paymentTitle: 'How did the customer pay?', paymentSub: 'Choose the payment method before completing the order.', paymentCash: 'Cash', paymentCard: 'Card / Visa',
@@ -138,7 +140,13 @@ export default function DashboardApp() {
   return <Shell />;
 }
 
-type Page = 'board' | 'neworder' | 'orders' | 'menu' | 'look' | 'team' | 'analytics' | 'profile' | 'tables' | 'loyalty' | 'loyaltySetup';
+/* Menu look, the restaurant profile and loyalty setup used to be pages of their own (two of
+   them reachable only from the avatar dropdown, which is a "who am I" affordance nobody
+   opens looking for a VAT rate). They're now sections inside `settings`. */
+type Page = 'board' | 'neworder' | 'orders' | 'menu' | 'team' | 'analytics' | 'tables' | 'loyalty' | 'stock' | 'settings';
+/** The URL owns the active page (/dashboard/<page>, /dashboard/settings/<section>), so an
+    incoming path segment is validated against this list before we trust it. */
+const PAGES: Page[] = ['board', 'neworder', 'orders', 'menu', 'team', 'analytics', 'tables', 'loyalty', 'stock', 'settings'];
 
 function LivePill({ stream, t }: { stream: StreamStatus; t: (k: string) => string }) {
   if (stream === 'open') {
@@ -272,11 +280,12 @@ const IcNew = () => <Ico><path d="M12 5v14M5 12h14" /></Ico>;
 const IcHistory = () => <Ico><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" /><path d="M14 8H8M16 12H8M13 16H8" /></Ico>;
 const IcAnalytics = () => <Ico><path d="M3 3v18h18" /><path d="M18 17V9M13 17V5M8 17v-3" /></Ico>;
 const IcMenu = () => <Ico><path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" /></Ico>;
-const IcLook = () => <Ico><circle cx="13.5" cy="6.5" r=".5" fill="currentColor" /><circle cx="17.5" cy="10.5" r=".5" fill="currentColor" /><circle cx="8.5" cy="7.5" r=".5" fill="currentColor" /><circle cx="6.5" cy="12.5" r=".5" fill="currentColor" /><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2Z" /></Ico>;
 const IcTables = () => <Ico><rect width="5" height="5" x="3" y="3" rx="1" /><rect width="5" height="5" x="16" y="3" rx="1" /><rect width="5" height="5" x="3" y="16" rx="1" /><path d="M21 16h-3a2 2 0 0 0-2 2v3M21 21v.01M12 7v3a2 2 0 0 1-2 2H7M3 12h.01M12 3h.01M12 16v.01M16 12h1M21 12v.01M12 21v-1" /></Ico>;
 const IcTeam = () => <Ico><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></Ico>;
 const IcPower = () => <Ico><path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.77.04" /></Ico>;
+const IcStock = () => <Ico><path d="M3 8h18v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" /><path d="M2 4h20v4H2z" /><path d="M10 12h4" /></Ico>;
 const IcLoyalty = () => <Ico><path d="M12 2l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20l1.1-6.5L2.6 8.8l6.5-.9z" /></Ico>;
+const IcSettings = () => <Ico><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></Ico>;
 const IcMore = () => <Ico><rect width="7" height="7" x="3" y="3" rx="1.5" /><rect width="7" height="7" x="14" y="3" rx="1.5" /><rect width="7" height="7" x="14" y="14" rx="1.5" /><rect width="7" height="7" x="3" y="14" rx="1.5" /></Ico>;
 
 function Shell() {
@@ -284,15 +293,39 @@ function Shell() {
   const t = useT(DICT);
   const toast = useToast();
   const confirm = useConfirm();
-  const [page, setPage] = useState<Page>('board');
+  // The URL is the source of truth for what's on screen, so every tab is deep-linkable, the
+  // browser back button works, and an owner can send a staff member a link straight to the
+  // stock page. DashboardApp is mounted at /dashboard/* (see App.tsx), so we own everything
+  // past that prefix: /dashboard/<page> and /dashboard/settings/<section>.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [urlPage, urlSection] = useMemo(() => {
+    const segs = location.pathname.replace(/^\/dashboard\/?/, '').split('/').filter(Boolean);
+    return [segs[0] as Page | undefined, segs[1] as SettingsSection | undefined];
+  }, [location.pathname]);
+  const page: Page = urlPage && PAGES.includes(urlPage) ? urlPage : 'board';
+  const go = useCallback(
+    (p: Page, opts?: { replace?: boolean }) => navigate(`/dashboard/${p}`, { replace: opts?.replace ?? false }),
+    [navigate],
+  );
+  const setPage = go;
+  // Section changes replace rather than push — clicking through seven settings panes
+  // shouldn't bury the page the owner came from under seven back-button presses.
+  const setSection = useCallback(
+    (s: SettingsSection) => navigate(`/dashboard/settings/${s}`, { replace: true }),
+    [navigate],
+  );
+
   // bumped on a banner tap so the (already-mounted) board jumps to the New column
   const [focusBoard, setFocusBoard] = useState(0);
   const [moreOpen, setMoreOpen] = useState(false);
   const sound = useOrderSound();
-  const titles: Record<string, string> = { board: t('title'), neworder: t('nav_neworder'), orders: t('nav_orders'), menu: t('nav_menu'), look: t('nav_look'), team: t('nav_team'), analytics: t('nav_analytics'), profile: t('nav_profile'), tables: t('tablesTitle'), loyalty: t('nav_loyalty'), loyaltySetup: t('nav_loyaltySetup') };
+  const titles: Record<string, string> = { board: t('title'), neworder: t('nav_neworder'), orders: t('nav_orders'), menu: t('nav_menu'), team: t('nav_team'), analytics: t('nav_analytics'), tables: t('tablesTitle'), loyalty: t('nav_loyalty'), stock: t('nav_stock'), settings: t('nav_settings') };
 
-  // Ordered by daily workflow: run the floor (live → new → history), read the
-  // numbers (analytics), then set things up (menu → look → tables → team).
+  // Ordered by daily workflow: run the floor (live → new → history), read the numbers
+  // (analytics), then set things up (menu → stock → tables → team). Settings sits last —
+  // it's a set-once destination, so it shouldn't compete with the operational tabs the way
+  // the old top-level "Customer menu look" tab did.
   const navItems = ([
     { key: 'board', icon: <IcLive />, label: t('nav_board'), show: can(user, 'ORDERS') },
     { key: 'neworder', icon: <IcNew />, label: t('nav_neworder'), show: can(user, 'ORDERS') },
@@ -300,9 +333,12 @@ function Shell() {
     { key: 'analytics', icon: <IcAnalytics />, label: t('nav_analytics'), show: can(user, 'ANALYTICS') },
     { key: 'loyalty', icon: <IcLoyalty />, label: t('nav_loyalty'), show: can(user, 'PROFILE') },
     { key: 'menu', icon: <IcMenu />, label: t('nav_menu'), show: can(user, 'MENU') },
-    { key: 'look', icon: <IcLook />, label: t('nav_look'), show: can(user, 'MENU') },
+    { key: 'stock', icon: <IcStock />, label: t('nav_stock'), show: can(user, 'STOCK') },
     { key: 'tables', icon: <IcTables />, label: t('nav_tables'), show: can(user, 'QR_TABLES') },
     { key: 'team', icon: <IcTeam />, label: t('nav_team'), show: can(user, 'TEAM') },
+    // Always shown: SettingsPage gates its own sections, and Appearance is available to
+    // everyone — a barista who prefers the quieter skin can switch it themselves.
+    { key: 'settings', icon: <IcSettings />, label: t('nav_settings'), show: true },
   ] as { key: Page; icon: ReactNode; label: string; show: boolean }[]).filter((i) => i.show);
 
   // Phone bottom bar holds at most 5 items; anything past that moves into a "More" sheet so
@@ -316,8 +352,8 @@ function Shell() {
   // Land on the first screen the user can actually open (e.g. a kitchen-only or menu-only member).
   const navKeys = navItems.map((i) => i.key).join(',');
   useEffect(() => {
-    if (navItems.length && !navItems.some((i) => i.key === page)) setPage(navItems[0].key);
-  }, [navKeys]); // eslint-disable-line
+    if (navItems.length && !navItems.some((i) => i.key === page)) go(navItems[0].key, { replace: true });
+  }, [navKeys, page]); // eslint-disable-line
 
   const qc = useQueryClient();
   const branchesQ = useQuery({
@@ -391,6 +427,15 @@ function Shell() {
     queryFn: () => api.get<Restaurant>(`/api/restaurants/${user!.restaurantId}`),
     enabled: !!user!.restaurantId,
   });
+  // Seed the dashboard skin from the café's age the first time we know it: cafés that
+  // existed before the professional skin shipped keep the original bold look, new signups
+  // get 'pro'. No-op once the owner has picked a skin explicitly in Settings → Appearance.
+  const { seedDefault } = useSkin();
+  const restaurantCreatedAt = restaurantQ.data?.createdAt;
+  useEffect(() => {
+    if (restaurantCreatedAt) seedDefault(restaurantCreatedAt);
+  }, [restaurantCreatedAt, seedDefault]);
+
   const madeBranchRef = useRef(false);
   const makeBranch = useMutation({
     mutationFn: (name: string) => api.post<BranchResponse>(`/api/restaurants/${user!.restaurantId}/branches`, { name }),
@@ -457,22 +502,22 @@ function Shell() {
           {page === 'board' && can(user, 'ORDERS') && (
             <button className="dnew" onClick={() => setPage('neworder')}>＋ {t('nav_neworder')}</button>
           )}
+          {/* Whether the café is accepting orders is operational state the whole floor needs
+              to see at a glance — it used to be buried two clicks deep in the avatar menu. */}
+          {can(user, 'ORDERS') && selectedBranch && (
+            <OrderingStatusControl
+              t={t}
+              accepting={selectedBranch.acceptingOrders}
+              pending={orderingStatus.isPending}
+              onToggle={toggleOrdering}
+            />
+          )}
           <SoundToggle soundOn={sound.soundOn} onToggle={sound.toggle} />
           <AccountMenu
             t={t}
-            showProfile={can(user, 'PROFILE')}
-            profileActive={page === 'profile'}
-            onProfile={() => setPage('profile')}
-            showLoyaltySetup={can(user, 'PROFILE')}
-            loyaltySetupActive={page === 'loyaltySetup'}
-            onLoyaltySetup={() => setPage('loyaltySetup')}
             branches={isManager(user) ? activeBranches : []}
             branchId={branchId}
             onBranch={setBranchId}
-            branch={selectedBranch}
-            canManageOrdering={can(user, 'ORDERS')}
-            orderingPending={orderingStatus.isPending}
-            onToggleOrdering={toggleOrdering}
           />
         </div>
 
@@ -485,14 +530,14 @@ function Shell() {
         {page === 'board' && <KdsBoard branchId={branchId} focusSignal={focusBoard} />}
         {page === 'neworder' && <OrderPad branchId={branchId} onPlaced={() => setPage('board')} />}
         {page === 'orders' && <OrdersPage branchId={branchId} />}
-        {page === 'menu' && <MenuManager />}
-        {page === 'look' && <MenuLookManager branchId={branchId} />}
+        {page === 'menu' && <MenuManager branchId={branchId} />}
         {page === 'team' && <TeamPage branches={branches} branchId={branchId} />}
         {page === 'analytics' && <Suspense fallback={<div className="an-msg">…</div>}><AnalyticsPage branches={isManager(user) ? activeBranches : []} /></Suspense>}
-        {page === 'profile' && <RestaurantProfile branchId={branchId} />}
+        {page === 'stock' && <StockPage branchId={branchId} />}
         {page === 'tables' && <TablesPage branchId={branchId} />}
-        {page === 'loyalty' && <LoyaltyPage onOpenSetup={() => setPage('loyaltySetup')} />}
-        {page === 'loyaltySetup' && <LoyaltySetup />}
+        {/* pushes (not replaces) so the back button returns to the loyalty dashboard */}
+        {page === 'loyalty' && <LoyaltyPage onOpenSetup={() => navigate('/dashboard/settings/loyalty')} />}
+        {page === 'settings' && <SettingsPage section={urlSection} onSection={setSection} branchId={branchId} />}
       </div>
 
       <nav className="dnav-bottom">
@@ -534,37 +579,44 @@ function Shell() {
   );
 }
 
-/* ============================ ACCOUNT MENU ============================ */
+/* ============================ ORDERING STATUS ============================
+   Promoted out of the account dropdown into the header: staff need to see at a
+   glance whether the café is taking orders, and an owner shouldn't have to dig
+   through an identity menu to reopen the floor. */
+function OrderingStatusControl({ t, accepting, pending, onToggle }: {
+  t: (k: string) => string;
+  accepting: boolean;
+  pending: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={'order-status-toggle' + (accepting ? '' : ' paused')}
+      disabled={pending}
+      aria-label={t(accepting ? 'pauseOrders' : 'resumeOrders')}
+      title={t(accepting ? 'pauseOrders' : 'resumeOrders')}
+      onClick={onToggle}
+    >
+      <span className="status-dot" aria-hidden="true" />
+      <span className="ost-label">{t(accepting ? 'ordersOpen' : 'ordersPaused')}</span>
+    </button>
+  );
+}
+
+/* ============================ ACCOUNT MENU ============================
+   Identity only. Café/menu/receipt/loyalty settings moved to /dashboard/settings —
+   nobody opens a "who am I" menu looking for a VAT rate. */
 function AccountMenu({
   t,
-  showProfile,
-  profileActive,
-  onProfile,
-  showLoyaltySetup,
-  loyaltySetupActive,
-  onLoyaltySetup,
   branches,
   branchId,
   onBranch,
-  branch,
-  canManageOrdering,
-  orderingPending,
-  onToggleOrdering,
 }: {
   t: (k: string) => string;
-  showProfile: boolean;
-  profileActive: boolean;
-  onProfile: () => void;
-  showLoyaltySetup: boolean;
-  loyaltySetupActive: boolean;
-  onLoyaltySetup: () => void;
   branches: BranchResponse[];
   branchId?: number;
   onBranch: (id: number) => void;
-  branch?: BranchResponse;
-  canManageOrdering: boolean;
-  orderingPending: boolean;
-  onToggleOrdering: () => void;
 }) {
   const { user } = useAuth();
   const { lang, setLang } = useI18n();
@@ -602,31 +654,6 @@ function AccountMenu({
             </div>
           </div>
           <div className="acct-sep" />
-          {canManageOrdering && branch && (
-            <button
-              className={'acct-item order-toggle ' + (branch.acceptingOrders ? 'pause' : 'resume')}
-              role="menuitem"
-              disabled={orderingPending}
-              onClick={() => { setOpen(false); onToggleOrdering(); }}
-            >
-              <span className="ai-ic"><span className="status-dot" /></span>
-              <span className="order-toggle-copy">
-                <b>{t(branch.acceptingOrders ? 'pauseOrders' : 'resumeOrders')}</b>
-                <small>{t(branch.acceptingOrders ? 'ordersOpen' : 'ordersPaused')}</small>
-              </span>
-            </button>
-          )}
-          {canManageOrdering && branch && <div className="acct-sep" />}
-          {showProfile && (
-            <button className={'acct-item' + (profileActive ? ' on' : '')} role="menuitem" onClick={() => { onProfile(); setOpen(false); }}>
-              <span className="ai-ic">🏪</span>{t('nav_profile')}
-            </button>
-          )}
-          {showLoyaltySetup && (
-            <button className={'acct-item' + (loyaltySetupActive ? ' on' : '')} role="menuitem" onClick={() => { onLoyaltySetup(); setOpen(false); }}>
-              <span className="ai-ic">🎟️</span>{t('nav_loyaltySetup')}
-            </button>
-          )}
           <button className="acct-item" role="menuitem" onClick={() => { setOpen(false); setPwOpen(true); }}>
             <span className="ai-ic">🔒</span>{t('changePassword')}
           </button>

@@ -16,6 +16,25 @@
   --ring:rgba(15,18,20,.07);
   --r-lg:24px;--r-md:18px;--r-sm:12px;
   --shadow:0 30px 70px -40px rgba(20,22,30,.32);--shadow-sm:0 12px 30px -16px rgba(20,22,30,.20);
+  /* branded-skin keyline + focus tokens; sane defaults so non-branded surfaces
+     (and anything portaled outside .dash/.login/.adm) keep rendering. The bold
+     and pro blocks below override these per skin. */
+  --bw:1px;--bw-thick:1px;--bw-heavy:1px;--bw-hair:1px;
+  --focus-shadow:0 0 0 3px var(--accent-glow);
+  --fw-display:700;
+  /* Role tokens split out of --ink and --lime so a skin can retheme one role
+     without dragging the other with it (see the bold/pro blocks below):
+       --keyline   the border half of --ink   (--ink stays the text half)
+       --fill-ink  the text that sits ON a --lime fill
+     Fallbacks here keep anything portaled outside .dash/.login/.adm rendering. */
+  --keyline:var(--line-2);--fill-ink:var(--accent-ink);
+  --grid-line:transparent;--wash-1:transparent;--wash-2:transparent;--wash-3:transparent;
+  --pulse:var(--accent-glow);
+  --tint-ok:rgba(16,185,129,.10);--edge-ok:rgba(16,185,129,.40);
+  --tint-warn:rgba(245,184,61,.12);--edge-warn:rgba(245,184,61,.55);
+  --tint-bad:rgba(255,107,90,.10);--edge-bad:rgba(255,107,90,.45);
+  --accent-tint:rgba(16,185,129,.10);--accent-tint-soft:rgba(16,185,129,.05);
+  --danger-solid:#e5573f;--danger-solid-ink:#fff;
   --font-ar:'IBM Plex Sans Arabic',system-ui,sans-serif;
   --font-brand:'Sora','IBM Plex Sans Arabic',system-ui,sans-serif;
   --font-mono:'IBM Plex Mono',ui-monospace,monospace;
@@ -38,7 +57,138 @@
   --text:#15181C; --muted:#566058; --faint:#8A938B;
   --paper:#FAFAF7; --ink:#15181C; --lime:#10b981; --sun:#F5B83D;
   --rail-bg:#FFFFFF; --glass:rgba(250,250,247,.92);
+  /* hard offset shadows — every size in the neobrutalist chrome, so the pro
+     skin can flatten the whole scale at once by overriding these. */
+  --hard-press:1px 1px 0 var(--ink); --hard-xs:2px 2px 0 var(--ink);
   --hard:4px 4px 0 var(--ink); --hard-sm:3px 3px 0 var(--ink);
+  --hard-lg:5px 5px 0 var(--ink); --hard-xl:6px 6px 0 var(--ink); --hard-2xl:8px 8px 0 var(--ink);
+  /* keyline widths + focus affordance + display weight */
+  --bw:2px; --bw-thick:3px; --bw-heavy:2.5px; --bw-hair:1.5px;
+  --focus-shadow:3px 3px 0 var(--lime);
+  --fw-display:800;
+  /* Bold's two roles are the same colour they always were, so nothing moves:
+     every keyline is ink, and ink is what reads on a lime fill. */
+  --keyline:var(--ink); --fill-ink:var(--ink);
+  /* backdrop: emerald graph paper + two corner washes */
+  --grid-line:rgba(16,185,129,.06);
+  --wash-1:rgba(16,185,129,.06); --wash-2:rgba(90,169,255,.06); --wash-3:rgba(176,140,255,.06);
+  --pulse:rgba(61,224,160,.5);
+  --tint-ok:rgba(61,224,160,.10); --edge-ok:rgba(61,224,160,.40);
+  --tint-warn:rgba(245,184,61,.12); --edge-warn:rgba(245,184,61,.55);
+  --tint-bad:rgba(255,107,90,.10); --edge-bad:rgba(255,107,90,.45);
+  --accent-tint:rgba(16,185,129,.10); --accent-tint-soft:rgba(16,185,129,.05);
+  --danger-solid:#e5573f; --danger-solid-ink:#fff;
+}
+
+/* =====================================================================
+    "PRO" skin — shadcn/ui, zinc.
+------------------------------------------------------------------------
+    This is a full second PALETTE, not a re-weighting of the first. It takes
+    shadcn/ui's default light theme for the CHROME — white cards on a zinc-50
+    page, zinc-200 hairline borders, zinc-500 secondary text — and keeps
+    Serva's green as the primary, two steps darker so it survives white text.
+
+    The difference from bold is how much work the green does. Bold is green
+    everywhere: green rail, green buttons, green chips, green graph paper.
+    Pro spends it. The chrome is neutral so that the few green things —
+    primary buttons, the active nav pill, a switch that is on, the ticket
+    number — are the things your eye goes to. Same colour, less of it.
+
+    The one mechanical trap when editing: --lime is the emphasis FILL and
+    --fill-ink is the text that sits on it. They must always change together.
+    Under bold that pair is (emerald-500, near-black); here it is
+    (emerald-700, white). Setting one without the other is unreadable.
+
+    Light mode only — :root's dark/light blocks are still identical upstream,
+    so there is no dark scale to hook into yet.
+
+    Scoped to .dash / .login / .adm. The customer menu is unaffected (it has
+    its own per-restaurant theme system). Branches created on/after 2026-08-05
+    default to this; see src/lib/skin.tsx (frozen contract — do not edit).
+    ===================================================================== */
+[data-skin="pro"] .dash, [data-skin="pro"] .login, [data-skin="pro"] .adm{
+  /* ---- neutrals: zinc ---- */
+  /* --paper is the PAGE and --bg-2 is what sits on it; they must not be the
+     same white or every card loses its edge against the background. */
+  --canvas:#FAFAFA; --paper:#FAFAFA;     /* zinc-50  — the page             */
+  --bg-2:#FFFFFF; --surface:#FFFFFF;     /* cards, panels, inputs           */
+  --surface-2:#F4F4F5;                   /* zinc-100 — muted/hover fill     */
+  --line:#F4F4F5;                        /* zinc-100 — faint divider        */
+  --line-2:#E4E4E7;                      /* zinc-200 — standard border      */
+  --keyline:#E4E4E7;                     /* zinc-200 — was near-black ink   */
+  --text:#09090B; --ink:#09090B;         /* zinc-950 — text half of --ink   */
+  --muted:#71717A;                       /* zinc-500                        */
+  --faint:#A1A1AA;                       /* zinc-400                        */
+  --rail-bg:#FFFFFF; --glass:rgba(255,255,255,.85);
+  --scrim:rgba(9,9,11,.45);
+
+  /* ---- primary: deep emerald, and the ink that rides on it ----
+     Not the brand emerald-500 (#10b981): as a FILL under white text it only
+     reaches 2.54:1. emerald-700 is the same hue two steps down and clears AA
+     at 5.48:1 — and it is already in the bold palette as --accent-text, so
+     this is the product's own green, not a new one. The neutrals around it
+     stay zinc; that contrast between a calm grey chrome and one saturated
+     brand colour is what reads as professional rather than the green doing
+     all the work, as it does in bold. */
+  --lime:#047857;                        /* emerald-700 — the emphasis fill */
+  --fill-ink:#FFFFFF;                    /* text on that fill               */
+  --accent:#047857; --accent-2:#065F46;  /* emerald-800 for the darker stop */
+  --accent-ink:#FFFFFF;                  /* text on an accent surface       */
+  --accent-text:#047857;                 /* accent-coloured TEXT on white   */
+  --accent-glow:rgba(4,120,87,.20);
+
+  /* ---- status ----
+     These double as TEXT (.pay.paid sets color:var(--ready)), so each has to
+     clear 4.5:1 on white. amber-600 only reaches 3.2, so it sits at 700;
+     blue/violet/red already pass at 600.
+
+     "Positive" deliberately resolves to the SAME emerald as the primary rather
+     than a second, near-identical green. One green used at two intensities
+     reads as a system; two greens a few degrees apart reads as a mistake. A
+     paid chip and a primary button are told apart by form — tinted pill vs
+     solid fill — not by hue. */
+  --green:#047857; --ready:#047857;      /* emerald-700, same as primary    */
+  --blue:#2563EB;  --accepted:#2563EB;   /* blue-600   5.17:1               */
+  --amber:#B45309; --pending:#B45309; --sun:#B45309;   /* amber-700  5.02:1 */
+  --violet:#7C3AED; --preparing:#7C3AED; /* violet-600 5.70:1               */
+  --bad:#DC2626;                         /* red-600    4.83:1               */
+  --tint-ok:rgba(4,120,87,.09);    --edge-ok:rgba(4,120,87,.28);
+  --tint-warn:rgba(180,83,9,.10);  --edge-warn:rgba(180,83,9,.30);
+  --tint-bad:rgba(220,38,38,.10);  --edge-bad:rgba(220,38,38,.30);
+  --danger-solid:#DC2626; --danger-solid-ink:#FFFFFF;
+  --accent-tint:#ECFDF5;                 /* emerald-50 — nav pills, soft rows */
+  --accent-tint-soft:#F5FDF9;
+  --pulse:rgba(4,120,87,.32);
+  --ring:#047857;
+
+  /* ---- backdrop: no graph paper. Just one whisper of brand in the corner,
+     far too faint to tint anything sitting on it. ---- */
+  --grid-line:transparent;
+  --wash-1:rgba(4,120,87,.035); --wash-2:transparent; --wash-3:transparent;
+
+  /* ---- elevation: soft shadows replace every hard offset. Tiny decorative
+     offsets flatten to none so chips & swatches carry no shadow at all —
+     their hairline border is enough. ---- */
+  --hard-press:none; --hard-xs:none;
+  --hard-sm:0 1px 2px 0 rgba(9,9,11,.05);
+  --hard:0 1px 3px 0 rgba(9,9,11,.10), 0 1px 2px -1px rgba(9,9,11,.10);
+  --hard-lg:0 4px 6px -1px rgba(9,9,11,.10), 0 2px 4px -2px rgba(9,9,11,.10);
+  --hard-xl:0 10px 15px -3px rgba(9,9,11,.10), 0 4px 6px -4px rgba(9,9,11,.10);
+  --hard-2xl:0 20px 25px -5px rgba(9,9,11,.10), 0 8px 10px -6px rgba(9,9,11,.10);
+  --shadow:0 10px 15px -3px rgba(9,9,11,.10); --shadow-sm:0 1px 3px 0 rgba(9,9,11,.10);
+
+  /* ---- hairline keylines everywhere ---- */
+  --bw:1px; --bw-thick:1px; --bw-heavy:1px; --bw-hair:1px;
+
+  /* ---- shadcn's focus ring: 2px ring, offset from the control by the page.
+     Brand-coloured, so keyboard focus is unmistakably Serva's green. ---- */
+  --focus-shadow:0 0 0 2px #FFFFFF, 0 0 0 4px var(--ring);
+
+  /* ---- type & radii: one family, weight for hierarchy (shadcn's approach),
+     and the 0.5rem radius scale instead of bold's blocky 9/7/6. ---- */
+  --bold:var(--font-ar);
+  --fw-display:600;
+  --r-lg:10px; --r-md:8px; --r-sm:6px;
 }
 
 *{box-sizing:border-box;margin:0;padding:0}
@@ -58,7 +208,7 @@ a{color:inherit;text-decoration:none}
 .btn:disabled{filter:grayscale(.5);opacity:.6;cursor:not-allowed}
 .btn.full{width:100%}
 .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line-2);box-shadow:none}
-.btn.danger{background:transparent;color:var(--bad);border:1px solid rgba(255,107,90,.4);box-shadow:none}
+.btn.danger{background:transparent;color:var(--bad);border:1px solid var(--edge-bad);box-shadow:none}
 .btn.sm{padding:8px 12px;font-size:13px;border-radius:11px}
 
 /* ---- form fields ---- */
@@ -67,7 +217,7 @@ a{color:inherit;text-decoration:none}
 .input,.field input,.field textarea,.field select{width:100%;border:1px solid var(--line-2);background:var(--bg-2);border-radius:12px;
   padding:12px 13px;font-family:var(--font-ar);font-size:14px;color:var(--text)}
 .field textarea{resize:none}
-.input:focus,.field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.input:focus-visible,.field input:focus-visible,.field textarea:focus-visible,.field select:focus-visible{outline:none;border-color:var(--accent);box-shadow:var(--focus-shadow)}
 .field input::placeholder,.field textarea::placeholder{color:var(--faint)}
 
 /* ---- language toggle ---- */
@@ -78,9 +228,9 @@ a{color:inherit;text-decoration:none}
 /* ---- chips ---- */
 .chip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:999px;border:1px solid var(--line-2);color:var(--muted)}
 .chip .d{width:6px;height:6px;border-radius:50%;background:currentColor}
-.chip.ok{color:var(--green);border-color:rgba(16,185,129,.4);background:rgba(16,185,129,.08)}
-.chip.warn{color:var(--amber);border-color:rgba(245,184,61,.4);background:rgba(245,184,61,.08)}
-.chip.bad{color:var(--bad);border-color:rgba(255,107,90,.4);background:rgba(255,107,90,.08)}
+.chip.ok{color:var(--green);border-color:var(--edge-ok);background:var(--tint-ok)}
+.chip.warn{color:var(--amber);border-color:var(--edge-warn);background:var(--tint-warn)}
+.chip.bad{color:var(--bad);border-color:var(--edge-bad);background:var(--tint-bad)}
 
 /* ---- toast ---- */
 .toast{position:fixed;inset-inline:0;bottom:24px;z-index:600;display:flex;justify-content:center;pointer-events:none}
@@ -134,6 +284,15 @@ html[dir] .drawer.open{transform:none;visibility:visible}
 .confirm-card .modal-actions .btn{border-radius:10px;font-weight:800;box-shadow:none}
 .confirm-card .btn.ghost{background:var(--paper,#FAFAF7);color:var(--ink,#15181C);border:2px solid var(--ink,#15181C)}
 .confirm-card .btn.danger{background:var(--paper,#FAFAF7);color:var(--bad);border:2px solid var(--bad)}
+/* The confirm dialog renders in a portal ABOVE the app shell, so it sits outside the
+   [data-skin="pro"] .dash/.login/.adm scope that flattens everything else — without this
+   it would stay neobrutalist while the surface behind it went quiet. */
+[data-skin="pro"] .modal-card.confirm-card{
+  border:1px solid var(--line-2,rgba(21,24,28,.20));
+  box-shadow:0 2px 8px rgba(21,24,28,.08), 0 24px 50px -18px rgba(21,24,28,.32);
+}
+[data-skin="pro"] .confirm-card .btn.ghost{border-width:1px}
+[data-skin="pro"] .confirm-card .btn.danger{border-width:1px}
 
 .fade-in{animation:fade .4s ease both}
 @keyframes fade{from{opacity:0}to{opacity:1}}

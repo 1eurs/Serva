@@ -4,7 +4,7 @@ import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
-import type { BranchResponse, Permission, UserResponse } from '../../lib/types';
+import type { BranchResponse, Permission, StaffInvite, UserResponse } from '../../lib/types';
 
 const DICT: Dict = {
   ar: {
@@ -19,9 +19,19 @@ const DICT: Dict = {
     role_waiter: 'طلبات', role_waiter_sub: 'استقبال وإدارة الطلبات',
     role_manager: 'مدير', role_manager_sub: 'إدارة المطعم بالكامل',
     pwHint: 'انسخ كلمة المرور وأعطها للموظف — لن تظهر مرة أخرى.',
+    invite: '＋ دعوة عضو', addDirect: 'إضافة مباشرة', inviteTitle: 'دعوة عضو',
+    sendInvite: 'إنشاء الدعوة', pending: 'بانتظار الانضمام',
+    copyLink: 'نسخ الرابط', shareWa: 'واتساب', resend: 'رابط جديد', cancelInvite: 'إلغاء الدعوة',
+    inviteReady: 'الدعوة جاهزة', expires: 'تنتهي',
+    inviteHint: 'لن تختار كلمة المرور — سيختارها العضو بنفسه عبر الرابط.',
+    shareHint: 'أرسل هذا الرابط للعضو. يعمل مرة واحدة وينتهي خلال ٧ أيام.',
+    waMsg: 'مرحباً! هذه دعوتك للانضمام لفريق العمل:',
+    inviteSent: 'تم إنشاء الدعوة', inviteCancelled: 'أُلغيت الدعوة', linkReady: 'رابط جديد جاهز',
+    done: 'تم',
     g_front: 'واجهة الخدمة', g_kitchen: 'المطبخ', g_catalog: 'القائمة', g_manage: 'الإدارة',
     p_ORDERS: 'الطلبات', p_PAYMENTS: 'الدفع', p_MENU: 'القائمة', p_QR_TABLES: 'الطاولات / QR',
     p_TEAM: 'الفريق', p_ANALYTICS: 'التحليلات', p_PROFILE: 'إعدادات المطعم', p_BRANCHES: 'الفروع',
+    p_STOCK: 'المخزون', h_STOCK: 'المخزون والوصفات والجرد والشراء', g_stock: 'المخزون',
     h_ORDERS: 'اللوحة المباشرة وقبول وتحضير وإكمال الطلبات',
     h_PAYMENTS: 'تحصيل الدفع وتعليم الطلب مدفوعًا', h_MENU: 'تعديل الأصناف والمظهر والثيم',
     h_QR_TABLES: 'إدارة الطاولات ورموز QR', h_TEAM: 'إضافة وإدارة حسابات الموظفين',
@@ -39,9 +49,19 @@ const DICT: Dict = {
     role_waiter: 'Orders', role_waiter_sub: 'Take & manage orders',
     role_manager: 'Manager', role_manager_sub: 'Run the whole restaurant',
     pwHint: 'Copy the password and hand it to the staff member — it won’t be shown again.',
+    invite: '＋ Invite member', addDirect: 'Add directly', inviteTitle: 'Invite a member',
+    sendInvite: 'Create invite', pending: 'Pending',
+    copyLink: 'Copy link', shareWa: 'WhatsApp', resend: 'New link', cancelInvite: 'Cancel invite',
+    inviteReady: 'Invite ready', expires: 'Expires',
+    inviteHint: "You don't pick a password — they set their own through the link.",
+    shareHint: 'Send this link to your member. It works once and expires in 7 days.',
+    waMsg: 'Hi! Here’s your invite to join the team:',
+    inviteSent: 'Invite created', inviteCancelled: 'Invite cancelled', linkReady: 'New link ready',
+    done: 'Done',
     g_front: 'Front of house', g_kitchen: 'Kitchen', g_catalog: 'Catalog', g_manage: 'Management',
     p_ORDERS: 'Orders', p_PAYMENTS: 'Payments', p_MENU: 'Menu', p_QR_TABLES: 'Tables / QR',
     p_TEAM: 'Team', p_ANALYTICS: 'Analytics', p_PROFILE: 'Restaurant settings', p_BRANCHES: 'Branches',
+    p_STOCK: 'Stock', h_STOCK: 'Stock levels, recipes, counts & purchasing', g_stock: 'Stock',
     h_ORDERS: 'Live board — accept, prepare, complete & cancel orders',
     h_PAYMENTS: 'Take payment & mark orders paid', h_MENU: 'Edit menu items, look & theme',
     h_QR_TABLES: 'Manage tables & QR codes', h_TEAM: 'Add & manage staff accounts',
@@ -53,7 +73,7 @@ const DICT: Dict = {
 // omitted — it isn't enforced anywhere (subscription view is gated by PROFILE).
 const PERM_GROUPS: { key: string; perms: Permission[] }[] = [
   { key: 'g_front', perms: ['ORDERS', 'PAYMENTS'] },
-  { key: 'g_catalog', perms: ['MENU', 'QR_TABLES'] },
+  { key: 'g_catalog', perms: ['MENU', 'QR_TABLES', 'STOCK'] },
   { key: 'g_manage', perms: ['TEAM', 'BRANCHES', 'ANALYTICS', 'PROFILE'] },
 ];
 const TOGGLEABLE: Permission[] = PERM_GROUPS.flatMap((g) => g.perms);
@@ -95,6 +115,15 @@ export default function TeamPage({ branches, branchId }: { branches: BranchRespo
     queryKey: ['team-users', user!.restaurantId],
     queryFn: () => api.get<UserResponse[]>('/api/users'),
   });
+  const invitesQ = useQuery({
+    queryKey: ['team-invites', user!.restaurantId],
+    queryFn: () => api.get<StaffInvite[]>('/api/users/invites'),
+  });
+  /** Pending invites keyed by the shell account they will activate, to hang row actions off. */
+  const inviteByUser = useMemo(
+    () => new Map((invitesQ.data ?? []).map((i) => [i.userId, i])),
+    [invitesQ.data],
+  );
   const branchName = useMemo(() => new Map(branches.map((b) => [b.id, b.name])), [branches]);
   const rows = useMemo(() => {
     const list = usersQ.data ?? [];
@@ -106,8 +135,14 @@ export default function TeamPage({ branches, branchId }: { branches: BranchRespo
   }, [usersQ.data]);
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  // The link is shown once the invite exists — the owner shares it, we never send it for them.
+  const [shareInvite, setShareInvite] = useState<StaffInvite | null>(null);
   const [editing, setEditing] = useState<UserResponse | null>(null);
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['team-users', user!.restaurantId] });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['team-users', user!.restaurantId] });
+    qc.invalidateQueries({ queryKey: ['team-invites', user!.restaurantId] });
+  };
   const err = (e: unknown) => toast(e instanceof ApiError ? e.message : 'Error');
 
   const toggle = useMutation({
@@ -116,11 +151,27 @@ export default function TeamPage({ branches, branchId }: { branches: BranchRespo
     onError: err,
   });
 
+  const resend = useMutation({
+    mutationFn: (inv: StaffInvite) => api.post<StaffInvite>(`/api/users/invites/${inv.id}/resend`),
+    onSuccess: (fresh) => { invalidate(); setShareInvite(fresh); toast(t('linkReady')); },
+    onError: err,
+  });
+  const cancelInvite = useMutation({
+    mutationFn: (inv: StaffInvite) => api.del(`/api/users/invites/${inv.id}`),
+    onSuccess: () => { invalidate(); toast(t('inviteCancelled')); },
+    onError: err,
+  });
+
   return (
     <div className="tables-wrap team-page">
       <div className="toolbar">
         <div />
-        <button className="btn sm" onClick={() => setCreateOpen(true)}>{t('add')}</button>
+        <div className="team-toolbar-actions">
+          {/* Inviting is the default: the member picks their own password, so nobody else knows it.
+              Direct creation stays for the case where you're setting up a device on the spot. */}
+          <button className="btn sm ghost" onClick={() => setCreateOpen(true)}>{t('addDirect')}</button>
+          <button className="btn sm" onClick={() => setInviteOpen(true)}>{t('invite')}</button>
+        </div>
       </div>
 
       {usersQ.isLoading ? <div className="center"><div className="spinner" /></div>
@@ -141,16 +192,35 @@ export default function TeamPage({ branches, branchId }: { branches: BranchRespo
                       : <span className="perm-tags">{u.permissions.map((p) => <span key={p}>{t('p_' + p)}</span>)}</span>}
                   </td>
                   <td className="hide-sm">{u.branchId ? branchName.get(u.branchId) ?? `#${u.branchId}` : t('allBranches')}</td>
-                  <td><span className={'chip' + (u.active ? ' ok' : '')}><span className="d" />{u.active ? t('active') : t('inactive')}</span></td>
+                  <td>
+                    {/* Pending and deactivated are both `active: false` but mean opposite things. */}
+                    {u.pendingInvite
+                      ? <span className="chip warn"><span className="d" />{t('pending')}</span>
+                      : <span className={'chip' + (u.active ? ' ok' : '')}><span className="d" />{u.active ? t('active') : t('inactive')}</span>}
+                  </td>
                   <td className="team-actions">
-                    {/* Owner profile/password is editable too — but only by an owner, never deactivatable. */}
-                    {(user!.owner || !u.owner) && (
-                      <button className="btn sm ghost" onClick={() => setEditing(u)}>{t('edit')}</button>
-                    )}
-                    {!u.owner && (
-                      <button className="btn sm ghost" disabled={toggle.isPending} onClick={() => toggle.mutate(u)}>
-                        {u.active ? t('deactivate') : t('activate')}
-                      </button>
+                    {u.pendingInvite && inviteByUser.get(u.id) ? (
+                      <>
+                        <button className="btn sm" onClick={() => setShareInvite(inviteByUser.get(u.id)!)}>
+                          {t('copyLink')}
+                        </button>
+                        <button className="btn sm ghost" disabled={resend.isPending}
+                          onClick={() => resend.mutate(inviteByUser.get(u.id)!)}>{t('resend')}</button>
+                        <button className="btn sm ghost" disabled={cancelInvite.isPending}
+                          onClick={() => cancelInvite.mutate(inviteByUser.get(u.id)!)}>{t('cancelInvite')}</button>
+                      </>
+                    ) : (
+                      <>
+                        {/* Owner profile/password is editable too — but only by an owner, never deactivatable. */}
+                        {(user!.owner || !u.owner) && (
+                          <button className="btn sm ghost" onClick={() => setEditing(u)}>{t('edit')}</button>
+                        )}
+                        {!u.owner && (
+                          <button className="btn sm ghost" disabled={toggle.isPending} onClick={() => toggle.mutate(u)}>
+                            {u.active ? t('deactivate') : t('activate')}
+                          </button>
+                        )}
+                      </>
                     )}
                   </td>
                 </tr>
@@ -170,6 +240,19 @@ export default function TeamPage({ branches, branchId }: { branches: BranchRespo
           onSaved={() => { setCreateOpen(false); invalidate(); toast(t('created')); }}
         />
       )}
+      {inviteOpen && (
+        <StaffModal
+          mode="invite"
+          grantable={grantable}
+          branches={branches}
+          defaultBranchId={fallbackBranchId}
+          lockBranch={user!.branchId != null}
+          onClose={() => setInviteOpen(false)}
+          onSaved={() => { setInviteOpen(false); invalidate(); }}
+          onInvited={(inv) => { setInviteOpen(false); invalidate(); setShareInvite(inv); toast(t('inviteSent')); }}
+        />
+      )}
+      {shareInvite && <ShareInvite invite={shareInvite} onClose={() => setShareInvite(null)} />}
       {editing && (
         <StaffModal
           mode="edit"
@@ -187,9 +270,9 @@ export default function TeamPage({ branches, branchId }: { branches: BranchRespo
 }
 
 function StaffModal({
-  mode, staff, grantable, branches, defaultBranchId, lockBranch, onClose, onSaved,
+  mode, staff, grantable, branches, defaultBranchId, lockBranch, onClose, onSaved, onInvited,
 }: {
-  mode: 'create' | 'edit';
+  mode: 'create' | 'edit' | 'invite';
   staff?: UserResponse;
   grantable: Permission[];
   branches: BranchResponse[];
@@ -197,6 +280,8 @@ function StaffModal({
   lockBranch: boolean;
   onClose: () => void;
   onSaved: () => void;
+  /** Invite mode only — hands back the freshly minted link for the owner to share. */
+  onInvited?: (invite: StaffInvite) => void;
 }) {
   const t = useT(DICT);
   const toast = useToast();
@@ -207,6 +292,7 @@ function StaffModal({
     fullName: staff?.fullName ?? '',
     phone: staff?.phone ?? '',
     // create: start with a generated password; edit: blank until the owner resets it.
+    // invite: never — the member chooses their own.
     password: mode === 'create' ? tempPassword() : '',
     branchId: staff?.branchId ?? defaultBranchId,
     perms: new Set<Permission>(staff?.permissions.filter((p) => p !== 'PLATFORM_ADMIN') ?? []),
@@ -221,8 +307,8 @@ function StaffModal({
     setF((prev) => ({ ...prev, perms: new Set(perms.filter((p) => grantable.includes(p))) }));
   const selectedRole = matchRole(f.perms, grantable);
 
-  const save = useMutation({
-    mutationFn: () => {
+  const save = useMutation<UserResponse | StaffInvite, unknown, void>({
+    mutationFn: async () => {
       if (mode === 'edit' && staff) {
         return api.patch<UserResponse>(`/api/users/${staff.id}`, {
           fullName: f.fullName.trim() || null,
@@ -231,30 +317,37 @@ function StaffModal({
           ...(isOwner ? {} : { permissions: [...f.perms], branchId: lockBranch ? undefined : (f.branchId ?? null) }),
         });
       }
-      return api.post<UserResponse>('/api/users', {
+      const body = {
         username: f.username.trim(),
-        password: f.password,
         fullName: f.fullName.trim() || null,
         phone: f.phone.trim() || null,
         permissions: [...f.perms],
         branchId: lockBranch ? undefined : f.branchId,
-      });
+      };
+      return mode === 'invite'
+        ? api.post<StaffInvite>('/api/users/invites', body)
+        : api.post<UserResponse>('/api/users', { ...body, password: f.password });
     },
-    onSuccess: onSaved,
+    onSuccess: (result) => {
+      if (mode === 'invite' && onInvited) onInvited(result as StaffInvite);
+      else onSaved();
+    },
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
 
-  const valid = mode === 'edit'
-    ? true
+  const valid = mode === 'edit' ? true
+    : mode === 'invite' ? f.username.trim().length >= 3
     : f.username.trim().length >= 3 && f.password.length >= 8;
-  const showPw = mode === 'create' || !!f.password;
+  const showPw = mode === 'create' || (mode === 'edit' && !!f.password);
 
   return (
     <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-card team-modal">
-        <h3>{mode === 'create' ? t('newStaff') : (staff?.username ?? t('edit'))}</h3>
+        <h3>{mode === 'invite' ? t('inviteTitle')
+          : mode === 'create' ? t('newStaff')
+          : (staff?.username ?? t('edit'))}</h3>
 
-        {mode === 'create' && (
+        {(mode === 'create' || mode === 'invite') && (
           <div className="row2">
             <div className="field"><label>{t('username')}</label>
               <input className="num" value={f.username} autoCapitalize="none" spellCheck={false}
@@ -272,7 +365,16 @@ function StaffModal({
           </div>
         )}
 
+        {mode === 'invite' && (
+          <>
+            <div className="field"><label>{t('phone')}</label>
+              <input className="num" value={f.phone ?? ''} onChange={(e) => set('phone', e.target.value)} /></div>
+            <div className="rslug" style={{ margin: '2px 0 6px' }}>{t('inviteHint')}</div>
+          </>
+        )}
+
         {/* Password: generated on create; on edit, button generates a fresh one to copy out. */}
+        {mode !== 'invite' && (
         <div className="field">
           <label>{mode === 'create' ? t('password') : t('resetPw')}</label>
           <div className="pw-row">
@@ -287,6 +389,7 @@ function StaffModal({
           </div>
           {showPw && f.password && <div className="rslug" style={{ marginTop: 6 }}>{t('pwHint')}</div>}
         </div>
+        )}
 
         {isOwner ? (
           <div className="perm-tags" style={{ marginTop: 12 }}><span>{t('owner')}</span></div>
@@ -348,7 +451,54 @@ function StaffModal({
 
         <div className="modal-actions">
           <button className="btn ghost" onClick={onClose}>{t('cancel')}</button>
-          <button className="btn" disabled={!valid || save.isPending} onClick={() => save.mutate()}>{t('save')}</button>
+          <button className="btn" disabled={!valid || save.isPending} onClick={() => save.mutate()}>
+            {mode === 'invite' ? t('sendInvite') : t('save')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+/**
+ * The hand-off step: the owner gets the link and passes it on themselves.
+ *
+ * <p>No automatic sending. Café staff here often have no work email, and the owner already has
+ * them on WhatsApp — so a copyable link plus a pre-filled WhatsApp message beats a delivery
+ * pipeline that silently fails into a spam folder.
+ */
+function ShareInvite({ invite, onClose }: { invite: StaffInvite; onClose: () => void }) {
+  const t = useT(DICT);
+  const [copied, setCopied] = useState(false);
+  const message = `${t('waMsg')} ${invite.joinUrl}`;
+  // With a phone on file the message opens straight in their thread; otherwise it's a share sheet.
+  const waHref = `https://wa.me/?text=${encodeURIComponent(message)}`;
+
+  return (
+    <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal-card team-modal">
+        <h3>{t('inviteReady')} — {invite.username}</h3>
+        <div className="rslug" style={{ marginBottom: 12 }}>{t('shareHint')}</div>
+
+        <div className="field">
+          <div className="pw-row">
+            <input className="num" value={invite.joinUrl} readOnly
+              onFocus={(e) => e.currentTarget.select()} />
+            <button type="button" className="btn sm"
+              onClick={() => copy(invite.joinUrl, () => setCopied(true))}>
+              {copied ? t('copied') : t('copy')}
+            </button>
+          </div>
+        </div>
+
+        <div className="rslug" style={{ marginTop: 4 }}>
+          {t('expires')} {new Date(invite.expiresAt).toLocaleDateString()}
+        </div>
+
+        <div className="modal-actions">
+          <a className="btn ghost" href={waHref} target="_blank" rel="noopener noreferrer">{t('shareWa')}</a>
+          <button className="btn" onClick={onClose}>{t('done')}</button>
         </div>
       </div>
     </div>

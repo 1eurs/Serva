@@ -1,6 +1,6 @@
 .adm{display:flex;height:100dvh;overflow:hidden;background:
-  radial-gradient(1100px 700px at 90% -10%,rgba(16,185,129,.06),transparent 60%),
-  radial-gradient(900px 800px at -10% 110%,rgba(176,140,255,.06),transparent 55%),var(--canvas)}
+  radial-gradient(1100px 700px at 90% -10%,var(--wash-1),transparent 60%),
+  radial-gradient(900px 800px at -10% 110%,var(--wash-3),transparent 55%),var(--canvas)}
 .arail{width:74px;flex:0 0 auto;background:var(--rail-bg);border-inline-start:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:6px;backdrop-filter:blur(12px)}
 .arail .logo{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;font-family:var(--font-brand);font-weight:800;font-size:17px;color:var(--accent-ink);background:linear-gradient(155deg,var(--accent),var(--accent-2))}
 .arail .nav{display:flex;flex-direction:column;gap:4px;flex:1;align-items:center;margin-top:10px}
@@ -60,6 +60,9 @@
 .search{flex:1;max-width:320px;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line-2);border-radius:12px;padding:9px 13px}
 .search input{flex:1;border:0;background:transparent;color:var(--text);font-family:var(--font-ar);font-size:14px;outline:none}
 .search input::placeholder{color:var(--faint)}
+/* outline:none above is a base reset; the keyboard affordance is provided here so the
+   search input is never focusless (mouse-click stays quiet via :focus-visible). */
+.search input:focus-visible{box-shadow:var(--focus-shadow)}
 /* .seg (segmented control) is now shared in theme.css */
 
 .tbl{width:100%;border-collapse:separate;border-spacing:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden}
@@ -87,74 +90,74 @@
   --r-lg:9px; --r-md:7px; --r-sm:6px;
   --bold:'Bricolage Grotesque','IBM Plex Sans Arabic',system-ui,sans-serif;
   background:
-    linear-gradient(90deg,rgba(16,185,129,.06) 1px,transparent 1px) 0 0/34px 34px,
-    linear-gradient(180deg,rgba(16,185,129,.05) 1px,transparent 1px) 0 0/34px 34px,
+    linear-gradient(90deg,var(--grid-line) 1px,transparent 1px) 0 0/34px 34px,
+    linear-gradient(180deg,var(--grid-line) 1px,transparent 1px) 0 0/34px 34px,
     var(--paper);
 }
-.adm .atop h2,.adm .kpi .val,.adm .acct-name{font-family:var(--bold);font-weight:800;letter-spacing:-.01em}
+.adm .atop h2,.adm .kpi .val,.adm .acct-name{font-family:var(--bold);font-weight:var(--fw-display);letter-spacing:-.01em}
 
 /* green sidebar — brand colour as the dominant chrome element */
-.adm .arail{background:var(--accent);border-inline-start:2px solid var(--ink);backdrop-filter:none}
-.adm .arail .logo{border-radius:8px;border:2px solid var(--ink);background:var(--ink);color:var(--lime);box-shadow:var(--hard-sm)}
+.adm .arail{background:var(--accent);border-inline-start:var(--bw) solid var(--keyline);backdrop-filter:none}
+.adm .arail .logo{border-radius:8px;border:var(--bw) solid var(--keyline);background:var(--ink);color:var(--lime);box-shadow:var(--hard-sm)}
 .adm .arail .nav button{border-radius:8px;color:var(--ink)}
 .adm .arail .nav button:hover{background:rgba(0,0,0,.12)}
 .adm .arail .nav button.on{background:var(--bg-2);color:var(--ink);box-shadow:var(--hard-sm)}
-.adm .arail .nav button .nbadge{border:1.5px solid var(--ink)}
+.adm .arail .nav button .nbadge{border: var(--bw-hair) solid var(--keyline)}
 .adm .arail .out{color:var(--ink);border-radius:8px}
 .adm .arail .out:hover{background:rgba(0,0,0,.12)}
 
 /* top bar (flat, ink-edged) */
-.adm .atop{border-bottom:2px solid var(--ink);backdrop-filter:none}
+.adm .atop{border-bottom:var(--bw) solid var(--keyline);backdrop-filter:none}
 
 /* bold buttons (lime fill, ink border, hard shadow, press-in) */
-.adm .btn{background:var(--lime);color:var(--ink);border:2px solid var(--ink);border-radius:6px;
+.adm .btn{background:var(--lime);color:var(--fill-ink);border:var(--bw) solid var(--keyline);border-radius:6px;
   font-family:var(--bold);font-weight:800;box-shadow:var(--hard-sm);transition:transform .1s,box-shadow .1s}
 .adm .btn:hover{transform:translate(-1px,-1px);box-shadow:var(--hard)}
-.adm .btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+.adm .btn:active{transform:translate(2px,2px);box-shadow:var(--hard-press)}
 .adm .btn.ghost{background:var(--paper);color:var(--ink)}
 .adm .btn.danger{background:var(--paper);color:var(--bad);border-color:var(--bad)}
 .adm .btn:disabled{filter:none;opacity:.5;box-shadow:none;transform:none}
 
 /* cards, tables & boxes — ink edges + hard shadow */
-.adm .kpi,.adm .subbox{border:2px solid var(--ink);border-radius:7px;box-shadow:var(--hard-sm)}
-.adm .tbl{border:2px solid var(--ink);border-radius:8px;box-shadow:var(--hard-sm);overflow:hidden}
-.adm .tbl th{color:var(--ink);border-bottom:2px solid var(--ink);font-family:var(--bold);font-weight:900}
-.adm .tbl td{border-bottom:1.5px solid var(--line-2)}
-.adm .rlogo{border:2px solid var(--ink);border-radius:6px}
+.adm .kpi,.adm .subbox{border:var(--bw) solid var(--keyline);border-radius:7px;box-shadow:var(--hard-sm)}
+.adm .tbl{border:var(--bw) solid var(--keyline);border-radius:8px;box-shadow:var(--hard-sm);overflow:hidden}
+.adm .tbl th{color:var(--ink);border-bottom:var(--bw) solid var(--keyline);font-family:var(--bold);font-weight:900}
+.adm .tbl td{border-bottom: var(--bw-hair) solid var(--line-2)}
+.adm .rlogo{border:var(--bw) solid var(--keyline);border-radius:6px}
 
 /* search, segmented control & inputs */
-.adm .search{border:2px solid var(--ink);border-radius:6px;background:var(--bg-2)}
-.adm .seg{border:2px solid var(--ink);border-radius:6px;background:var(--bg-2)}
-.adm .seg button.on{background:var(--lime);color:var(--ink);border-radius:4px}
-.adm .input,.adm .field input,.adm .field textarea,.adm .field select{background:var(--paper);border:2px solid var(--ink);border-radius:6px}
-.adm .input:focus,.adm .field input:focus,.adm .field select:focus{border-color:var(--ink);box-shadow:3px 3px 0 var(--lime)}
+.adm .search{border:var(--bw) solid var(--keyline);border-radius:6px;background:var(--bg-2)}
+.adm .seg{border:var(--bw) solid var(--keyline);border-radius:6px;background:var(--bg-2)}
+.adm .seg button.on{background:var(--lime);color:var(--fill-ink);border-radius:4px}
+.adm .input,.adm .field input,.adm .field textarea,.adm .field select{background:var(--paper);border:var(--bw) solid var(--keyline);border-radius:6px}
+.adm .input:focus,.adm .field input:focus,.adm .field select:focus{border-color:var(--keyline);box-shadow:var(--focus-shadow)}
 
 /* account menu, avatar, drawer, modal */
-.adm .who .av{border:2px solid var(--ink);border-radius:8px;background:var(--lime);color:var(--ink);font-family:var(--bold)}
-.adm .acct-menu{border:2px solid var(--ink);border-radius:9px;box-shadow:5px 5px 0 var(--ink)}
-.adm .acct-lang-btns button.on{background:var(--lime);color:var(--ink)}
-.adm .drawer-hd .x{border:2px solid var(--ink);border-radius:6px}
-.adm .modal-card{border:2.5px solid var(--ink);border-radius:10px;box-shadow:6px 6px 0 var(--ink)}
+.adm .who .av{border:var(--bw) solid var(--keyline);border-radius:8px;background:var(--lime);color:var(--fill-ink);font-family:var(--bold)}
+.adm .acct-menu{border:var(--bw) solid var(--keyline);border-radius:9px;box-shadow:var(--hard-lg)}
+.adm .acct-lang-btns button.on{background:var(--lime);color:var(--fill-ink)}
+.adm .drawer-hd .x{border:var(--bw) solid var(--keyline);border-radius:6px}
+.adm .modal-card{border:var(--bw-heavy) solid var(--keyline);border-radius:10px;box-shadow:var(--hard-xl)}
 
 /* =====================================================================
    Branches (drawer) — was unstyled; now a tidy framed list + add row.
    ===================================================================== */
 .sect h4{display:flex;align-items:center;gap:8px}
 .sect-count{font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--ink);background:var(--surface-2);
-  border:1.5px solid var(--ink);border-radius:999px;min-width:20px;height:18px;padding:0 6px;display:inline-grid;place-items:center;letter-spacing:0}
+  border: var(--bw-hair) solid var(--keyline);border-radius:999px;min-width:20px;height:18px;padding:0 6px;display:inline-grid;place-items:center;letter-spacing:0}
 .branch-list{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
 .branch-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 13px;
-  background:var(--bg-2);border:2px solid var(--ink);border-radius:7px;box-shadow:var(--hard-sm)}
+  background:var(--bg-2);border:var(--bw) solid var(--keyline);border-radius:7px;box-shadow:var(--hard-sm)}
 .branch-row .b-info{min-width:0}
 .branch-row .b-name{font-weight:700;font-size:13.5px;font-family:var(--bold)}
 .branch-row .rslug{margin-top:2px}
-.btn-chip{cursor:pointer;background:var(--paper);border:1.5px solid var(--ink);transition:transform .1s}
+.btn-chip{cursor:pointer;background:var(--paper);border: var(--bw-hair) solid var(--keyline);transition:transform .1s}
 .btn-chip:hover{transform:translateY(-1px)}
-.btn-chip.ok{background:rgba(16,185,129,.12)}
+.btn-chip.ok{background:var(--accent-tint)}
 .branch-add{display:flex;gap:8px;align-items:stretch}
-.branch-add input{flex:1;min-width:0;background:var(--paper);border:2px solid var(--ink);border-radius:6px;
+.branch-add input{flex:1;min-width:0;background:var(--paper);border:var(--bw) solid var(--keyline);border-radius:6px;
   padding:10px 12px;font-family:var(--font-ar);font-size:13.5px;color:var(--text);outline:none}
-.branch-add input:focus{box-shadow:3px 3px 0 var(--lime)}
+.branch-add input:focus-visible{box-shadow:var(--focus-shadow)}
 .branch-add input::placeholder{color:var(--faint)}
 .branch-add .btn.sm{flex:0 0 auto;white-space:nowrap}
 
@@ -167,20 +170,20 @@
 .plans-tbl td{vertical-align:middle}
 .plans-tbl .p-name{font-weight:700;font-family:var(--bold);font-size:14px}
 .plans-tbl .tier-tag{display:inline-block;font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:.04em;
-  color:var(--ink);background:var(--lime);border:1.5px solid var(--ink);border-radius:5px;padding:3px 8px}
+  color:var(--fill-ink);background:var(--lime);border: var(--bw-hair) solid var(--keyline);border-radius:5px;padding:3px 8px}
 .plans-tbl .p-custom{font-weight:700;color:var(--muted);font-style:italic}
 .plans-tbl .num{font-family:var(--font-mono)}
 .plans-tbl .p-empty{text-align:center;color:var(--faint);padding:26px 16px;font-size:13.5px}
-.plans-tbl .edit-row td{background:rgba(16,185,129,.05)}
-.plans-tbl .pin{width:100%;max-width:160px;background:var(--paper);border:2px solid var(--ink);border-radius:6px;
+.plans-tbl .edit-row td{background:var(--accent-tint-soft)}
+.plans-tbl .pin{width:100%;max-width:160px;background:var(--paper);border:var(--bw) solid var(--keyline);border-radius:6px;
   padding:8px 10px;font-family:var(--font-ar);font-size:13.5px;color:var(--text);outline:none}
 .plans-tbl .pin.num{font-family:var(--font-mono);max-width:110px}
-.plans-tbl .pin:focus{box-shadow:3px 3px 0 var(--lime)}
+.plans-tbl .pin:focus-visible{box-shadow:var(--focus-shadow)}
 .plans-tbl .p-actions{display:flex;gap:7px;align-items:center;white-space:nowrap}
 .adm .icon-btn{width:34px;height:34px;flex:0 0 auto;display:grid;place-items:center;cursor:pointer;font-size:15px;
-  background:var(--paper);color:var(--ink);border:2px solid var(--ink);border-radius:6px;box-shadow:var(--hard-sm);transition:transform .1s,box-shadow .1s}
+  background:var(--paper);color:var(--ink);border:var(--bw) solid var(--keyline);border-radius:6px;box-shadow:var(--hard-sm);transition:transform .1s,box-shadow .1s}
 .adm .icon-btn:hover{transform:translate(-1px,-1px);box-shadow:var(--hard)}
-.adm .icon-btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+.adm .icon-btn:active{transform:translate(2px,2px);box-shadow:var(--hard-press)}
 .adm .icon-btn.danger{color:var(--bad);border-color:var(--bad)}
 .adm .icon-btn:disabled{opacity:.5;box-shadow:none;transform:none;cursor:not-allowed}
 
@@ -191,11 +194,36 @@
 .plan-pick-lbl{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px}
 .plan-pick-row{display:flex;gap:10px;flex-wrap:wrap}
 .plan-pick-card{flex:1;min-width:120px;display:flex;flex-direction:column;gap:3px;text-align:start;cursor:pointer;
-  background:var(--paper);border:2px solid var(--ink);border-radius:7px;padding:11px 13px;box-shadow:var(--hard-sm);
+  background:var(--paper);border:var(--bw) solid var(--keyline);border-radius:7px;padding:11px 13px;box-shadow:var(--hard-sm);
   transition:transform .1s,box-shadow .1s;font-family:var(--font-ar);color:var(--text)}
 .plan-pick-card:hover{transform:translate(-1px,-1px);box-shadow:var(--hard)}
-.plan-pick-card.on{background:var(--lime);color:var(--ink)}
+.plan-pick-card.on{background:var(--lime);color:var(--fill-ink)}
 .plan-pick-card .pp-name{font-family:var(--bold);font-weight:800;font-size:14px}
 .plan-pick-card .pp-price{font-size:13px}
 .plan-pick-card .pp-price b{font-family:var(--font-mono);font-size:15px}
 .plan-pick-card .pp-setup{font-size:11px;opacity:.75;font-family:var(--font-mono)}
+
+/* =====================================================================
+   PRO skin — structure. Same two problems as the dashboard rail and buttons:
+   .adm .arail paints itself with the brand accent and relies on near-black
+   glyphs reading against it, which collapses when the primary IS near-black.
+   See the matching block in dashboard.css for the reasoning.
+   ===================================================================== */
+[data-skin="pro"] .adm .arail{background:var(--bg-2);border-inline-start:var(--bw) solid var(--keyline)}
+[data-skin="pro"] .adm .arail .logo{background:var(--lime);color:var(--fill-ink);border-color:transparent}
+[data-skin="pro"] .adm .arail .nav button{color:var(--muted)}
+[data-skin="pro"] .adm .arail .nav button:hover{background:var(--surface-2);color:var(--ink)}
+[data-skin="pro"] .adm .arail .nav button.on{background:var(--accent-tint);color:var(--accent-text);box-shadow:none}
+[data-skin="pro"] .adm .arail .out{color:var(--muted)}
+[data-skin="pro"] .adm .arail .out:hover{background:var(--surface-2);color:var(--ink)}
+
+[data-skin="pro"] .adm .btn{border-color:transparent;font-weight:600;
+  transition:background-color .15s,opacity .15s,box-shadow .15s}
+[data-skin="pro"] .adm .btn:hover{transform:none;box-shadow:var(--hard-sm);opacity:.9}
+[data-skin="pro"] .adm .btn:active{transform:none;box-shadow:var(--hard-sm);opacity:.82}
+[data-skin="pro"] .adm .btn.ghost{background:var(--bg-2);border-color:var(--keyline)}
+[data-skin="pro"] .adm .btn.ghost:hover{background:var(--surface-2);opacity:1}
+[data-skin="pro"] .adm .btn.danger{background:var(--bg-2);border-color:var(--edge-bad)}
+[data-skin="pro"] .adm .seg{background:var(--surface-2);border-color:transparent}
+[data-skin="pro"] .adm .seg button.on{background:var(--bg-2);color:var(--ink);box-shadow:var(--hard-sm)}
+[data-skin="pro"] .adm .who .av{border-color:transparent}

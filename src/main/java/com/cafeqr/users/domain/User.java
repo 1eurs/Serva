@@ -12,6 +12,7 @@ import jakarta.persistence.ForeignKey;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
 
+import java.time.Instant;
 import java.util.EnumSet;
 import java.util.Set;
 
@@ -59,6 +60,15 @@ public class User extends BaseEntity {
 
     @Column(name = "active", nullable = false)
     private boolean active = true;
+
+    /**
+     * When this member was invited, or null once they have accepted (or if they were created the
+     * old way with a password handed over). Distinguishes a <em>pending</em> account from a
+     * <em>deactivated</em> one — both are {@code active = false}, but they mean opposite things
+     * to whoever is looking at the team list.
+     */
+    @Column(name = "invited_at")
+    private Instant invitedAt;
 
     public String getFullName() {
         return fullName;
@@ -136,6 +146,19 @@ public class User extends BaseEntity {
 
     public void setBranchId(Long branchId) {
         this.branchId = branchId;
+    }
+
+    /** True while the invite is outstanding: the shell exists but nobody has claimed it. */
+    public boolean isPendingInvite() {
+        return invitedAt != null && !active;
+    }
+
+    public Instant getInvitedAt() {
+        return invitedAt;
+    }
+
+    public void setInvitedAt(Instant invitedAt) {
+        this.invitedAt = invitedAt;
     }
 
     public boolean isActive() {
