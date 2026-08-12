@@ -50,8 +50,13 @@ const DICT: Dict = {
     search: 'ابحث في المخزون', addItem: 'صنف جديد', fAll: 'الكل',
     filters: 'تصفية الرفوف',
     needsYou: 'يحتاج انتباهك', uncategorised: 'بدون تصنيف', diff: 'الفرق',
-    noItems: 'ما في أصناف بعد', noItemsSub: 'ابدأ بالبن والحليب والأكواب — وأضف الباقي وقت ما توصل الفاتورة.',
-    noMatch: 'ما في صنف بهذا الاسم.',
+    noMatch: 'ما في صنف بهذا الاسم.', showAll: 'اعرض الكل',
+    /* أول مرة — الشاشة الوحيدة اللي يشوفها صاحب المقهى قبل ما يقرّر إذا الميزة تستاهل */
+    firstEyebrow: 'ما في شي على الرف بعد',
+    firstTitle: 'أضف اللي تشتريه.',
+    firstBody: 'بن، حليب، أكواب، أغطية — الأشياء اللي تخلص وتوقّف الشغل. ستة أو سبعة تكفي للبداية، والباقي أضفه وقت ما توصل الفاتورة.',
+    firstCta: 'أضف أول صنف',
+    firstFoot: 'أول ما يصير على الرف شي، جولة قصيرة كل ليلة تخلّي الأرقام صحيحة وتحوّلها إلى قائمة طلبك.',
     stOut: 'نفد', stLow: 'اطلبه الحين', stOk: 'تمام', stDays: '~{n} يوم', stUnset: 'ما فيه حدّ تنبيه',
 
     /* لوحة الصنف */
@@ -120,8 +125,13 @@ const DICT: Dict = {
     search: 'Search stock', addItem: 'New item', fAll: 'All',
     filters: 'Filter the shelf',
     needsYou: 'Needs you', uncategorised: 'Uncategorised', diff: 'Difference',
-    noItems: 'Nothing on the shelf yet', noItemsSub: 'Start with beans, milk and cups — add the rest when the invoice is in front of you.',
-    noMatch: 'No item by that name.',
+    noMatch: 'No item by that name.', showAll: 'Show everything',
+    /* First run — the only screen an owner sees before deciding the feature is worth it */
+    firstEyebrow: 'Nothing on the shelf yet',
+    firstTitle: 'Add what you buy.',
+    firstBody: 'Beans, milk, cups, lids — the things that run out and stop you serving. Six or seven is enough to start; add the rest when the invoice is in front of you.',
+    firstCta: 'Add your first item',
+    firstFoot: 'Once something is on the shelf, a one-minute sweep each night keeps the numbers honest and turns them into your order list.',
     stOut: 'Out', stLow: 'Order now', stOk: 'OK', stDays: '~{n} days', stUnset: 'No reorder point',
 
     /* item panel */
@@ -426,6 +436,16 @@ function ShelfTab({ t, items, overview, cover, loading, suggestions, filter, set
      the shelf, the only question it needs. */
   if (loading) return <div className="center"><div className="spinner" /></div>;
 
+  /* Nothing on the shelf is not "the shelf, empty" — it is a different screen with a
+     different job, so the whole page becomes that screen rather than the normal one
+     with holes in it. The normal one, run against no items, claimed "Everything is
+     stocked" over a value of zero, offered a search box for nothing, a delivery form
+     whose item list was empty, and a rule about hiding sold-out drinks from a menu
+     that cannot sell any yet. Six dead controls around one apologetic dashed box. */
+  if (items.length === 0) {
+    return <FirstRun t={t} onAdd={() => openSheet({ k: 'edit', id: null })} />;
+  }
+
   /* Every list on the panel is drawn the same way, so the shelf reads as one instrument
      however it has been sliced. */
   const rowsOf = (rows: StockItemRow[]) => rows.map((i) => (
@@ -444,10 +464,14 @@ function ShelfTab({ t, items, overview, cover, loading, suggestions, filter, set
         overview={overview} filter={filter} setFilter={setFilter}
         onAdd={() => openSheet({ k: 'edit', id: null })} />
 
-      {items.length === 0 ? (
-        <p className="stk-empty"><b>{t('noItems')}</b>{t('noItemsSub')}</p>
-      ) : shown.length === 0 ? (
-        <p className="stk-empty">{t('noMatch')}</p>
+      {shown.length === 0 ? (
+        /* A filter that found nothing is a dead end unless it hands back the way out. */
+        <p className="stk-empty">
+          {t('noMatch')}
+          <button className="stk-mini" onClick={() => { setQ(''); setCat(''); setFilter('all'); }}>
+            {t('showAll')}
+          </button>
+        </p>
       ) : (
         <div className="stk-shelf">
           {/* Unsifted, the shelf leads with whatever wants a decision and then falls into
@@ -482,6 +506,49 @@ function ShelfTab({ t, items, overview, cover, loading, suggestions, filter, set
           at the foot of the thing it governs, not as a card above the shelf. */}
       <AutoHideRule t={t} />
     </>
+  );
+}
+
+/* ================================================================== first run */
+
+/**
+ * The shelf before anything is on it.
+ *
+ * This is the only screen an owner sees before deciding whether stock is worth their
+ * evening, so it has one job: get the first few things onto the shelf. It does not
+ * explain inventory, and it deliberately does not lay out a numbered setup ladder —
+ * an earlier version of this page had one, and three steps you must understand before
+ * anything works is a bill presented to someone who has not yet agreed to buy.
+ *
+ * The gauge carries the state, as everywhere else. At zero items it is an empty track
+ * drawn with the same dashed keyline an item with no level uses — so the empty shelf
+ * is said in the vocabulary the rest of the feature already speaks, rather than in a
+ * spot illustration that appears nowhere else in the product.
+ */
+function FirstRun({ t, onAdd }: { t: T; onAdd: () => void }) {
+  return (
+    <header className="stk-head stk-first">
+      <div className="stk-first-copy">
+        <span className="stk-head-eyebrow">{t('firstEyebrow')}</span>
+        <h2>{t('firstTitle')}</h2>
+        <p>{t('firstBody')}</p>
+      </div>
+
+      {/* Wrapped exactly like the working gauge — same element, same parent — so the
+          empty shelf and the measured one are the same object in two states. */}
+      <div className="stk-room">
+        <div className="stk-room-track unset" aria-hidden />
+      </div>
+
+      <div className="stk-do">
+        <button className="key" onClick={onAdd}>
+          <span className="ic" aria-hidden>+</span>{t('firstCta')}
+        </button>
+      </div>
+
+      {/* Why bother, in one sentence and in the product's own words — not a feature list. */}
+      <p className="stk-first-foot">{t('firstFoot')}</p>
+    </header>
   );
 }
 
