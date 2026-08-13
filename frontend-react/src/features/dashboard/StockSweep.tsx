@@ -4,7 +4,6 @@ import { api } from '../../lib/api';
 import { useI18n, useT, pick, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import type { BaseUnit, StockItemRow } from '../../lib/types';
-import { usePosture } from '../../lib/posture';
 import './stock.css';
 
 /**
@@ -37,7 +36,6 @@ const DICT: Dict = {
     plenty: 'كمية وافرة', lowish: 'قارب ينفد', gone: 'خلص',
     exact: 'أعدّه بالضبط', exactHint: 'أدخل الكمية بالـ{u}',
     parQ: 'كم تخزّن منه لما يكون الرف كامل؟',
-    parHint: 'مرة وحدة بس. هذا الرقم يصير سقف المؤشر وأساس التنبيه.',
     parUnit: 'بالـ{u}', parSet: 'اعتمد',
     skip: 'تخطَّ', back: 'رجوع', finish: 'إنهاء الجولة',
     savingErr: 'ما انحفظت الجولة. جرّب مرة ثانية.',
@@ -56,7 +54,6 @@ const DICT: Dict = {
     plenty: 'Plenty', lowish: 'Running low', gone: 'Gone',
     exact: 'Count it exactly', exactHint: 'Enter the amount in {u}',
     parQ: 'How much do you keep when this is fully stocked?',
-    parHint: 'Asked once. This becomes the top of the gauge and the basis for the alert.',
     parUnit: 'in {u}', parSet: 'Set it',
     skip: 'Skip', back: 'Back', finish: 'Finish sweep',
     savingErr: 'The sweep did not save. Try again.',
@@ -81,6 +78,20 @@ const qty = (n: number, u: BaseUnit): string => (u === 'PIECE' ? String(Math.rou
 /** A shelf a barista calls "running low" is around a third full — and that is also where
  *  we put the reorder point for an item that has never had one. */
 const LOW_FRACTION = 0.3;
+
+/**
+ * A full shelf, guessed from the pack.
+ *
+ * The sweep used to stop on every item's first pass and ask "how much do you keep when
+ * this is fully stocked?" as a number in grams — a blocking form question in the middle
+ * of a walk, twelve times over on the first sweep. Nobody knows their full shelf in
+ * grams. They do know what they buy, and what you keep is roughly what you buy: two
+ * packs is a good enough opening guess, and a guess that can be corrected in place beats
+ * a question that has to be answered before anything else can happen.
+ */
+const PAR_PACKS = 2;
+const parGuess = (item: StockItemRow): number =>
+  Math.max(1, +((item.purchaseUnitSize || 1) * PAR_PACKS).toFixed(3));
 
 /** How many items one sweep may ask for. Roughly the number of things a café actually
  *  runs out of — beans, milks, cups, lids, syrups, pastries — and short enough that the
@@ -229,25 +240,15 @@ function Card({ t, item, onRecord }: {
   const { lang } = useI18n();
   const u = item.baseUnit;
   const word = unitWord(u);
-  /**
-   * Whether to hand a field the keyboard the moment it appears.
-   *
-   * On a desktop that saves a click. On the phone and the counter iPad this screen was
-   * built for it is the wrong instinct: the sweep advances item to item, and an input that
-   * grabs focus on each one throws the software keyboard up over the controls again and
-   * again while somebody is walking a stockroom one-handed. Fields the person opened
-   * themselves still focus — that is a request, not an ambush.
-   *
-   * Read from usePosture rather than the module-level matchMedia this used to be: computed
-   * once at import, it could not follow a trackpad being attached to an iPad mid-shift.
-   */
-  const { isTouch } = usePosture();
-
-  /* An item with no par has no ceiling to draw a gauge against — drawing one anyway would
-     be a lie, so the first sweep asks for the ceiling instead and then never asks again. */
-  const [par, setPar] = useState<number | null>(item.parLevel ?? null);
+  /* The ceiling the gauge is drawn against. Never asked for up front any more — it is
+     guessed from the pack and corrected in place, so the walk starts on the question the
+     sweep exists to ask. Only a field the person opened themselves takes focus: the sweep
+     advances item to item, and an input that grabs the keyboard on each one throws the
+     software keyboard over the controls while somebody walks a stockroom one-handed. */
+  const [par, setPar] = useState<number>(item.parLevel ?? parGuess(item));
+  const [parOpen, setParOpen] = useState(false);
   const [parDraft, setParDraft] = useState('');
-  const reorder = item.reorderPoint ?? (par != null ? +(par * LOW_FRACTION).toFixed(3) : 0);
+  const reorder = item.reorderPoint ?? +(par * LOW_FRACTION).toFixed(3);
 
   const [exact, setExact] = useState(false);
   const [exactDraft, setExactDraft] = useState('');
@@ -260,28 +261,11 @@ function Card({ t, item, onRecord }: {
       reorderBase: item.reorderPoint ?? +(parBase * LOW_FRACTION).toFixed(3),
     });
 
-  if (par == null) {
+  const commitPar = () => {
     const n = Number(parDraft);
-    return (
-      <div className="stk-sweep-body">
-        <ItemHead item={item} lang={lang} />
-        <div className="stk-sweep-par">
-          <p className="stk-sweep-q">{t('parQ')}</p>
-          <div className="stk-sweep-parrow">
-            <input className="num" type="number" inputMode="decimal" min="0" autoFocus={!isTouch}
-              value={parDraft} onChange={(e) => setParDraft(e.target.value)}
-              aria-label={fill(t('parUnit'), { u: word })}
-              onKeyDown={(e) => { if (e.key === 'Enter' && n > 0) setPar(n); }} />
-            <span>{word}</span>
-            <button className="stk-sweep-set" disabled={!(n > 0)} onClick={() => setPar(n)}>
-              {t('parSet')}
-            </button>
-          </div>
-          <p className="stk-sweep-hint">{t('parHint')}</p>
-        </div>
-      </div>
-    );
-  }
+    if (n > 0) setPar(n);
+    setParOpen(false);
+  };
 
   /* What the system currently believes, which is what you are standing at the shelf to
      confirm or correct. Not an input: see the note on the gauge below. */
@@ -313,9 +297,27 @@ function Card({ t, item, onRecord }: {
         <div className="stk-sweep-read">
           <b className="num" data-tone={state}>{qty(onHand, u)}</b>
           <span>{word} · {t('now')}</span>
-          <em className="num">{t('par')} {qty(par, u)}</em>
+          {/* The top of the gauge, and the only thing here that is a guess rather than a
+              record — so it says which it is and can be corrected without leaving. */}
+          <button type="button" className="stk-sweep-parbtn num" aria-expanded={parOpen}
+            onClick={() => { setParDraft(qty(par, u)); setParOpen((o) => !o); }}>
+            {t('par')} {qty(par, u)} <i aria-hidden>✎</i>
+          </button>
         </div>
       </div>
+
+      {parOpen && (
+        <div className="stk-sweep-exact">
+          <label>
+            <span>{t('parQ')}</span>
+            <input className="num" type="number" inputMode="decimal" min="0" autoFocus
+              value={parDraft} onChange={(e) => setParDraft(e.target.value)}
+              aria-label={fill(t('parUnit'), { u: word })}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitPar(); }} />
+          </label>
+          <button className="stk-sweep-set" onClick={commitPar}>{t('parSet')}</button>
+        </div>
+      )}
 
       {/* The answer. Three taps a barista can give without measuring anything — each one
           a position on the gauge above, so the words and the bar teach each other. */}

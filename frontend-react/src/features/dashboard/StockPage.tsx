@@ -1002,17 +1002,16 @@ function Situation({ t, overview, items, openSheet }: {
 
       <RoomGauge t={t} items={items} out={overview?.outCount ?? 0} low={overview?.lowCount ?? 0} />
 
-      {/* The sweep leads because it is the only one of the three that has to happen every
-          day — the other two are events, and events log themselves when they occur. */}
+      {/* One verb.
+          Delivery and waste used to stand here beside the sweep, and three daily buttons
+          read as three daily duties — which is not what they are. The sweep re-anchors
+          every number nightly, so a delivery or a spill left unlogged is corrected within
+          a day; both are corrections to one item between sweeps, not chores the whole
+          stockroom owes. They live on the item panel now, where the item they concern is
+          already open and no one has to pick it out of a dropdown first. */}
       <div className="stk-do">
         <button className="key" onClick={() => openSheet({ k: 'sweep' })}>
           <span className="ic" aria-hidden>👁</span>{t('sweep')}
-        </button>
-        <button onClick={() => openSheet({ k: 'receive' })}>
-          <span className="ic" aria-hidden>📦</span>{t('logDelivery')}
-        </button>
-        <button onClick={() => openSheet({ k: 'waste' })}>
-          <span className="ic" aria-hidden>🗑</span>{t('logWaste')}
         </button>
       </div>
     </header>

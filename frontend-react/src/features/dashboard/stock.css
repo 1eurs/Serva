@@ -1348,10 +1348,20 @@ html[dir="rtl"] .stk-sweep-notch { transform: translateX(50%); }
 .stk-sweep-read b[data-tone="low"] { color: var(--stk-low-ink); }
 .stk-sweep-read b[data-tone="out"] { color: var(--stk-out-ink); }
 .stk-sweep-read span { font-size: 12.5px; color: var(--muted); }
-.stk-sweep-read em {
-  margin-inline-start: auto; font-style: normal;
-  font-size: 11px; color: var(--faint);
+/* The full-shelf figure: the one number here that is a guess rather than a record, so it
+   is a button — tapping it opens the correction in place instead of sending anyone to a
+   settings form. Sized like the label it replaced; a pencil, not a call to action. */
+.stk-sweep-parbtn {
+  margin-inline-start: auto;
+  display: inline-flex; align-items: baseline; gap: 5px;
+  min-block-size: var(--tap-sm); padding: 0 7px;
+  border: var(--bw-hair) dashed var(--line-2); border-radius: 999px;
+  background: none; color: var(--faint); font-family: inherit; font-size: 11px;
+  cursor: pointer;
 }
+.stk-sweep-parbtn i { font-style: normal; font-size: 10px; }
+.stk-sweep-parbtn:hover { color: var(--ink); border-color: var(--keyline); }
+.stk-sweep-parbtn:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
 /* ---- the fast path: three positions on the same gauge ---- */
 
 .stk-sweep-verdicts { display: flex; flex-direction: column; gap: 8px; }
@@ -1388,22 +1398,13 @@ html[dir="rtl"] .stk-sweep-notch { transform: translateX(50%); }
 .stk-sweep-exact { display: flex; align-items: flex-end; gap: 9px; }
 .stk-sweep-exact label { flex: 1 1 auto; display: flex; flex-direction: column; gap: 6px; }
 .stk-sweep-exact label span { font-size: 11.5px; font-weight: 700; color: var(--muted); }
-.stk-sweep-exact input,
-.stk-sweep-parrow input {
+.stk-sweep-exact input {
   inline-size: 100%; min-block-size: 48px; padding: 0 12px;
   border: var(--bw) solid var(--keyline); border-radius: 7px;
   background: var(--bg-2); color: var(--ink); font-size: 18px; font-weight: 800;
 }
-.stk-sweep-exact input:focus-visible,
-.stk-sweep-parrow input:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+.stk-sweep-exact input:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
 
-/* ---- first sight of an item: what does a full shelf look like ---- */
-
-.stk-sweep-par { display: flex; flex-direction: column; gap: 11px; }
-.stk-sweep-q { font-family: var(--bold); font-weight: 800; font-size: 16px; line-height: 1.35; }
-.stk-sweep-parrow { display: flex; align-items: center; gap: 9px; }
-.stk-sweep-parrow input { flex: 1 1 auto; }
-.stk-sweep-parrow > span { font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
 .stk-sweep-set {
   flex: 0 0 auto; min-block-size: 48px; padding: 0 18px;
   border: var(--bw) solid var(--keyline); border-radius: 7px;
