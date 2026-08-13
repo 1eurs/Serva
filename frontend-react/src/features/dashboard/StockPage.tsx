@@ -280,7 +280,11 @@ type Level = 'out' | 'low' | 'ok' | 'unset';
  * on the shelf, and red numbers that mean nothing are how a screen stops being read.
  */
 const levelOf = (i: StockItemRow): Level =>
-  i.parLevel == null && i.reorderPoint == null ? 'unset'
+  /* "Has no thresholds" was standing in for "has never been counted", and they are not the
+     same item: something counted last night by someone who never set a reorder point has a
+     real figure and no par at all, and calling that unmeasured hid a genuine zero. The API
+     now answers the actual question. */
+  i.counted === false || (i.counted == null && i.parLevel == null && i.reorderPoint == null) ? 'unset'
     : i.out || i.onHand <= 0 ? 'out'
       : i.low ? 'low'
         : 'ok';
@@ -471,9 +475,14 @@ function ShelfTab({ t, items, overview, cover, loading, suggestions, filter, set
     [overview],
   );
 
-  /* Out first, then below reorder, then whatever is closest to running out. */
-  const urgency = (i: StockItemRow) =>
-    i.out || i.onHand <= 0 ? 0 : i.low ? 1 : endingIds.has(i.id) ? 2 : 3;
+  /* Out first, then below reorder, then whatever is closest to running out.
+     Read through levelOf, not off the raw flags: judged raw, an item nobody had counted
+     yet sorted into "Needs you" as an emergency while its own row — drawn from levelOf —
+     said it had never been measured. The shelf disagreed with itself in two places at once. */
+  const urgency = (i: StockItemRow) => {
+    const l = levelOf(i);
+    return l === 'out' ? 0 : l === 'low' ? 1 : endingIds.has(i.id) ? 2 : 3;
+  };
 
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -481,8 +490,8 @@ function ShelfTab({ t, items, overview, cover, loading, suggestions, filter, set
       .filter((i) => {
         if (needle && !`${i.nameEn} ${i.nameAr} ${i.category ?? ''}`.toLowerCase().includes(needle)) return false;
         if (cat && (i.category ?? '') !== cat) return false;
-        if (filter === 'out') return i.out || i.onHand <= 0;
-        if (filter === 'low') return i.low;
+        if (filter === 'out') return levelOf(i) === 'out';
+        if (filter === 'low') return levelOf(i) === 'low';
         if (filter === 'soon') return endingIds.has(i.id);
         return true;
       })

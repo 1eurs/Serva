@@ -295,6 +295,8 @@ export interface StockItemRow {
   // per-branch position
   onHand: number; parLevel?: number | null; reorderPoint?: number | null;
   low: boolean; out: boolean;
+  /** Whether this branch has ever recorded a figure. Never counted ≠ counted to zero. */
+  counted?: boolean;
 }
 export interface StockItemPayload {
   nameEn: string; nameAr: string; kind: StockKind; baseUnit: BaseUnit;

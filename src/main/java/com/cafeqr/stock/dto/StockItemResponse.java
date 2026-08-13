@@ -41,7 +41,16 @@ public record StockItemResponse(
         /** At or below the reorder point: time to buy more. */
         boolean low,
         /** Nothing left (or worse — a negative balance means a delivery went unlogged). */
-        boolean out
+        boolean out,
+        /**
+         * Whether this branch has ever recorded a figure for this item.
+         *
+         * <p>Never counted and counted-to-zero are different facts and only one of them is
+         * news. Without this the front end had to guess at it from "no par and no reorder
+         * point", which is a different question again — an item counted last night by
+         * someone who never set a threshold has a real figure and no par at all.
+         */
+        boolean counted
 ) {
     public static StockItemResponse from(StockItem item, StockLevel level) {
         BigDecimal onHand = level == null ? BigDecimal.ZERO : level.getQuantityBase();
@@ -59,6 +68,10 @@ public record StockItemResponse(
                 level == null ? null : level.getParLevelBase(),
                 level == null ? null : level.getReorderPointBase(),
                 level != null && level.isLow(),
-                level == null || level.isOut());
+                /* Was `level == null || level.isOut()`, which called an item nobody has
+                   counted yet "run out" — so a café that had just added its opening list
+                   read "7 run out" in red before it had said a word about any of them. */
+                level != null && level.isOut(),
+                level != null);
     }
 }

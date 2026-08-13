@@ -305,6 +305,15 @@ public class StockConsumptionService {
             if (draw.quantityBase().signum() <= 0) {
                 continue;
             }
+            /* Never counted here is not "none here". The SIMPLE branch above has always
+               known that; the recipe branch did not, and it is the common one — so an
+               owner who added beans to stock and put them in the latte recipe had every
+               drink using beans leave the customer menu the moment they saved it, before
+               anyone had a chance to count a single gram. An ingredient with no figure on
+               record cannot be short of anything. */
+            if (neverCounted(draw.stockItemId(), branchId, cachedOnHand)) {
+                continue;
+            }
             BigDecimal have = cachedOnHand.containsKey(draw.stockItemId())
                     ? cachedOnHand.get(draw.stockItemId())
                     : onHandOf(draw.stockItemId(), branchId);
@@ -529,6 +538,10 @@ public class StockConsumptionService {
         }
         for (RecipeService.Draw draw : required) {
             if (draw.quantityBase().signum() <= 0) {
+                continue;
+            }
+            // Same rule as canMake: no figure on record is not a shortfall.
+            if (neverCounted(draw.stockItemId(), branchId, cachedOnHand)) {
                 continue;
             }
             BigDecimal have = cachedOnHand.containsKey(draw.stockItemId())
