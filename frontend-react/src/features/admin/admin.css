@@ -46,10 +46,14 @@
 .adm .pwform{display:flex;flex-direction:column;gap:10px}
 .adm .pwhint{font-size:11.5px;margin-top:-4px}
 .adm .pwhint.bad{color:var(--bad)}
-.acontent{flex:1;overflow-y:auto;padding:24px 26px}
+.acontent{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:24px 26px}
+
+/* dense tables scroll sideways inside their own frame instead of taking the whole page with them */
+.tbl-wrap{width:100%;overflow-x:auto;overscroll-behavior:contain}
 
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:22px}
-@media(max-width:760px){.kpis{grid-template-columns:repeat(2,1fr)}}
+/* was max-width:760px — rebanded onto the shared ladder, one rung up so the same narrow-laptop/tablet window still gets the 2-col grid */
+@media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}}
 .kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px 18px}
 .kpi .lab{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:7px}
 .kpi .lab .ic{width:8px;height:8px;border-radius:50%}
@@ -58,7 +62,7 @@
 
 .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px}
 .search{flex:1;max-width:320px;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line-2);border-radius:12px;padding:9px 13px}
-.search input{flex:1;border:0;background:transparent;color:var(--text);font-family:var(--font-ar);font-size:14px;outline:none}
+.search input{flex:1;border:0;background:transparent;color:var(--text);font-family:var(--font-ar);font-size:var(--fs-field);min-height:var(--tap);outline:none}
 .search input::placeholder{color:var(--faint)}
 /* outline:none above is a base reset; the keyboard affordance is provided here so the
    search input is never focusless (mouse-click stays quiet via :focus-visible). */
@@ -74,7 +78,8 @@
 .rcell{display:flex;align-items:center;gap:11px}
 .rlogo{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-weight:700;font-size:15px;color:var(--accent-ink);flex:0 0 auto}
 .rname{font-weight:600}.rslug{font-family:var(--font-mono);font-size:11px;color:var(--faint)}
-@media(max-width:760px){.tbl .hide-sm{display:none}}
+/* was max-width:760px — same ladder rung as .kpis above */
+@media(max-width:900px){.tbl .hide-sm{display:none}}
 
 /* drawer + .sect/.kv/.subbox are now shared in theme.css */
 
@@ -155,8 +160,8 @@
 .btn-chip:hover{transform:translateY(-1px)}
 .btn-chip.ok{background:var(--accent-tint)}
 .branch-add{display:flex;gap:8px;align-items:stretch}
-.branch-add input{flex:1;min-width:0;background:var(--paper);border:var(--bw) solid var(--keyline);border-radius:6px;
-  padding:10px 12px;font-family:var(--font-ar);font-size:13.5px;color:var(--text);outline:none}
+.branch-add input{flex:1;min-width:0;min-height:var(--tap);background:var(--paper);border:var(--bw) solid var(--keyline);border-radius:6px;
+  padding:10px 12px;font-family:var(--font-ar);font-size:var(--fs-field);color:var(--text);outline:none}
 .branch-add input:focus-visible{box-shadow:var(--focus-shadow)}
 .branch-add input::placeholder{color:var(--faint)}
 .branch-add .btn.sm{flex:0 0 auto;white-space:nowrap}
@@ -227,3 +232,24 @@
 [data-skin="pro"] .adm .seg{background:var(--surface-2);border-color:transparent}
 [data-skin="pro"] .adm .seg button.on{background:var(--bg-2);color:var(--ink);box-shadow:var(--hard-sm)}
 [data-skin="pro"] .adm .who .av{border-color:transparent}
+
+/* =====================================================================
+   POSTURE — touch floor and hover discipline
+------------------------------------------------------------------------
+   Platform admin is a desk tool in practice, so this is a correctness pass
+   rather than a redesign: nothing here changes the mouse rendering. The
+   rail is deliberately left at 74px and unlabeled — unlike the dashboard's
+   it carries no hover tooltips, so there is no hidden affordance to fix.
+   ===================================================================== */
+@media (hover:none){
+  .adm .btn:hover,.adm .icon-btn:hover,.plan-pick-card:hover{transform:none;box-shadow:var(--hard-sm)}
+  .btn-chip:hover{transform:none}
+}
+html[data-input="touch"] .adm .btn-chip,
+html[data-input="touch"] .adm .acct-item,
+html[data-input="touch"] .adm .acct-lang-btns button,
+html[data-input="touch"] .adm .who-btn{min-height:var(--tap)}
+html[data-input="touch"] .adm .icon-btn{min-width:var(--tap);min-height:var(--tap)}
+/* Wide admin tables scroll inside their own box rather than dragging the page
+   sideways under the fixed rail. */
+.adm .tbl-wrap{overflow-x:auto;overscroll-behavior-x:contain}

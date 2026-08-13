@@ -8,7 +8,12 @@ import { SkinProvider } from './lib/skin';
 import { ToastProvider } from './lib/toast';
 import { ConfirmProvider } from './lib/confirm';
 import App from './App';
+import { initPosture } from './lib/posture';
 import './styles/theme.css';
+
+// Keep html[data-posture] / html[data-input] live for rotate, Split View and
+// trackpad attach. index.html has already set them for the first paint.
+initPosture();
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false, staleTime: 15_000 } },

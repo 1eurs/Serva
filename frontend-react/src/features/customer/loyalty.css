@@ -99,7 +99,7 @@
   margin-inline-start: auto; background: color-mix(in srgb, var(--text, #fff) 6%, transparent); color: var(--text, #eee);
   border: 1px solid var(--line, rgba(255, 255, 255, .12)); border-radius: 999px; width: 34px; height: 34px; cursor: pointer; font-size: 14px;
 }
-.loy-back:hover { background: color-mix(in srgb, var(--text, #fff) 12%, transparent); }
+@media (hover:hover){ .loy-back:hover { background: color-mix(in srgb, var(--text, #fff) 12%, transparent); } }
 .loy-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
 
 /* rewards-ready treat banner (only shown when something is claimable) — a little
@@ -147,11 +147,11 @@
   width: 100%; padding: 14px; border-radius: var(--r-ctl, 13px); border: none; cursor: pointer;
   background: var(--accent, #c79a54); color: var(--loy-ink); font-size: 15px; font-weight: 800; transition: filter .15s, transform .05s;
 }
-.loy-btn:hover:not(:disabled) { filter: brightness(1.06); }
+@media (hover:hover){ .loy-btn:hover:not(:disabled) { filter: brightness(1.06); } }
 .loy-btn:active:not(:disabled) { transform: translateY(1px); }
 .loy-btn:disabled { opacity: .5; cursor: default; }
 .loy-link { background: none; border: none; color: var(--muted, #9a958c); font-size: 13px; cursor: pointer; align-self: center; padding: 6px; }
-.loy-link:hover { color: var(--text, #eee); text-decoration: underline; }
+@media (hover:hover){ .loy-link:hover { color: var(--text, #eee); text-decoration: underline; } }
 
 .loy-empty { text-align: center; color: var(--muted, #9a958c); padding: 44px 24px; margin: auto 0; }
 .loy-empty .big { font-size: 40px; margin-bottom: 12px; }
@@ -164,7 +164,7 @@
   background: var(--surface, #15181d); border: 1px solid var(--line, rgba(255, 255, 255, .1));
   cursor: pointer; -webkit-tap-highlight-color: transparent; transition: border-color .15s;
 }
-.loy-strip:hover { border-color: color-mix(in srgb, var(--accent, #c79a54) 50%, var(--line, #555)); }
+@media (hover:hover){ .loy-strip:hover { border-color: color-mix(in srgb, var(--accent, #c79a54) 50%, var(--line, #555)); } }
 /* On the menu the strip is a direct child of the scroll area, so inset it to line up with the
    item cards and the "your usual" banner (.c-usual uses the same 14/18 margin). */
 .loy-strip.on-menu { margin: 14px 18px 0; }
@@ -265,3 +265,9 @@
   .loy-dot.pop { animation: none; }
   .loy-treat::after, .loy-treat .gift { animation: none; }
 }
+
+/* ---- touch floor (see the TOUCH LAYER block in theme.css) ---- */
+html[data-input="touch"] .loy-btn { min-height: var(--tap-lg); }
+html[data-input="touch"] .loy-link,
+html[data-input="touch"] .loy-back,
+html[data-input="touch"] .loy-strip { min-height: var(--tap); }

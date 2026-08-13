@@ -40,7 +40,7 @@
   font-family:var(--bold);font-weight:var(--fw-display);font-size:13.5px;
   padding:9px 14px 12px;cursor:pointer;white-space:nowrap;transition:color .15s;
   display:inline-flex;align-items:center;gap:6px}
-.an-nav button:hover{color:var(--ink)}
+@media (hover:hover){.an-nav button:hover{color:var(--ink)}}
 .an-nav button.on{color:var(--ink)}
 .an-nav button.on::after{content:"";position:absolute;inset-block-end:-1px;inset-inline:0;
   height:2px;background:var(--ink)}
@@ -55,18 +55,18 @@
 .an-seg button{border:0;background:transparent;color:var(--muted);font-family:var(--font-mono);
   font-size:11.5px;font-weight:600;letter-spacing:.02em;padding:6px 11px;
   border-radius:calc(var(--r-sm) - 3px);cursor:pointer;transition:background .15s,color .15s;white-space:nowrap}
-.an-seg button:hover{color:var(--ink)}
+@media (hover:hover){.an-seg button:hover{color:var(--ink)}}
 .an-seg button.on{background:var(--lime);color:var(--fill-ink)}
 .an-seg button:focus-visible{outline:none;box-shadow:var(--focus-shadow)}
 
 .an-daterange{display:inline-flex;align-items:center;gap:6px}
 .an-daterange input[type="date"]{background:var(--bg-2);border:var(--bw) solid var(--keyline);
-  border-radius:var(--r-sm);padding:6px 9px;font-family:var(--font-mono);font-size:11.5px;
+  border-radius:var(--r-sm);padding:6px 9px;font-family:var(--font-mono);font-size:var(--fs-field);
   font-weight:600;color:var(--ink);cursor:pointer}
 .an-daterange input[type="date"]:focus-visible{outline:none;box-shadow:var(--focus-shadow)}
 .an-dr-sep{font-family:var(--font-mono);color:var(--faint)}
 .an-branch-sel{background:var(--bg-2);border:var(--bw) solid var(--keyline);border-radius:var(--r-sm);
-  padding:6px 10px;font-family:var(--font-ar);font-size:12.5px;color:var(--ink);cursor:pointer}
+  padding:6px 10px;font-family:var(--font-ar);font-size:var(--fs-field);color:var(--ink);cursor:pointer}
 .an-branch-sel:focus-visible{outline:none;box-shadow:var(--focus-shadow)}
 
 .an-pane{display:flex;flex-direction:column;gap:18px}
@@ -94,7 +94,7 @@
   text-align:start;border:0;background:transparent;padding:15px 18px 16px;font:inherit;color:inherit}
 .an-led+.an-led{border-inline-start:var(--bw-hair) solid var(--line-2)}
 .an-led[data-pick]{cursor:pointer}
-.an-led[data-pick]:hover{background:var(--surface-2)}
+@media (hover:hover){.an-led[data-pick]:hover{background:var(--surface-2)}}
 .an-led:focus-visible{outline:none;box-shadow:var(--focus-shadow);z-index:1}
 /* the cap that marks the plotted metric */
 .an-led::before{content:"";position:absolute;inset-block-start:0;inset-inline:0;height:3px;
@@ -313,16 +313,16 @@ html[dir="rtl"] .an-cb-split-fill{transform-origin:right center}
 .an-btn{border:var(--bw) solid var(--keyline);border-radius:var(--r-sm);background:var(--bg-2);
   color:var(--ink);font-family:var(--font-ar);font-size:12.5px;font-weight:600;padding:8px 13px;
   cursor:pointer;box-shadow:var(--hard-sm);transition:background .15s}
-.an-btn:hover{background:var(--surface-2)}
+@media (hover:hover){.an-btn:hover{background:var(--surface-2)}}
 .an-btn:focus-visible{outline:none;box-shadow:var(--focus-shadow)}
 .an-btn.primary{background:var(--lime);color:var(--fill-ink);border-color:var(--lime)}
-.an-btn.primary:hover{filter:brightness(1.08)}
+@media (hover:hover){.an-btn.primary:hover{filter:brightness(1.08)}}
 .an-directory-search{display:flex;gap:9px}
 .an-directory-search input{flex:1;min-width:0;border:var(--bw) solid var(--keyline);border-radius:var(--r-sm);
   background:var(--bg-2);color:var(--ink);padding:8px 11px;font-family:var(--font-ar);font-size:12.5px}
 .an-directory-search input::placeholder{color:var(--faint)}
 .an-directory-search input:focus-visible{outline:none;box-shadow:var(--focus-shadow)}
-.an-tbl-wrap{overflow-x:auto}
+.an-tbl-wrap{overflow-x:auto;overscroll-behavior-x:contain}
 .an-tbl.dir{min-width:560px}
 .an-tbl.dir tbody tr:hover{background:var(--surface-2)}
 .an-tbl a{color:var(--accent-text);font-family:var(--font-mono);text-decoration:none}
@@ -331,7 +331,7 @@ html[dir="rtl"] .an-cb-split-fill{transform-origin:right center}
   font-size:11.5px;color:var(--muted)}
 .an-pager button{width:30px;height:28px;border:var(--bw) solid var(--keyline);border-radius:var(--r-sm);
   background:var(--bg-2);color:var(--ink);font-size:15px;cursor:pointer}
-.an-pager button:hover:not(:disabled){background:var(--surface-2)}
+@media (hover:hover){.an-pager button:hover:not(:disabled){background:var(--surface-2)}}
 .an-pager button:disabled{opacity:.35;cursor:not-allowed}
 .an-pager button:focus-visible{outline:none;box-shadow:var(--focus-shadow)}
 
@@ -395,7 +395,7 @@ html[dir="rtl"] .an-cb-split-fill{transform-origin:right center}
    Narrow — the ledger folds from three columns into statement lines,
    which is the same object read the other way up.
    ===================================================================== */
-@media (max-width:680px){
+@media (max-width:639px){
   .an{padding:14px 14px 40px;gap:15px}
   .an-bar{gap:8px}
   .an-ledger{grid-template-columns:1fr}
@@ -416,3 +416,18 @@ html[dir="rtl"] .an-cb-split-fill{transform-origin:right center}
   .an-skel{animation:none}
   .an-meter-fill,.an-fn-fill,.an-cb-split-fill{transition:none}
 }
+
+/* ---- touch floor (see the TOUCH LAYER block in theme.css) ----
+   The analytics bar is all small chrome — period pills, a branch select, two date
+   fields, a two-arrow pager. Every one of them was built for a cursor. */
+html[data-input="touch"] .an-nav button,
+html[data-input="touch"] .an-seg button,
+html[data-input="touch"] .an-btn,
+html[data-input="touch"] .an-daterange input[type="date"],
+html[data-input="touch"] .an-branch-sel{min-height:var(--tap)}
+html[data-input="touch"] .an-pager button{min-width:var(--tap);min-height:var(--tap)}
+html[data-input="touch"] .an-led[data-pick]{min-height:var(--tap-lg)}
+/* The section tabs scroll rather than wrap, so the bar stays one row deep. */
+.an-nav{max-width:100%;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;overscroll-behavior-x:contain}
+.an-nav::-webkit-scrollbar{display:none}
+.an-nav button{flex:0 0 auto;white-space:nowrap;scroll-snap-align:start}

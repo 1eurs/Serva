@@ -5,6 +5,7 @@ import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContai
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { useSkin } from '../../lib/skin';
+import { usePosture } from '../../lib/posture';
 import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { omr, omanDate, omanHour } from '../../lib/format';
 import { isPlanRequiredError, isProPlan } from '../../lib/plan';
@@ -787,6 +788,10 @@ function ChartPanel({ points, hourly, metric, label, curLabel, prevLabel, cur, t
 }) {
   const hasWas = points.some((p) => p.was != null);
   const fmtY = (v: number) => (metric === 'orders' || v % 1 === 0 || v >= 100 ? String(Math.round(v)) : v.toFixed(1));
+  /* The chart's numbers live in a tooltip, and a tooltip is a hover — which a finger
+     does not have. On touch the reading is behind a tap instead, so the figures are
+     reachable on the iPad the owner actually checks takings on. */
+  const { isTouch } = usePosture();
   return (
     <section className="an-panel">
       <div className="an-panel-hd">
@@ -811,7 +816,8 @@ function ChartPanel({ points, hourly, metric, label, curLabel, prevLabel, cur, t
                 axisLine={{ stroke: tok['--line-2'] }} tickLine={false} interval="preserveStartEnd" minTickGap={26} />
               <YAxis tick={{ fill: tok['--faint'], fontSize: 10, fontFamily: 'IBM Plex Mono, monospace' }}
                 axisLine={false} tickLine={false} width={46} tickFormatter={fmtY} />
-              <Tooltip cursor={{ stroke: tok['--muted'], strokeWidth: 1, strokeDasharray: '3 3' }}
+              <Tooltip trigger={isTouch ? 'click' : 'hover'}
+                cursor={{ stroke: tok['--muted'], strokeWidth: 1, strokeDasharray: '3 3' }}
                 content={<ChartTip metric={metric} cur={cur} curLabel={curLabel} prevLabel={prevLabel} />} />
               {/* drawn first so the current window sits on top of it */}
               {hasWas && (

@@ -406,7 +406,7 @@
 .cust-bg[data-menu-theme="omannational"] .c-add{box-shadow:0 10px 20px -10px rgba(200,16,46,.55)}
 .cust-bg[data-menu-theme="omannational"] .c-cartbar{box-shadow:0 18px 38px -18px rgba(59,32,23,.65),0 0 0 4px rgba(240,199,102,.15)}
 
-@media(max-width:480px){
+@media(max-width:639px){
   .cust-bg[data-menu-theme="omanmatch"] .c-cat,
   .cust-bg[data-menu-theme="madridnight"] .c-cat,
   .cust-bg[data-menu-theme="omannational"] .c-cat{border-radius:22px;padding-top:50px;margin-bottom:32px}
@@ -729,7 +729,7 @@ html[dir="rtl"] .cust-bg[data-card-badge="ribbon"] .c-item::after{transform:rota
 @media (prefers-reduced-motion:reduce){
   .cust-bg[data-menu-skin="omannational"] .phone::before{animation:none}
 }
-@media(max-width:480px){
+@media(max-width:639px){
   .cust-bg[data-menu-skin="omannational"] .c-cat{margin-bottom:28px}
   .cust-bg[data-menu-skin="omannational"] .c-cat::after{width:48px;height:48px;inset-inline-end:12px}
 }

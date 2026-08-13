@@ -3,14 +3,18 @@
 
 /* ---- menu side ---- */
 .pad-menu{display:flex;flex-direction:column;gap:12px;min-height:0}
-.pad-search input{width:100%;background:var(--surface);border:1px solid var(--line);color:var(--text);border-radius:11px;padding:10px 13px;font-family:var(--font-ar);font-size:14px}
+.pad-search input{width:100%;background:var(--surface);border:1px solid var(--line);color:var(--text);border-radius:11px;padding:10px 13px;font-family:var(--font-ar);font-size:var(--fs-field);min-height:var(--tap)}
 .pad-search input:focus-visible{outline:none;border-color:var(--accent);box-shadow:var(--focus-shadow)}
-.pad-cats{display:flex;gap:7px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin}
-.pad-cats button{flex:0 0 auto;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:7px 14px;font-family:var(--font-ar);font-size:13px;font-weight:700;cursor:pointer}
+/* Horizontal strip of category chips — snap so a swipe pages cleanly
+   instead of leaving a chip half-cut at the edge. */
+.pad-cats{display:flex;gap:7px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin;scroll-snap-type:x proximity}
+.pad-cats button{flex:0 0 auto;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:7px 14px;font-family:var(--font-ar);font-size:13px;font-weight:700;cursor:pointer;min-height:var(--tap);scroll-snap-align:start}
 .pad-cats button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
-.pad-items{flex:1;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;align-content:start;padding-bottom:10px}
-.pad-item{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:13px;cursor:pointer;text-align:start;transition:.15s;min-height:64px}
-.pad-item:hover{border-color:var(--accent);background:var(--surface-2)}
+.pad-items{flex:1;overflow-y:auto;overscroll-behavior:contain;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;align-content:start;padding-bottom:10px}
+/* .pad-item is the primary "add to order" target — never let it shrink
+   below the primary-action floor even though its content usually wants more. */
+.pad-item{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:13px;cursor:pointer;text-align:start;transition:.15s;min-height:max(64px,var(--tap-lg))}
+@media (hover:hover){.pad-item:hover{border-color:var(--accent);background:var(--surface-2)}}
 .pad-item.sale{border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
 .pad-item-nm{font-size:13.5px;font-weight:700;color:var(--text);line-height:1.3;padding-inline-end:34px}
 .pad-item-pr{display:flex;align-items:baseline;gap:6px;font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin-top:auto}
@@ -23,17 +27,19 @@
 /* ---- cart side ---- */
 .pad-cart{display:flex;flex-direction:column;gap:11px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:14px;min-height:0}
 .pad-types{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.pad-types button{border:1px solid var(--line);background:var(--bg-2);color:var(--muted);border-radius:10px;padding:9px 6px;font-family:var(--font-ar);font-size:13px;font-weight:700;cursor:pointer}
+.pad-types button{border:1px solid var(--line);background:var(--bg-2);color:var(--muted);border-radius:10px;padding:9px 6px;font-family:var(--font-ar);font-size:13px;font-weight:700;cursor:pointer;min-height:var(--tap)}
 .pad-types button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .pad-field{width:100%}
-input.pad-field{background:var(--bg-2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:9px 12px;font-family:var(--font-ar);font-size:13.5px}
+input.pad-field{background:var(--bg-2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:9px 12px;font-family:var(--font-ar);font-size:var(--fs-field);min-height:var(--tap)}
 .pad-colors{display:flex;flex-wrap:wrap;gap:7px}
-.pad-color{width:26px;height:26px;border-radius:50%;border:0;cursor:pointer;padding:0;transition:.12s}
+/* Car-colour swatches for drive-thru orders — sized off the scale so a
+   coarse pointer can hit one reliably instead of the old fixed 26px dot. */
+.pad-color{min-width:var(--tap);min-height:var(--tap);border-radius:50%;border:0;cursor:pointer;padding:0;transition:.12s}
 .pad-color.on{box-shadow:0 0 0 2px var(--accent),inset 0 0 0 1px rgba(0,0,0,.3) !important;transform:scale(1.08)}
 
 .pad-cart-hd{display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding-top:2px}
 .pad-count{font-family:var(--font-mono);font-weight:700;letter-spacing:0;text-transform:none;color:var(--accent-text)}
-.pad-lines{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:9px;min-height:80px}
+.pad-lines{flex:1;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:9px;min-height:80px}
 .pad-empty{color:var(--faint);font-size:13px;text-align:center;padding:26px 8px}
 .pad-line{background:var(--bg-2);border:1px solid var(--line);border-radius:11px;padding:9px 10px;display:flex;flex-direction:column;gap:7px}
 .pad-line-top{display:flex;justify-content:space-between;gap:8px;font-size:13.5px}
@@ -41,57 +47,68 @@ input.pad-field{background:var(--bg-2);border:1px solid var(--line);color:var(--
 .pad-line-pr{display:inline-flex;align-items:baseline;gap:6px;font-family:var(--font-mono);color:var(--text);white-space:nowrap}
 .pad-line-pr .pad-was{color:var(--faint);text-decoration:line-through;font-size:11px}
 .pad-line-opts{font-size:11.5px;color:var(--muted)}
-.pad-line-ctl{display:flex;align-items:center;gap:8px}
-.pad-line-note{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:6px 9px;font-family:var(--font-ar);font-size:12px}
+.pad-line-ctl{display:flex;align-items:center;gap:var(--tap-gap)}
+/* Note field sits beside the qty stepper in a scrolling cart list — a mis-tap
+   here is cheap and instantly reversible, so --tap-sm is enough. */
+.pad-line-note{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:7px 10px;font-family:var(--font-ar);font-size:var(--fs-field);min-height:var(--tap-sm)}
 .pad-qty{display:inline-flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:3px}
-.pad-qty button{width:26px;height:26px;border:0;background:transparent;color:var(--text);font-size:16px;cursor:pointer;border-radius:6px;line-height:1}
-.pad-qty button:hover{background:var(--surface-2)}
+/* The qty stepper is the control a barista hits most — off the scale so it
+   never shrinks below a comfortable target, on any posture. */
+.pad-qty button{min-width:var(--tap);min-height:var(--tap);display:grid;place-items:center;border:0;background:transparent;color:var(--text);font-size:16px;cursor:pointer;border-radius:6px;line-height:1}
+@media (hover:hover){.pad-qty button:hover{background:var(--surface-2)}}
 .pad-qty b{font-family:var(--font-mono);min-width:16px;text-align:center}
 
 .pad-cust{display:grid;grid-template-columns:1fr 1fr;gap:7px}
-.pad-cust input{background:var(--bg-2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:9px 11px;font-family:var(--font-ar);font-size:13px;min-width:0}
+.pad-cust input{background:var(--bg-2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:9px 11px;font-family:var(--font-ar);font-size:var(--fs-field);min-width:0;min-height:var(--tap)}
 .pad-totals{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--line);padding-top:10px;font-size:13px;color:var(--muted)}
 .pad-totals>div{display:flex;justify-content:space-between}
 .pad-totals b{font-family:var(--font-mono);color:var(--text)}
 .pad-save span,.pad-save b{color:var(--accent-text)}
 .pad-grand{font-size:15px}
 .pad-grand b{color:var(--accent-text);font-size:16px}
-.pad-actions{display:flex;gap:8px}
-.pad-clear{flex:0 0 auto;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:11px;padding:12px 14px;font-family:var(--font-ar);font-weight:700;cursor:pointer}
-.pad-place{flex:1;border:0;background:var(--accent);color:var(--accent-ink);border-radius:11px;padding:13px;font-family:var(--font-ar);font-size:14px;font-weight:800;cursor:pointer}
+.pad-actions{display:flex;gap:var(--tap-gap)}
+.pad-clear{flex:0 0 auto;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:11px;padding:12px 14px;font-family:var(--font-ar);font-weight:700;cursor:pointer;min-height:var(--tap)}
+/* "Send to kitchen" is the biggest commit in the app — the primary-action floor. */
+.pad-place{flex:1;border:0;background:var(--accent);color:var(--accent-ink);border-radius:11px;padding:13px;font-family:var(--font-ar);font-size:14px;font-weight:800;cursor:pointer;min-height:var(--tap-lg)}
 .pad-place:disabled{opacity:.45;cursor:not-allowed}
 
 /* ---- option sheet ---- */
-.pad-sheet-bg{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.45);display:grid;place-items:center;padding:18px}
-.pad-sheet{width:min(440px,100%);max-height:85vh;display:flex;flex-direction:column;background:var(--bg-2);border:1px solid var(--line-2);border-radius:16px;overflow:hidden;animation:pop .16s ease-out}
+/* Padded for the notch and the home indicator, like the shared .modal-bg. */
+.pad-sheet-bg{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.45);display:grid;place-items:center;
+  padding:calc(18px + env(safe-area-inset-top)) calc(18px + env(safe-area-inset-right)) calc(18px + env(safe-area-inset-bottom)) calc(18px + env(safe-area-inset-left))}
+/* dvh (not vh) so iOS browser chrome can't push the footer off-screen. */
+.pad-sheet{width:min(440px,100%);max-height:85dvh;display:flex;flex-direction:column;background:var(--bg-2);border:1px solid var(--line-2);border-radius:16px;overflow:hidden;animation:pop .16s ease-out}
 .pad-sheet-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line);font-size:15px}
-.pad-sheet-hd .x{border:0;background:transparent;color:var(--muted);font-size:16px;cursor:pointer}
-.pad-sheet-bd{overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:16px}
+.pad-sheet-hd .x{width:var(--tap);height:var(--tap);display:grid;place-items:center;flex:0 0 auto;border:0;border-radius:10px;background:transparent;color:var(--muted);font-size:16px;cursor:pointer}
+.pad-sheet-bd{overflow-y:auto;overscroll-behavior:contain;padding:14px 16px;display:flex;flex-direction:column;gap:16px}
 .pad-grp-hd{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:8px}
 .pad-req{font-size:10px;color:var(--accent-text);background:var(--surface-2);border-radius:6px;padding:2px 7px;letter-spacing:0}
-.pad-opt{display:flex;align-items:center;justify-content:space-between;width:100%;background:var(--surface);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:11px 13px;font-family:var(--font-ar);font-size:13.5px;cursor:pointer;margin-bottom:6px}
+.pad-opt{display:flex;align-items:center;justify-content:space-between;width:100%;background:var(--surface);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:11px 13px;font-family:var(--font-ar);font-size:13.5px;cursor:pointer;margin-bottom:6px;min-height:var(--tap)}
 .pad-opt.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--surface));font-weight:700}
 .pad-opt-d{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
-.pad-sheet-ft{display:flex;align-items:center;gap:10px;padding:13px 16px;border-top:1px solid var(--line)}
+.pad-sheet-ft{display:flex;align-items:center;gap:10px;padding:13px 16px calc(13px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
 
-@media (max-width:860px){
-  /* Single column: let the whole pad scroll as one page instead of trapping the
-     menu grid and cart lines in their own collapsing flex/scroll regions. */
-  .pad{grid-template-columns:1fr;overflow-y:auto;align-content:start;padding:14px;gap:12px}
-  .pad-menu,.pad-cart{min-height:auto}
-  .pad-items{flex:none;overflow:visible;grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
-  .pad-lines{flex:none;overflow:visible}
-  /* Keep the place-order row easy to reach with a thumb on phones. */
-  .pad-actions{position:sticky;bottom:0;background:var(--surface);padding-top:8px;margin:0 -2px;z-index:1}
+/* Tablet portrait (iPad ~768–834px lands here): the running total must never
+   scroll out from under the menu grid, so narrow the cart instead of dropping
+   it to a second row. Only pocket (below) goes single-column. */
+@media (min-width:640px) and (max-width:900px){
+  .pad{grid-template-columns:minmax(0,1fr) 300px}
 }
 
-@media (max-width:640px){
-  /* Below 640px the shell swaps the rail for a fixed bottom tab bar (dnav-bottom)
-     that overlays page content — without this offset "Send to kitchen" sticks at
-     bottom:0 and ends up hidden behind it, so orders can't be placed from a phone. */
-  .pad-actions{bottom:80px}
-  /* Qty stepper and car-color swatches are the main controls for building an order —
-     26px is well under a comfortable touch target on a phone. */
-  .pad-qty button{width:34px;height:34px;font-size:18px}
-  .pad-color{width:34px;height:34px}
-}
+/* Phones: the whole pad scrolls as one page instead of trapping the menu grid
+   and cart lines in their own collapsing flex/scroll regions. Posture, not a
+   width query, since this is the same "held in one hand" line the shell draws
+   everywhere else. */
+html[data-posture="pocket"] .pad{grid-template-columns:1fr;overflow-y:auto;align-content:start;padding:14px;gap:12px}
+html[data-posture="pocket"] .pad-menu,html[data-posture="pocket"] .pad-cart{min-height:auto}
+html[data-posture="pocket"] .pad-items{flex:none;overflow:visible}
+html[data-posture="pocket"] .pad-lines{flex:none;overflow:visible}
+/* Keep the place-order row reachable with a thumb. The shell swaps the rail
+   for a fixed bottom tab bar (dnav-bottom) on phones that overlays page
+   content — without this offset "Send to kitchen" sticks at bottom:0 and
+   ends up hidden behind it, so orders can't be placed from a phone. */
+html[data-posture="pocket"] .pad-actions{position:sticky;bottom:calc(80px + env(safe-area-inset-bottom));background:var(--surface);padding-top:8px;margin:0 -2px;z-index:1}
+
+/* Widen tiles under any coarse pointer (counter iPad or phone) so item names
+   don't wrap to three lines and tiles stay thumb-sized. */
+html[data-input="touch"] .pad-items{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}

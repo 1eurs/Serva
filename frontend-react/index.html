@@ -54,6 +54,17 @@
       crossorigin="anonymous"
     />
     <script>
+      // Posture before first paint — the shell picks its whole navigation off
+      // these two attributes, so resolving them in React instead would render
+      // the wrong nav for a frame. Must stay in step with src/lib/posture.ts.
+      try {
+        var coarse = matchMedia('(pointer: coarse)').matches;
+        document.documentElement.dataset.posture =
+          !matchMedia('(min-width:640px)').matches ? 'pocket' : coarse ? 'counter' : 'desk';
+        document.documentElement.dataset.input = coarse ? 'touch' : 'mouse';
+      } catch (e) {}
+    </script>
+    <script>
       // set theme + direction before first paint to avoid a flash
       try {
         document.documentElement.dataset.theme = localStorage.getItem('cafeqr_theme') || 'dark';
