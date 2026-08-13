@@ -452,12 +452,24 @@
 .iconbtn.danger:hover{color:var(--bad);border-color:var(--edge-bad)}
 
 .look-page{padding:18px 22px 28px}
-.look-studio{display:grid;grid-template-columns:auto minmax(340px,1fr);gap:18px;align-items:start}
+/* The stage column is a DEFINITE width, never `auto`.
+   It used to be `auto`, while the stage and the phone inside it both sized themselves
+   with `min(100%, …)`. A percentage against an auto track is circular, so the browser
+   sized the track from the preview's max-content — the longest menu item name — instead
+   of from the design. With a real menu inside, the track grew past the 476px stage and
+   the leftover became dead space between the preview and the controls; with little
+   content it collapsed the stage to ~140px. Naming the width once, here, makes every
+   percentage inside resolve against something real. */
+.look-studio{
+  --look-chrome:180px;   /* page furniture above and below the stage */
+  --look-stage-w:min(476px, calc((100vh - var(--look-chrome)) * 9 / 19.5 + 36px));
+  --look-stage-w:min(476px, calc((100dvh - var(--look-chrome)) * 9 / 19.5 + 36px));
+  display:grid;grid-template-columns:minmax(0,var(--look-stage-w)) minmax(340px,1fr);
+  gap:18px;align-items:start}
 /* The stage hugs the phone: its width tracks the phone's (height-bounded) width + padding
    and it no longer stretches to the controls' height — so there's no empty canvas around
    the preview on tall, short or landscape viewports. (vh line = old-WebView fallback.) */
-.look-stage{width:min(100%, 476px, calc((100vh - 180px) * 9 / 19.5 + 36px));
-  width:min(100%, 476px, calc((100dvh - 180px) * 9 / 19.5 + 36px));
+.look-stage{width:100%;    /* the track above already carries the measurement */
   border:1px solid var(--line);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:14px;
   background:linear-gradient(165deg,#F1F2F4,#E6E8EB);color:#3b3f45;overflow:hidden;color-scheme:light}
 .look-stage-copy span,.look-preview-title,.look-controls-head span{display:block;font-family:var(--font-mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
@@ -470,8 +482,8 @@
    — including wide-but-short / landscape windows where a height-driven min-height used to
    compute a width narrower than the phone and clip it. (vh line = old-WebView fallback.) */
 .look-preview-customer{aspect-ratio:9 / 19.5;
-  width:min(100%, 440px, calc((100vh - 180px) * 9 / 19.5));
-  width:min(100%, 440px, calc((100dvh - 180px) * 9 / 19.5));
+  width:min(100%, 440px, calc((100vh - var(--look-chrome, 180px)) * 9 / 19.5));
+  width:min(100%, 440px, calc((100dvh - var(--look-chrome, 180px)) * 9 / 19.5));
   height:auto;margin-inline:auto;display:flex;align-items:stretch;justify-content:center;overflow:hidden}
 .look-preview-customer .cust-bg{width:100%;height:100%;min-height:0;padding:0;background:transparent;display:block}
 .look-preview-customer .phone{width:100%;max-width:none;min-width:0;height:100%;border-radius:40px}

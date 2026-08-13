@@ -10,6 +10,11 @@
 /* Presets stay the prominent, un-collapsed first block — give it a touch more
    presence than a plain control block so it reads as "start here". */
 .look-presets-block{border-color:var(--accent);box-shadow:0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent)}
+/* …but under the branded skins, `.dash .look-control-block` (0,2,0) outranks the line
+   above (0,1,0), so the accent border and ring were being silently dropped and the block
+   looked like every other one. Re-assert the emphasis at matching specificity, in the
+   skin's own vocabulary: keep the hard offset, spend the accent on the keyline. */
+.dash .look-presets-block{border-color:var(--accent);box-shadow:var(--hard-sm)}
 
 /* ---- Fine-tune / Advanced disclosures -------------------------------------- */
 .look-disclosure{border:1px solid var(--line);background:var(--surface);border-radius:18px;overflow:hidden}
@@ -54,3 +59,23 @@
   .look-savebar{position:sticky;flex-direction:column;align-items:stretch}
   .look-savebar .look-actions{justify-content:flex-start;margin-inline-start:0}
 }
+
+/* ---- Branded chrome -------------------------------------------------------
+   This file predates the bold/pro skins. dashboard.css hands `.look-control-block`
+   and `.look-controls-head` an ink keyline, an 8px radius and a hard offset, but it
+   has never heard of the three elements introduced here — so Fine-tune and Advanced
+   sat in the middle of that column wearing an 18px radius and a hairline, next to
+   blocks wearing 8px and a shadow. That mismatch is what reads as unfinished: not
+   any one panel, but two design systems stacked in one column.
+   Keyline and radius only — no new colour, and the disclosures stay quieter than the
+   blocks they contain by taking the small shadow rather than the full one. --------- */
+.dash .look-disclosure{border:var(--bw) solid var(--keyline);border-radius:8px;box-shadow:var(--hard-sm)}
+.dash .look-disclosure-trigger{padding:14px 16px}
+.dash .look-disclosure-label b{font-family:var(--bold);font-weight:800}
+.dash .look-disclosure.open .look-disclosure-trigger{border-block-end:var(--bw-hair) solid var(--line-2)}
+.dash .look-disclosure-body{padding-block-start:14px}
+.dash .look-disclosure-trigger:focus-visible{outline:none;box-shadow:var(--focus-shadow)}
+.dash .look-finetune-group + .look-finetune-group{border-block-start:var(--bw-hair) dashed var(--line-2)}
+
+.dash .look-savebar{border:var(--bw) solid var(--keyline);border-radius:8px;box-shadow:var(--hard-sm);background:var(--surface)}
+.dash .look-dirty-badge{font-family:var(--bold);color:var(--accent-text)}

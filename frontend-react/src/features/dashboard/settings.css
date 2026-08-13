@@ -34,6 +34,10 @@
    would double the padding and trap a second scrollbar — flatten it. */
 .settings-pane .tables-wrap{padding:0;overflow:visible}
 .settings-pane .loy-setup-page,.settings-pane .look-page,.settings-pane .profile-page{padding:0}
+/* The look studio sizes its preview against the viewport height, and it was measured for
+   a standalone page. Inside Settings there is a tab strip and its gap above it, so tell
+   it how much more furniture to allow for or the phone runs past the fold. */
+.settings-pane .look-studio{--look-chrome:248px}
 .settings-pane .loy-setup-frame,.settings-pane .profile-frame{margin:0;width:100%}
 
 /* ---- pane shell ---- */
