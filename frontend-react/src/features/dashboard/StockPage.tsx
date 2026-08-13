@@ -25,12 +25,13 @@ const DICT: Dict = {
 
     /* مخفي عن قائمة العملاء — أغلى شي يسويه المخزون، فلا يصير بصمت */
     offTitle: '{n} من قائمتك مخفية عن العملاء',
+    offTitleWarn: '{n} ما تقدر تسويها الحين',
     offSub: 'ما يقدرون يطلبونها الحين. اضغط على السبب عشان تفتح الصنف الناقص.',
     offOut: 'نفد {name}', offOutPlain: 'ناقص مكوّن', offLimit: 'خلص حدّها اليومي',
     offSubWarnOnly: 'ما زالت معروضة للعملاء — أنت طلبت إن المخزون ما يخفي شي لحاله.',
-    autoHideLabel: 'خلّ المخزون يخفي الصنف إذا خلص مكوّنه',
-    autoHideHintOn: 'شغّالة: أي صنف ناقص مكوّنه يختفي من قائمة العملاء تلقائياً.',
-    autoHideHintOff: 'مطفية: ننبّهك بس، وما نخفي شي — القرار لك.',
+    autoHideLabel: 'خلّ المخزون يوقف بيع الصنف إذا خلص',
+    autoHideHintOn: 'شغّالة: الصنف اللي خلص مكوّنه — أو الجاهز اللي وصل صفر — يختفي من قائمة العملاء ويوقف استقبال الطلبات.',
+    autoHideHintOff: 'مطفية: المخزون يستمر بالعدّ وينبّهك هنا، لكن ما يشيل شي من القائمة إلا أنت.',
     autoHideOn: 'صار يخفي تلقائياً', autoHideOff: 'وقفنا الإخفاء التلقائي',
 
     /* العنوان */
@@ -100,12 +101,16 @@ const DICT: Dict = {
 
     /* hidden from the customer menu — the costliest thing stock does, so never silently */
     offTitle: '{n} off your menu right now',
+    offTitleWarn: '{n} you cannot make right now',
     offSub: 'Customers cannot order these. Tap the reason to open the ingredient to buy.',
     offOut: 'out of {name}', offOutPlain: 'an ingredient ran out', offLimit: "hit today's limit",
     offSubWarnOnly: 'Customers can still order these — you asked stock not to hide anything on its own.',
-    autoHideLabel: 'Let stock hide an item when an ingredient runs out',
-    autoHideHintOn: 'On: anything short of an ingredient disappears from the customer menu by itself.',
-    autoHideHintOff: 'Off: stock warns you here and leaves the menu alone. You decide.',
+    /* "Hide … when an ingredient runs out" described neither what the switch does nor
+       everything it covers: it also stops orders being taken, and a ready-made item has
+       no ingredient — it simply reaches zero. */
+    autoHideLabel: 'Let stock take an item off sale when it runs out',
+    autoHideHintOn: 'On: a recipe short an ingredient, or a ready-made item counted to zero, leaves the customer menu by itself and stops taking orders.',
+    autoHideHintOff: 'Off: stock keeps counting and still warns you here. Nothing leaves the menu unless you take it off.',
     autoHideOn: 'Stock will hide sold-out items', autoHideOff: 'Stock will only warn you',
 
     /* headline */
@@ -642,6 +647,25 @@ function Strip({ tone, title, summary, action, children, t }: {
 }
 
 /**
+ * The café's one automatic behaviour, read from a single place.
+ *
+ * Two things on this page describe it — the shortage strip's wording and the switch at the
+ * foot — and when they were fetching it separately they contradicted each other: with the
+ * rule off, the strip still announced "customers cannot order these" directly above a
+ * switch saying nothing is taken off sale. One hook, one answer, no disagreement.
+ */
+function useAutoHide() {
+  const restaurantId = useAuth().user?.restaurantId;
+  const query = useQuery({
+    queryKey: ['restaurant', restaurantId],
+    queryFn: () => api.get<Restaurant>(`/api/restaurants/${restaurantId}`),
+    enabled: restaurantId != null,
+    retry: false,
+  });
+  return { restaurantId, restaurant: query.data, autoHide: query.data?.autoHideOutOfStock ?? true };
+}
+
+/**
  * What customers can no longer order, and the one thing to buy to fix it.
  *
  * Stock hides menu items on its own — that is the point of tracking it — but it used to
@@ -654,6 +678,7 @@ function SoldOutStrip({ t, overview, openSheet }: {
   t: T; overview?: StockOverview; openSheet: (s: Sheet) => void;
 }) {
   const { lang } = useI18n();
+  const { autoHide } = useAutoHide();
   const rows = overview?.soldOut ?? [];
   if (rows.length === 0) return null;
 
@@ -663,9 +688,9 @@ function SoldOutStrip({ t, overview, openSheet }: {
 
   return (
     <Strip t={t} tone="out"
-      title={fill(t('offTitle'), { n: rows.length })}
+      title={fill(t(autoHide ? 'offTitle' : 'offTitleWarn'), { n: rows.length })}
       summary={rows.slice(0, 3).map(nameOf).join(' · ')}>
-      <p className="stk-strip-note">{t('offSub')}</p>
+      <p className="stk-strip-note">{t(autoHide ? 'offSub' : 'offSubWarnOnly')}</p>
       <ul className="stk-off-list">
         {rows.map((r) => (
           <li key={r.menuItemId}>
@@ -698,14 +723,7 @@ function SoldOutStrip({ t, overview, openSheet }: {
 function AutoHideRule({ t }: { t: T }) {
   const qc = useQueryClient();
   const toast = useToast();
-  const rid = useAuth().user?.restaurantId;
-  const restaurantQ = useQuery({
-    queryKey: ['restaurant', rid],
-    queryFn: () => api.get<Restaurant>(`/api/restaurants/${rid}`),
-    enabled: rid != null,
-    retry: false,
-  });
-  const autoHide = restaurantQ.data?.autoHideOutOfStock ?? true;
+  const { restaurantId: rid, restaurant, autoHide } = useAutoHide();
   const setAutoHide = useMutation({
     mutationFn: (on: boolean) => api.patch(`/api/restaurants/${rid}`, { autoHideOutOfStock: on }),
     onSuccess: (_d, on) => {
@@ -715,7 +733,7 @@ function AutoHideRule({ t }: { t: T }) {
     },
     onError: (e: Error) => toast(e.message),
   });
-  if (!restaurantQ.data) return null;
+  if (!restaurant) return null;
 
   return (
     <label className="stk-rule">

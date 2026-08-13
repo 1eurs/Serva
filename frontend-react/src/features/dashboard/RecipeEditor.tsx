@@ -22,7 +22,11 @@ const DICT: Dict = {
     title: 'المخزون والوصفة', close: 'إغلاق', save: 'حفظ',
     modeNone: 'بدون تتبع', modeNoneHint: 'لا يتأثر هذا الصنف بالمخزون.',
     modeLimit: 'حد يومي', modeLimitHint: '«١٢ قطعة فقط اليوم» — يُصفَّر تلقائياً كل صباح. بلا عدّ ولا وصفة.',
-    modeSimple: 'عدّ القطع', modeSimpleHint: 'للحلويات والمعلّبات: كل بيعة تُنقص واحدة.',
+    modeSimple: 'يُشترى جاهزاً',
+    modeSimpleHint: 'كرواسون، ماء معبأ. كل بيعة تنقص واحدة من رصيد بنفس هذا الاسم في صفحة المخزون.',
+    openingCount: 'كم عندك منه الحين؟',
+    openingHint: 'هذا الرصيد اللي ينقص مع كل بيعة. اتركه فاضي إذا بتعدّه بعدين — ما راح نرفض أي طلب قبل ما تعدّه.',
+    openingUnit: 'حبة', openingNote: 'رصيد افتتاحي',
     modeRecipe: 'من المكوّنات', modeRecipeHint: 'للمشروبات: ١٨ جم بن + ٢٠٠ مل حليب + كوب.',
     goExact: 'بالكميات بالضبط', goTick: 'بالتأشير',
     tickHint: 'ما في مكوّنات بعد. أضف اللي يدخل في هذا الصنف — الكمية تجيك جاهزة وتقدر تعدّلها.',
@@ -43,7 +47,14 @@ const DICT: Dict = {
     title: 'Stock & recipe', close: 'Close', save: 'Save',
     modeNone: "Don't track", modeNoneHint: 'This item ignores stock entirely.',
     modeLimit: 'Daily limit', modeLimitHint: '"Only 12 today" — resets itself every morning. No counting, no recipe.',
-    modeSimple: 'Count these', modeSimpleHint: 'For sweets and bottles: one sale takes one off.',
+    /* "Count these" pointed at nothing — you are editing one item, and the reader was
+       left to guess what a sale took one off OF. The pair with "Made from ingredients"
+       is the real question being asked: did you buy this finished, or build it? */
+    modeSimple: 'Bought ready-made',
+    modeSimpleHint: 'Croissants, bottled water. Each sale takes one off a count kept under this name on the Stock page.',
+    openingCount: 'How many do you have right now?',
+    openingHint: 'Sets the count this item sells down from. Leave it blank to count later — nothing is refused until you have.',
+    openingUnit: 'in stock', openingNote: 'Opening count',
     modeRecipe: 'Made from ingredients', modeRecipeHint: 'For drinks: 18 g beans + 200 ml milk + a cup.',
     goExact: 'Exact amounts', goTick: 'Tick what is in it',
     tickHint: 'No ingredients yet. Add what goes into this — amounts arrive filled in and stay editable.',
@@ -112,6 +123,12 @@ export default function RecipeEditor({ item, branchId, onClose }: {
   const [limit, setLimit] = useState<string | null>(null);
   const [lines, setLines] = useState<RecipeLineRow[] | null>(null);
   const [optLines, setOptLines] = useState<Record<number, RecipeLineRow[]> | null>(null);
+  /* The opening count. Choosing "bought ready-made" used to create a countable good and
+     leave it at zero without ever asking how many were on the shelf — so the first thing
+     the feature did to a café was refuse to sell a croissant that was sitting in the case.
+     Asked here because here is where the answer is known. Blank is a real answer: it means
+     "not counted yet", which the server treats as unknown rather than as none. */
+  const [opening, setOpening] = useState<string | null>(null);
 
   // Server state seeds the form once; after that the local edits win.
   const m = mode ?? recipe?.stockMode ?? 'NONE';
@@ -120,6 +137,15 @@ export default function RecipeEditor({ item, branchId, onClose }: {
   const optionLines = optLines ?? Object.fromEntries(
     (recipe?.optionRecipes ?? []).map((o) => [o.optionId, o.lines]),
   );
+  /* What the backing good already holds, if this item has been on SIMPLE before. An item
+     that has never been counted has no level row and reports nothing, so the field starts
+     empty rather than at a zero the café never said. */
+  const backingGood = recipe?.stockItemId != null
+    ? stockItems.find((s) => s.id === recipe.stockItemId)
+    : undefined;
+  const countedOnHand = backingGood?.onHand;
+  const openingCount = opening ?? (countedOnHand != null ? String(Math.round(countedOnHand)) : '');
+
   /* No longer editable here, but still echoed back on save. A café that mapped bundles
      before must not lose them because the screen that showed them went away. */
   const packagingRuleId = recipe?.packagingRuleId ?? null;
@@ -238,7 +264,7 @@ export default function RecipeEditor({ item, branchId, onClose }: {
   const margin = price - shownCost - packCost;
 
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const payload: RecipeSavePayload = {
         stockMode: m,
         stockItemId: recipe?.stockItemId ?? null,
@@ -253,11 +279,29 @@ export default function RecipeEditor({ item, branchId, onClose }: {
           })),
         packagingRuleId,
       };
-      return api.put(`/api/dashboard/stock/menu-items/${item.id}/recipe`, payload);
+      const saved = await api.put<RecipeResponse>(
+        `/api/dashboard/stock/menu-items/${item.id}/recipe`, payload);
+
+      /* Second call on purpose. The recipe endpoint owns the item's configuration; what is
+         physically on the shelf is a movement in the ledger, and it has to be recorded as
+         one so the correction is auditable like every other. Only when the number actually
+         changed — re-saving an unrelated field must not write a no-op count. */
+      const wanted = openingCount.trim();
+      if (m === 'SIMPLE' && saved.stockItemId != null && wanted !== ''
+          && Number(wanted) !== (countedOnHand ?? null)) {
+        await api.post('/api/dashboard/stock/adjust', {
+          branchId: branchId ?? undefined,
+          stockItemId: saved.stockItemId,
+          quantityBase: Number(wanted),
+          note: t('openingNote'),
+        });
+      }
+      return saved;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['recipe', item.id] });
       qc.invalidateQueries({ queryKey: ['menu'] });
+      qc.invalidateQueries({ queryKey: ['stock'] });
       toast(t('saved'));
       onClose();
     },
@@ -293,6 +337,19 @@ export default function RecipeEditor({ item, branchId, onClose }: {
               </button>
             ))}
           </div>
+
+          {/* The only field this mode needs, and the whole reason it stopped being a
+              trap: one number, asked once, in the place the owner is already standing. */}
+          {m === 'SIMPLE' && (
+            <div>
+              <label className="stk-f">
+                <span>{t('openingCount')}</span>
+                <input type="number" inputMode="numeric" min="0" step="1" value={openingCount}
+                  placeholder="—" onChange={(e) => setOpening(e.target.value)} />
+              </label>
+              <p className="stk-hint" style={{ marginBlockStart: 6 }}>{t('openingHint')}</p>
+            </div>
+          )}
 
           {m === 'DAILY_LIMIT' && (
             <div className="stk-grid">

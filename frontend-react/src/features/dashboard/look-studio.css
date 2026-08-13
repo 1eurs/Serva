@@ -23,7 +23,8 @@
   width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;
   padding:14px 16px;border:0;background:transparent;color:var(--text);cursor:pointer;text-align:start;
 }
-.look-disclosure-trigger:hover{background:var(--bg-2)}
+@media (hover:hover){.look-disclosure-trigger:hover{background:var(--bg-2)}}
+html[data-input="touch"] .look-disclosure-trigger{min-height:var(--tap-lg)}
 .look-disclosure-trigger:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .look-disclosure-label{display:flex;flex-direction:column;gap:2px}
 .look-disclosure-label b{font-size:14px;font-weight:800}
@@ -43,7 +44,9 @@
 .look-savebar{
   position:sticky;bottom:0;z-index:2;margin-top:2px;
   display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
-  padding:12px 14px;border:1px solid var(--line);border-radius:16px;
+  /* Pinned to the bottom of a scrolling column, so on a phone it lands on the home
+     indicator without the inset. */
+  padding:12px 14px calc(12px + env(safe-area-inset-bottom));border:1px solid var(--line);border-radius:16px;
   background:color-mix(in srgb, var(--surface) 92%, transparent);
   backdrop-filter:blur(6px);
   box-shadow:0 -14px 26px -20px rgba(0,0,0,.35);

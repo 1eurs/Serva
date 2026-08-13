@@ -233,7 +233,8 @@ html[dir="rtl"] .stk-room-track i { transform-origin: right center; }
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-block-size: 44px;
+  /* 44px covers desk/touch already; only the counter floor (48px) needs the max(). */
+  min-block-size: max(44px, var(--tap));
   padding: 0 16px;
   border: var(--bw) solid var(--keyline);
   border-radius: 7px;
@@ -246,9 +247,14 @@ html[dir="rtl"] .stk-room-track i { transform-origin: right center; }
   box-shadow: var(--hard-sm);
   transition: box-shadow .14s, transform .14s;
 }
-.stk-do button:hover { box-shadow: var(--hard); transform: translate(-2px, -2px); }
+/* The lift only makes sense under a cursor — on touch a tap latches :hover until the
+   next tap lands elsewhere, which would leave the button visibly "stuck" raised. */
+@media (hover: hover) {
+  .stk-do button:hover { box-shadow: var(--hard); transform: translate(-2px, -2px); }
+}
 .stk-do button:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
-.stk-do button.key { background: var(--lime); color: var(--fill-ink); }
+/* Sweep is the one daily verb worth the primary floor — it is what this header exists for. */
+.stk-do button.key { background: var(--lime); color: var(--fill-ink); min-block-size: max(44px, var(--tap-lg)); }
 .stk-do .ic { font-size: 15px; line-height: 1; }
 
 /* =====================================================================
@@ -367,7 +373,7 @@ html[dir="rtl"] .stk-room-track i { transform-origin: right center; }
 .stk-add {
   flex: 0 0 auto;
   display: inline-flex; align-items: center; gap: 7px;
-  min-block-size: 42px; padding: 0 15px;
+  min-block-size: max(42px, var(--tap)); padding: 0 15px;
   border: var(--bw) solid var(--keyline); border-radius: 7px;
   background: var(--lime); color: var(--fill-ink);
   font-family: var(--bold); font-weight: 800; font-size: 13.5px;
@@ -375,7 +381,9 @@ html[dir="rtl"] .stk-room-track i { transform-origin: right center; }
   transition: box-shadow .14s, transform .14s;
 }
 .stk-add em { font-style: normal; }
-.stk-add:hover { box-shadow: var(--hard); transform: translate(-2px, -2px); }
+@media (hover: hover) {
+  .stk-add:hover { box-shadow: var(--hard); transform: translate(-2px, -2px); }
+}
 .stk-add:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
 
 /* =====================================================================
@@ -740,7 +748,20 @@ html[dir="rtl"] .stk-panel-note { text-align: start; }
   font-size: 16px; cursor: pointer; border-radius: 7px; flex: 0 0 auto;
 }
 .stk-sheet-hd .x:focus-visible, .stk-line .x:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
-.stk-sheet-body { padding: 16px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+/* `flex: 1 1 auto; min-block-size: 0` is what makes overflow-y actually work here.
+   A column flex item's automatic minimum size is its CONTENT, so without this the body
+   refused to shrink, grew past the sheet's 90dvh cap, and .stk-sheet's overflow:hidden
+   clipped the rest — 146px of the item editor (hint and Archive) was unreachable on a
+   laptop, with no scrollbar to say so. Same trap the .tables-wrap note above describes. */
+.stk-sheet-body {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  padding: 13px 18px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 .stk-sheet-ft {
   display: flex; gap: 9px; justify-content: flex-end;
   padding: 13px 18px; border-block-start: var(--bw) solid var(--keyline); background: var(--paper);
@@ -750,18 +771,27 @@ html[dir="rtl"] .stk-panel-note { text-align: start; }
 
 .stk-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 @container (min-width: 460px) { .stk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* At full sheet width the two names and the category fit one row, which removes a whole
+   66px band from the item editor — the single biggest saving in the form. */
+@container (min-width: 540px) { .stk-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
 .stk-f { display: flex; flex-direction: column; gap: 5px; min-inline-size: 0; }
 .stk-f > span { font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+/* The size scale, not a hardcoded 44. These sheets were written before posture.ts and
+   carried the TOUCH figures on every device, so a laptop paid 44px a field and a 16px
+   font for a pointer that needs neither — which is most of why the item editor did not
+   fit. Deliberately the bare token rather than `max(44px, …)`: here shrinking the desk
+   rendering is the point, so a later sweep should not "restore" the floor. Touch and
+   counter still resolve to 44/48 and 16px, so nothing on a phone or an iPad moves. */
 .stk-f input, .stk-f select, .stk-f textarea {
-  min-block-size: 44px; inline-size: 100%;
+  min-block-size: var(--tap); inline-size: 100%;
   background: var(--paper);
   border: var(--bw) solid var(--keyline);
   border-radius: 7px;
   color: var(--ink);
   padding-inline: 12px;
   font-family: var(--font-ar);
-  font-size: 16px;
+  font-size: var(--fs-field);   /* 16px under touch — the iOS force-zoom guard lives in the token */
 }
 .stk-f input:focus-visible, .stk-f select:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
 /* The correction sheet is a number pad in spirit — make the figure the screen. */
@@ -773,9 +803,9 @@ html[dir="rtl"] .stk-panel-note { text-align: start; }
 .stk-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; align-items: end; }
 @container (min-width: 460px) { .stk-line { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto; } }
 .stk-line select, .stk-line input {
-  min-block-size: 44px; inline-size: 100%; min-inline-size: 0;
+  min-block-size: var(--tap); inline-size: 100%; min-inline-size: 0;
   background: var(--paper); border: var(--bw) solid var(--keyline); border-radius: 7px;
-  color: var(--ink); padding-inline: 11px; font-family: var(--font-ar); font-size: 16px;
+  color: var(--ink); padding-inline: 11px; font-family: var(--font-ar); font-size: var(--fs-field);
 }
 .stk-line label { display: flex; flex-direction: column; gap: 4px; min-inline-size: 0; }
 .stk-line label span { font-family: var(--font-mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
@@ -804,9 +834,11 @@ html[dir="rtl"] .stk-panel-note { text-align: start; }
   background: var(--paper);
   border: var(--bw) solid var(--keyline);
   border-radius: 8px;
-  padding: 16px 16px 14px;
-  font-size: 15px;
-  line-height: 2.4;
+  padding: 12px 14px 11px;
+  font-size: 14.5px;
+  /* 2.4 was set so inline 34px fields never collided. They don't at 2.0 either, and the
+     sentence is three lines long — the difference was ~24px of air per block, twice. */
+  line-height: 2.0;
   color: var(--ink);
   font-weight: 600;
 }
@@ -822,7 +854,7 @@ html[dir="rtl"] .stk-panel-note { text-align: start; }
   border-block-end: var(--bw-thick) solid var(--keyline);
   border-radius: 4px 4px 0 0;
   padding: 3px 6px;
-  min-block-size: 34px;
+  min-block-size: var(--tap-sm);
   margin-inline: 3px;
 }
 /* No trailing margin, so the comma after the unit sits against the word rather than
@@ -836,7 +868,7 @@ html[dir="rtl"] .stk-panel-note { text-align: start; }
    rather than discovered at the next stocktake. */
 .stk-spec-sum {
   display: flex; flex-wrap: wrap; gap: 4px 14px;
-  margin-block-start: 12px; padding-block-start: 11px;
+  margin-block-start: 8px; padding-block-start: 8px;
   border-block-start: var(--bw-hair) solid var(--line-2);
   font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); line-height: 1.6;
 }
@@ -978,8 +1010,9 @@ html[dir="rtl"] .stk-fold.on .stk-fold-chev { transform: scaleX(-1) rotate(90deg
 }
 
 /* The pane's padding tightens on a phone, so the rail's bleed has to follow it or
-   the sticky bar stops short of the edge. Viewport-scoped to match dashboard.css. */
-@media (max-width: 560px) {
+   the sticky bar stops short of the edge. Viewport-scoped to match dashboard.css
+   — rebanded onto the posture ladder's pocket ceiling (was max-width:560px). */
+@media (max-width: 639px) {
   .tables-wrap.stock-page { --stk-edge: 14px; }
 }
 
@@ -1150,10 +1183,13 @@ html[dir="rtl"] .stk-fold.on .stk-fold-chev { transform: scaleX(-1) rotate(90deg
   accent-color: var(--accent); cursor: pointer;
 }
 .stk-rule input:focus-visible { outline: none; box-shadow: var(--focus-shadow); border-radius: 4px; }
-.stk-rule b { display: block; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+/* Readable as a control, not a footnote. It reads as a footnote in the page's ORDER —
+   a standing rule below the thing it governs — but it decides whether stock refuses
+   sales on its own, and it was set in the same faint grey as a caption. */
+.stk-rule b { display: block; font-size: 13.5px; font-weight: 700; color: var(--ink); }
 .stk-rule em {
-  display: block; margin-block-start: 2px;
-  font-style: normal; font-size: 11.5px; line-height: 1.45; color: var(--faint);
+  display: block; margin-block-start: 3px;
+  font-style: normal; font-size: 12px; line-height: 1.5; color: var(--muted);
 }
 
 /* =====================================================================
@@ -1182,6 +1218,8 @@ html[dir="rtl"] .stk-fold.on .stk-fold-chev { transform: scaleX(-1) rotate(90deg
   color: var(--ink);
   container-type: inline-size;
 }
+/* Already on the posture ladder: 640px is POCKET_MAX+1, the same cut point
+   src/lib/posture.ts uses for `data-posture="pocket"` — not a breakpoint of its own. */
 @media (min-width: 640px) {
   .stk-sweep-scrim { padding: 24px; align-items: center; }
   .stk-sweep { border-radius: 10px; box-shadow: var(--hard-2xl); max-block-size: min(760px, 92vh); }
@@ -1289,7 +1327,9 @@ html[dir="rtl"] .stk-sweep-notch { transform: translateX(50%); }
   box-shadow: var(--hard-sm);
   transition: box-shadow .14s, transform .14s;
 }
-.stk-sweep-v:hover { box-shadow: var(--hard); transform: translate(-2px, -2px); }
+@media (hover: hover) {
+  .stk-sweep-v:hover { box-shadow: var(--hard); transform: translate(-2px, -2px); }
+}
 .stk-sweep-v:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
 /* Each choice carries a miniature of the gauge at the level it means, so the words and
    the bar teach each other and the tap is legibly the same act as the drag. */

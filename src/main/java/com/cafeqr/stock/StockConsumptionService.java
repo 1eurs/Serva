@@ -290,6 +290,9 @@ public class StockConsumptionService {
                             Map<Long, List<RecipeLine>> recipesByItem) {
         List<RecipeService.Draw> required = new ArrayList<>();
         if (item.getStockMode() == StockMode.SIMPLE && item.getStockItemId() != null) {
+            if (neverCounted(item.getStockItemId(), branchId, cachedOnHand)) {
+                return true; // counting is on but nobody has said how many — don't 86 it
+            }
             required.add(new RecipeService.Draw(item.getStockItemId(), BigDecimal.ONE));
         } else {
             recipesByItem.getOrDefault(item.getId(), List.of()).forEach(line ->
@@ -341,6 +344,32 @@ public class StockConsumptionService {
                 .orElse(BigDecimal.ZERO);
     }
 
+    /**
+     * True when this branch has never recorded a figure for the good — no level row at all.
+     *
+     * <p>Never counted and counted-to-zero are not the same fact, and {@link #onHandOf}
+     * flattens them by answering ZERO for both. That is harmless for an ingredient, which
+     * only exists because someone added it deliberately. It is not harmless for the good a
+     * SIMPLE menu item is backed by: that good is created automatically the moment the mode
+     * is chosen, so a café that ticked "bought ready-made" on its croissant immediately owned
+     * a croissant count of zero it had never been asked for — and the next order was refused
+     * for a pastry sitting in the display case.
+     *
+     * <p>The same instinct is already written down twice: {@code canMake} refuses to 86 a
+     * RECIPE item that has no recipe yet, and the stock page insists that "never stocked and
+     * ran out are not the same news". This is that rule for the one path that slipped past
+     * both, because SIMPLE always produces exactly one required draw.
+     *
+     * <p>Cheap on the public menu: callers pass a map already loaded with every level row for
+     * the branch, so a hit costs nothing and only a genuinely absent row reaches the query.
+     */
+    private boolean neverCounted(Long stockItemId, Long branchId, Map<Long, BigDecimal> cachedOnHand) {
+        if (cachedOnHand.containsKey(stockItemId)) {
+            return false;
+        }
+        return levelRepository.findByStockItemIdAndBranchId(stockItemId, branchId).isEmpty();
+    }
+
     // ============================================================ pre-order checks
 
     /**
@@ -365,6 +394,14 @@ public class StockConsumptionService {
            enforced. Ingredient shortfalls are a measurement, and a café that has switched
            automatic hiding off has said it does not want a measurement refusing sales. */
         if (!menuItem.getStockMode().consumesStock() || !autoHides(menuItem.getRestaurantId())) {
+            return;
+        }
+        /* Counting switched on, nobody counted yet — see neverCounted. Refusing the sale here
+           was the sharpest edge of that bug: the item stayed on the menu (choosing the mode
+           does not itself refresh availability), so a customer could see the croissant, tap
+           it, and be told it was sold out. */
+        if (menuItem.getStockMode() == StockMode.SIMPLE && menuItem.getStockItemId() != null
+                && neverCounted(menuItem.getStockItemId(), branchId, Map.of())) {
             return;
         }
         BigDecimal wanted = BigDecimal.valueOf(quantity);
@@ -482,6 +519,9 @@ public class StockConsumptionService {
                               Map<Long, List<RecipeLine>> recipesByItem) {
         List<RecipeService.Draw> required = new ArrayList<>();
         if (item.getStockMode() == StockMode.SIMPLE && item.getStockItemId() != null) {
+            if (neverCounted(item.getStockItemId(), branchId, cachedOnHand)) {
+                return null; // uncounted, so nothing is missing — see neverCounted
+            }
             required.add(new RecipeService.Draw(item.getStockItemId(), BigDecimal.ONE));
         } else {
             recipesByItem.getOrDefault(item.getId(), List.of()).forEach(line ->

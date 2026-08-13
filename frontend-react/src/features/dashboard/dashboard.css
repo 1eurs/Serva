@@ -187,9 +187,9 @@
 .loy-preview-live{--bg:#0c0e11;--surface:#15181d;--text:#f0ede6;--muted:#9a958c;--line:rgba(255,255,255,.12);
   --accent:#10b981;--accent-2:#059669;--accent-ink:#04120c}
 .loy-card-preview .loy-rule{margin-top:12px}
-@media(max-width:980px){.loy-setup-layout{grid-template-columns:1fr}.loy-setup-aside{position:static;display:grid;grid-template-columns:minmax(0,1fr) 290px;align-items:start}}
-@media(max-width:720px){.loy-setup-hero{align-items:flex-start;flex-direction:column}.loy-setup-hero>.btn{width:100%}.loy-setup-aside{display:flex}.loy-config-fields{grid-template-columns:1fr}.loy-reward-item{grid-column:auto}}
-@media(max-width:560px){.loy-setup-page{padding:14px}.loy-setup-hero{padding:14px}.loy-ticket-mark{width:64px;height:64px;font-size:25px}.loy-config-section{padding:14px}}
+@media(max-width:900px){.loy-setup-layout{grid-template-columns:1fr}.loy-setup-aside{position:static;display:grid;grid-template-columns:minmax(0,1fr) 290px;align-items:start}}
+@media(max-width:639px){.loy-setup-hero{align-items:flex-start;flex-direction:column}.loy-setup-hero>.btn{width:100%}.loy-setup-aside{display:flex}.loy-config-fields{grid-template-columns:1fr}.loy-reward-item{grid-column:auto}}
+@media(max-width:639px){.loy-setup-page{padding:14px}.loy-setup-hero{padding:14px}.loy-ticket-mark{width:64px;height:64px;font-size:25px}.loy-config-section{padding:14px}}
 .loy-people-hd{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
 .loy-people-right{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .loy-people-hd h3{margin:0;font-size:16px;color:var(--text)}
@@ -206,8 +206,10 @@
 .pay.unpaid.static{color:var(--muted);border-color:var(--line-2);background:transparent;font-weight:600;cursor:default}
 .pay.paid{color:var(--ready);border-color:var(--edge-ok);background:var(--tint-ok);cursor:default}
 .oactions{display:flex;gap:7px;flex-wrap:wrap}
-.oactions .btn{flex:1;min-height:42px;padding:10px 12px;font-size:13.5px}
-.oactions .collect-btn{flex:1 1 100%;justify-content:center;gap:7px;min-height:46px;padding:12px 14px;font-size:14.5px;font-weight:800;
+/* max(), not a bare token: the desk values were already above the mouse floor and
+   must not shrink — the token only ever raises them, on touch. */
+.oactions .btn{flex:1;min-height:max(42px,var(--tap));padding:10px 12px;font-size:13.5px}
+.oactions .collect-btn{flex:1 1 100%;justify-content:center;gap:7px;min-height:max(46px,var(--tap-lg));padding:12px 14px;font-size:14.5px;font-weight:800;
   background:var(--lime);color:var(--fill-ink);border:var(--bw) solid var(--keyline);border-radius:9px;box-shadow:var(--hard-sm)}
 .oactions .collect-btn:active{transform:translate(1px,1px);box-shadow:var(--hard-press)}
 .oactions .collect-btn .num{font-family:var(--font-mono)}
@@ -254,7 +256,7 @@
 .qr-style-hint{margin:2px 0 0;font-size:11.5px;color:var(--muted);line-height:1.4}
 .dash .qr-style{border:var(--bw) solid var(--keyline);border-radius:8px;box-shadow:var(--hard-sm)}
 .dash .qrtile{background:transparent;border-color:var(--keyline)}
-@media (max-width:720px){
+@media (max-width:900px){
   .qr-style-body{grid-template-columns:1fr}
   .qr-style-preview{position:static;justify-self:center}
 }
@@ -586,7 +588,7 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 .profile-plan-card dl{margin-top:20px;padding-top:13px;border-top: var(--bw-hair) solid var(--keyline)}.profile-plan-card dl>div{display:flex;align-items:baseline;justify-content:space-between;gap:8px}.profile-plan-card dt{color:var(--muted);font-size:10.5px}.profile-plan-card dd{font-family:var(--font-mono);font-size:11px;font-weight:800}
 .profile-menu-card code{display:block;overflow:hidden;text-overflow:ellipsis;padding:8px 9px;border: var(--bw-hair) solid var(--keyline);border-radius:5px;background:var(--paper);font-family:var(--font-mono);font-size:11px;white-space:nowrap}
 .profile-menu-card p{margin:10px 0 13px;color:var(--muted);font-size:11px;line-height:1.5}.profile-menu-card .btn{width:100%}
-@media(max-width:980px){
+@media(max-width:900px){
   .look-studio{grid-template-columns:1fr}
   .look-stage{margin-inline:auto}
   .look-controls-head{grid-template-columns:1fr;display:flex;flex-direction:column;align-items:flex-start}
@@ -595,11 +597,11 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
   /* The base .look-preview-customer rule now fits by both width and height, so it already
      behaves in the stacked column — no preview override needed here. */
 }
-@media(max-width:720px){
+@media(max-width:639px){
   .profile-hero{align-items:flex-start;flex-direction:column}.profile-actions{width:100%;justify-content:flex-start}
   .profile-fields{grid-template-columns:1fr}.profile-currency{max-width:none}
 }
-@media(max-width:560px){
+@media(max-width:639px){
   .look-page,.profile-page,.tables-wrap{padding:14px}
   .look-motif-row{grid-template-columns:repeat(auto-fit,minmax(58px,1fr))}
   .look-phone{min-height:500px;border-radius:26px}
@@ -697,7 +699,12 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 .more-sheet-bg{display:none}
 @keyframes sheet-up{from{transform:translateY(100%)}to{transform:none}}
 
-@media(max-width:640px){
+/* 639, not 640: this block hides the rail and shows the bottom bar, and it has to
+   agree exactly with POCKET_MAX in src/lib/posture.ts. At an even 640 the old
+   value made both true at once — posture said `counter` (so the rail styling
+   applied) while the query still hid the rail, leaving that one width with no
+   navigation at all. */
+@media(max-width:639px){
   .rail{display:none}
   .dtop{padding:11px 14px;gap:9px}
   .dtop h2{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
@@ -818,7 +825,7 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 .perm-toggle .pt-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
 .perm-toggle .pt-name{font-size:12.5px;font-weight:700;line-height:1.15}
 .perm-toggle .pt-hint{font-size:10.5px;font-weight:500;color:var(--muted);line-height:1.2}
-@media(max-width:520px){.perm-groups{grid-template-columns:1fr}}
+@media(max-width:639px){.perm-groups{grid-template-columns:1fr}}
 .preset-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0}
 /* role picker — one-click bundles above the fine-tune grid */
 .role-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px}
@@ -950,7 +957,7 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
    in the Type cell) don't fit 6-across on a tablet — hide-sm only drops them below
    640px. Widen that just for this table so a portrait tablet isn't cramped either;
    the same detail is one tap away in the row's drawer. */
-@media(max-width:860px){.dash .orders-tbl .hide-sm{display:none}}
+@media(max-width:900px){.dash .orders-tbl .hide-sm{display:none}}
 .dash .perm-tags span{border: var(--bw-hair) solid var(--keyline);border-radius:6px;background:var(--paper);color:var(--ink);font-family:var(--bold)}
 .dash .tcard:hover{transform:translate(-2px,-2px);box-shadow:var(--hard-lg);border-color:var(--keyline)}
 .dash .qrtile{position:relative;background:#fff;border:var(--bw-heavy) solid var(--keyline);border-radius:8px;padding:12px;box-shadow:var(--hard)}
@@ -1057,3 +1064,131 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 [data-skin="pro"] .dash .ordno{border-color:transparent}
 [data-skin="pro"] .dash .who .av{border-color:transparent}
 [data-skin="pro"] .dash .qa-type{border-color:transparent}
+
+/* =====================================================================
+   POSTURE — the counter iPad, and the touch floor everywhere
+------------------------------------------------------------------------
+   src/lib/posture.ts publishes html[data-posture] and html[data-input];
+   see the TOUCH LAYER block in theme.css for the size scale. Two ideas
+   live here:
+
+   1. `counter` is a device class this app never had. Between 640px and
+      1366px, a finger-driven screen used to inherit the mouse layout —
+      including a rail whose ten nav items only name themselves on hover,
+      which on an iPad meant they never named themselves at all.
+   2. `data-input="touch"` raises every target that sat below the floor,
+      at ANY width. That is the part width alone could never express: an
+      iPad Pro is 1366px wide and still has no cursor.
+
+   Everything is scoped `.dash` so it outranks the bold/pro skin rules
+   above, which reach the same elements at (0,2,0).
+   ===================================================================== */
+
+/* ---- the labeled rail ----
+   Fixes the invisible tooltip by deleting the tooltip: the same .tip span
+   stops being an absolutely-positioned bubble and becomes a static caption
+   under its icon. No markup change, and it reads identically in RTL. */
+html[data-posture="counter"] .dash .rail{
+  width:96px;
+  padding:14px env(safe-area-inset-right) 14px env(safe-area-inset-left);
+  gap:2px}
+html[data-posture="counter"] .dash .rail .logo{
+  width:var(--tap-lg);height:var(--tap-lg);margin-bottom:8px;flex:0 0 auto}
+/* Ten items + logo + sign-out is ~640px of rail against the 768px height of
+   the shortest iPad in landscape. It fits — but it fits by enough that a
+   future eleventh tab would not, so the column scrolls rather than clips. */
+html[data-posture="counter"] .dash .rail .nav{
+  width:100%;gap:2px;padding-inline:6px;overflow-y:auto;overscroll-behavior:contain}
+html[data-posture="counter"] .dash .rail .nav button{
+  width:100%;height:auto;min-height:var(--tap);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:4px;padding:7px 4px}
+html[data-posture="counter"] .dash .rail .nav button .tip{
+  position:static;opacity:1;transition:none;
+  background:none;border:0;box-shadow:none;padding:0;border-radius:0;
+  color:inherit;font-size:10.5px;font-weight:600;line-height:1.15;
+  white-space:normal;text-align:center;max-width:100%}
+/* The active-item bar is anchored to the 74px rail's edge; at 96px with a
+   label under the glyph it reads as a stray tick, and the filled pill the
+   skins already give the active button carries the state on its own. */
+html[data-posture="counter"] .dash .rail .nav button.on::before{display:none}
+html[data-posture="counter"] .dash .rail .out{
+  width:calc(100% - 12px);height:auto;min-height:var(--tap);flex:0 0 auto}
+
+/* ---- the board divides instead of half-showing a column ----
+   300px fixed columns leave an iPad portrait showing 2.4 of them. Snap the
+   board and let two columns split the width exactly; wider counters keep
+   the 300px column and just gain the snap. */
+html[data-posture="counter"] .board{scroll-snap-type:x mandatory;overscroll-behavior-x:contain;
+  /* A tablet is much taller than the cards in it. Left at flex-start the columns
+     size to content and a half-empty board leaves tickets floating over a page of
+     graph paper; stretched, each column owns its full height and scrolls itself. */
+  align-items:stretch}
+html[data-posture="counter"] .col{scroll-snap-align:start}
+@media (max-width:900px){
+  html[data-posture="counter"] .col{flex:0 0 calc((100% - 14px) / 2)}
+}
+.col-body{overscroll-behavior:contain}
+.board-tabs,.qa-feed{scroll-snap-type:x proximity}
+.board-tabs button,.qa-feed .qa-card{scroll-snap-align:start}
+
+/* ---- the touch floor ----
+   Square controls get both dimensions; rows get height only and stay full
+   width. --tap-sm is reserved for the ones where a mis-tap costs a tap to
+   undo — a swatch, a filter pill, a print re-send. */
+html[data-input="touch"] .dash .oprint,
+html[data-input="touch"] .dash .qr-swatch,
+html[data-input="touch"] .dash .loy-swatch,
+html[data-input="touch"] .dash .optx,
+html[data-input="touch"] .dash .imgthumb-x,
+html[data-input="touch"] .dash .imgthumb-star{min-width:var(--tap-sm);min-height:var(--tap-sm)}
+html[data-input="touch"] .dash .sndtgl,
+html[data-input="touch"] .dash .loy-icon-opt{min-width:var(--tap);min-height:var(--tap)}
+html[data-input="touch"] .dash .dnew,
+html[data-input="touch"] .dash .select,
+html[data-input="touch"] .dash .who-btn,
+html[data-input="touch"] .dash .pay,
+html[data-input="touch"] .dash .tlink,
+html[data-input="touch"] .dash .preset button,
+html[data-input="touch"] .dash .optseg button,
+html[data-input="touch"] .dash .qr-font,
+html[data-input="touch"] .dash .qr-preset,
+html[data-input="touch"] .dash .loy-chip,
+html[data-input="touch"] .dash .loy-suggest button,
+html[data-input="touch"] .dash .loy-preview-state button,
+html[data-input="touch"] .dash .loy-item-list .loy-item-row,
+html[data-input="touch"] .dash .acct-lang-btns button,
+html[data-input="touch"] .dash .acct-item,
+html[data-input="touch"] .dash .checkrow,
+html[data-input="touch"] .dash .perm-toggle,
+html[data-input="touch"] .dash .role-btn,
+html[data-input="touch"] .dash .board-tabs button,
+html[data-input="touch"] .dash .dnav-bottom button,
+html[data-input="touch"] .dash .tcard-actions .btn{min-height:var(--tap)}
+/* The permission checkbox stays a 17px box — the whole row above is the
+   target, so growing the glyph would only make the tick look heavy. */
+html[data-input="touch"] .dash .perm-toggle{align-items:center}
+/* The switch grows to a tappable height, so its thumb has to leave the 2px
+   top offset and centre itself instead. */
+html[data-input="touch"] .dash .switch{min-height:var(--tap-sm)}
+html[data-input="touch"] .dash .switch span{top:50%;transform:translateY(-50%)}
+
+/* ---- hover, on a screen that has none ----
+   Touch latches :hover on the last thing tapped, so a lift-on-hover card
+   stays lifted until you tap elsewhere. Reset the motion and re-hide the
+   tooltip; colour-only hovers are left alone, they read as selection. */
+@media (hover:none){
+  .ocard:hover,.tcard:hover,.mitem:hover,.qr-preset:hover,
+  .qr-swatch:hover:not(:disabled),.loy-status:hover,.loy-chip:hover,.loy-swatch:hover,
+  .payment-method:hover,
+  .dash .ocard:hover,.dash .tcard:hover,.dash .btn:hover{transform:none}
+  .loy-status:hover,.loy-chip:hover,.loy-swatch:hover,.payment-method:hover{box-shadow:var(--hard-xs)}
+  /* "Change logo" only ever appeared on hover, so on a tablet the logo tile looked
+     inert — nothing said it could be tapped. Pin the caption open instead. */
+  .profile-logo>i{opacity:1;transform:none}
+  .dash .ocard:hover,.dash .tcard:hover,.dash .btn:hover{box-shadow:var(--hard-sm)}
+  .ocard:hover{box-shadow:0 14px 26px -22px rgba(0,0,0,.6)}
+  .tcard:hover{box-shadow:0 14px 26px -22px rgba(0,0,0,.55)}
+  .who:hover .av{box-shadow:none;border-color:var(--line-2)}
+  .rail .nav button:hover .tip{opacity:0}
+}

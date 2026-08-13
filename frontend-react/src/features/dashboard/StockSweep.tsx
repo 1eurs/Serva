@@ -4,6 +4,7 @@ import { api } from '../../lib/api';
 import { useI18n, useT, pick, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import type { BaseUnit, StockItemRow } from '../../lib/types';
+import { usePosture } from '../../lib/posture';
 import './stock.css';
 
 /**
@@ -80,19 +81,6 @@ const qty = (n: number, u: BaseUnit): string => (u === 'PIECE' ? String(Math.rou
 /** A shelf a barista calls "running low" is around a third full — and that is also where
  *  we put the reorder point for an item that has never had one. */
 const LOW_FRACTION = 0.3;
-
-/**
- * Whether to hand a field the keyboard the moment it appears.
- *
- * On a desktop that saves a click. On the phone this screen was built for it is the wrong
- * instinct: the sweep advances item to item, and an input that grabs focus on each one
- * throws the software keyboard up over the controls again and again while somebody is
- * walking a stockroom one-handed. Fields the person opened themselves still focus — that
- * is a request, not an ambush.
- */
-const FINE_POINTER = typeof window !== 'undefined'
-  && typeof window.matchMedia === 'function'
-  && window.matchMedia('(pointer: fine)').matches;
 
 /** How many items one sweep may ask for. Roughly the number of things a café actually
  *  runs out of — beans, milks, cups, lids, syrups, pastries — and short enough that the
@@ -241,6 +229,19 @@ function Card({ t, item, onRecord }: {
   const { lang } = useI18n();
   const u = item.baseUnit;
   const word = unitWord(u);
+  /**
+   * Whether to hand a field the keyboard the moment it appears.
+   *
+   * On a desktop that saves a click. On the phone and the counter iPad this screen was
+   * built for it is the wrong instinct: the sweep advances item to item, and an input that
+   * grabs focus on each one throws the software keyboard up over the controls again and
+   * again while somebody is walking a stockroom one-handed. Fields the person opened
+   * themselves still focus — that is a request, not an ambush.
+   *
+   * Read from usePosture rather than the module-level matchMedia this used to be: computed
+   * once at import, it could not follow a trackpad being attached to an iPad mid-shift.
+   */
+  const { isTouch } = usePosture();
 
   /* An item with no par has no ceiling to draw a gauge against — drawing one anyway would
      be a lie, so the first sweep asks for the ceiling instead and then never asks again. */
@@ -267,7 +268,7 @@ function Card({ t, item, onRecord }: {
         <div className="stk-sweep-par">
           <p className="stk-sweep-q">{t('parQ')}</p>
           <div className="stk-sweep-parrow">
-            <input className="num" type="number" inputMode="decimal" min="0" autoFocus={FINE_POINTER}
+            <input className="num" type="number" inputMode="decimal" min="0" autoFocus={!isTouch}
               value={parDraft} onChange={(e) => setParDraft(e.target.value)}
               aria-label={fill(t('parUnit'), { u: word })}
               onKeyDown={(e) => { if (e.key === 'Enter' && n > 0) setPar(n); }} />

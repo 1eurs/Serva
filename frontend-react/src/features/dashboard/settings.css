@@ -25,7 +25,13 @@
 /* ---- sub-nav: the pane switcher, weighted like the rest of the chrome ---- */
 .settings-subnav{align-self:flex-start;padding:4px;box-shadow:var(--hard-sm)}
 .settings-subnav button{font-weight:800;letter-spacing:-.01em;transition:background .14s,color .14s}
-.settings-subnav button:hover:not(.on){background:var(--surface-2);color:var(--text)}
+@media (hover:hover){.settings-subnav button:hover:not(.on){background:var(--surface-2);color:var(--text)}}
+/* The pane switcher holds seven tabs. Wrapping them stacks two rows of chrome above
+   every pane on a tablet; scrolling keeps it one row and one gesture. */
+.settings-subnav{max-width:100%;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;overscroll-behavior-x:contain}
+.settings-subnav::-webkit-scrollbar{display:none}
+.settings-subnav button{flex:0 0 auto;white-space:nowrap;scroll-snap-align:start}
+html[data-input="touch"] .settings-subnav button{min-height:var(--tap)}
 .settings-subnav button.on{box-shadow:var(--hard-xs)}
 .settings-subnav button:focus-visible{outline:2px solid var(--keyline);outline-offset:2px}
 
@@ -171,14 +177,14 @@
 
 /* ---- Appearance: skin picker ---- */
 .skin-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:2px}
-@media (max-width:640px){.skin-cards{grid-template-columns:1fr}}
+@media (max-width:639px){.skin-cards{grid-template-columns:1fr}}
 
 .skin-card{
   position:relative;display:flex;flex-direction:column;gap:12px;text-align:start;
   border: var(--bw-hair) solid var(--line-2);border-radius:12px;background:var(--paper,var(--bg-2));
   padding:14px;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .1s;
 }
-.skin-card:hover{border-color:var(--accent)}
+@media (hover:hover){.skin-card:hover{border-color:var(--accent)}}
 .skin-card:active{transform:scale(.995)}
 .skin-card.on{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
 
@@ -221,29 +227,27 @@
   border:1px solid var(--line-2);border-radius:999px;background:var(--surface,var(--bg-2));
   padding:7px 13px 7px 11px;cursor:pointer;font-family:inherit;transition:filter .15s,border-color .15s;
 }
-.order-status-toggle:hover{filter:brightness(.97)}
+@media (hover:hover){.order-status-toggle:hover{filter:brightness(.97)}}
+html[data-input="touch"] .order-status-toggle{min-height:var(--tap)}
 .order-status-toggle:disabled{opacity:.6;cursor:wait}
 .order-status-toggle .ost-label{font-size:12.5px;font-weight:800;color:var(--text)}
 .order-status-toggle.paused{border-color:var(--edge-bad)}
 .order-status-toggle.paused .status-dot{background:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 18%,transparent)}
 .order-status-toggle.paused .ost-label{color:var(--bad)}
 
-@media (max-width:640px){
-  .order-status-toggle .ost-label{display:none}
-  .order-status-toggle{padding:8px}
-}
-
-/* ---- responsive: mirrors the loyalty pane's breakpoints so the two stay in step ---- */
-@media (max-width:980px){
+/* ---- responsive: 639 / 900 only — the ladder in theme.css. The three panes that
+   share this shell (settings, loyalty, profile) all reflow at the same two places
+   so they stay in step; see the TOUCH LAYER block for why there are only three
+   sanctioned widths. ---- */
+@media (max-width:900px){
   .stg-layout,.stg-layout.paper{grid-template-columns:1fr}
   .stg-aside{position:static}
 }
-@media (max-width:720px){
-  .stg-hero{flex-direction:column;align-items:flex-start}
+@media (max-width:639px){
+  .order-status-toggle .ost-label{display:none}
+  .order-status-toggle{padding:8px}
+  .stg-hero{flex-direction:column;align-items:flex-start;padding:14px}
   .stg-hero-actions{width:100%;justify-content:flex-start}
-}
-@media (max-width:560px){
   .stg-mark{width:64px;height:64px;font-size:25px}
   .stg-mark.type{font-size:23px}
-  .stg-hero{padding:14px}
 }
