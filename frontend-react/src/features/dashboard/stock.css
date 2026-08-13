@@ -209,6 +209,23 @@ html[dir="rtl"] .stk-room-track i { transform-origin: right center; }
   color: var(--ink);
 }
 .stk-first-copy p { font-size: 14.5px; line-height: 1.65; color: var(--muted); max-inline-size: 56ch; }
+/* The sample shelf. Real rows on a paper panel, inset from the hero so it reads as a
+   picture of the thing rather than the thing itself — the difference between "here is
+   your shelf" (a lie, they have no shelf) and "here is what a shelf looks like". */
+.stk-sample {
+  display: flex; flex-direction: column; gap: 9px;
+  background: var(--paper); border: var(--bw) solid var(--keyline);
+  border-radius: 8px; padding: 12px 12px 11px;
+}
+.stk-sample-rows {
+  background: var(--bg-2); border: var(--bw-hair) solid var(--line-2);
+  border-radius: 6px; overflow: hidden;
+}
+/* Not buttons, so they must not offer a press they cannot honour. */
+.stk-sample-rows .stk-item { cursor: default; min-block-size: 48px; padding: 9px 12px; }
+.stk-sample-rows .stk-item:hover { background: transparent; }
+.stk-sample-note { font-size: 12px; line-height: 1.55; color: var(--muted); max-inline-size: 60ch; }
+
 .stk-first .stk-do button { min-block-size: 48px; font-size: 14.5px; }
 .stk-first .stk-do .ic { font-size: 17px; font-weight: 800; }
 /* No divider above this. The dashed track is already the card's one horizontal rule,

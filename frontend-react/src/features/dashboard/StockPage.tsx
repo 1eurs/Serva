@@ -57,6 +57,8 @@ const DICT: Dict = {
     firstTitle: 'أضف اللي تشتريه.',
     firstBody: 'بن، حليب، أكواب، أغطية — الأشياء اللي تخلص وتوقّف الشغل. ستة أو سبعة تكفي للبداية، والباقي أضفه وقت ما توصل الفاتورة.',
     firstCta: 'أضف أول صنف',
+    sampleH: 'شكل الرف بعد ما تضيف — أرقام تجريبية', sampleAria: 'رف تجريبي',
+    sampleNote: 'كل طلب يخصم مكوّناته من الرف لحاله، فالأرقام تتحرك وأنت تشتغل.',
     firstFoot: 'أول ما يصير على الرف شي، جولة قصيرة كل ليلة تخلّي الأرقام صحيحة وتحوّلها إلى قائمة طلبك.',
     stOut: 'نفد', stLow: 'اطلبه الحين', stOk: 'تمام', stDays: '~{n} يوم', stUnset: 'ما فيه حدّ تنبيه',
 
@@ -140,6 +142,8 @@ const DICT: Dict = {
     firstTitle: 'Add what you buy.',
     firstBody: 'Beans, milk, cups, lids — the things that run out and stop you serving. Six or seven is enough to start; add the rest when the invoice is in front of you.',
     firstCta: 'Add your first item',
+    sampleH: 'What the shelf looks like once you do — sample numbers', sampleAria: 'Sample shelf',
+    sampleNote: 'Every order takes its ingredients off the shelf by itself, so these move while you work.',
     firstFoot: 'Once something is on the shelf, a one-minute sweep each night keeps the numbers honest and turns them into your order list.',
     stOut: 'Out', stLow: 'Order now', stOk: 'OK', stDays: '~{n} days', stUnset: 'No reorder point',
 
@@ -596,6 +600,7 @@ function ShelfTab({ t, items, overview, cover, loading, suggestions, filter, set
  * spot illustration that appears nowhere else in the product.
  */
 function FirstRun({ t, onAdd }: { t: T; onAdd: () => void }) {
+  const { lang } = useI18n();
   return (
     <header className="stk-head stk-first">
       <div className="stk-first-copy">
@@ -604,11 +609,33 @@ function FirstRun({ t, onAdd }: { t: T; onAdd: () => void }) {
         <p>{t('firstBody')}</p>
       </div>
 
-      {/* Wrapped exactly like the working gauge — same element, same parent — so the
-          empty shelf and the measured one are the same object in two states. */}
-      <div className="stk-room">
-        <div className="stk-room-track unset" aria-hidden />
-      </div>
+      {/* An empty dashed track used to sit here — a blank bar that said nothing and
+          looked like a page that had failed to load. What an owner needs before they
+          type anything is to see the answer they are being offered, so this is three
+          rows of a shelf, drawn by the same component the real shelf uses: out, order
+          now, and six days of cover. Labelled as a sample, because a screen that shows
+          made-up numbers without saying so is a screen that has lied once. */}
+      <figure className="stk-sample" aria-label={t('sampleAria')}>
+        <figcaption className="stk-head-eyebrow">{t('sampleH')}</figcaption>
+        <div className="stk-sample-rows" aria-hidden>
+          {SAMPLE.map(({ item, days }) => (
+            <div className="stk-item" data-state={levelOf(item)} key={item.id}>
+              <span className="stk-item-name"><b>{pick(item, 'name', lang)}</b></span>
+              <span className="stk-item-qty">
+                <b>{qty(item.onHand, item.baseUnit)}</b><i>{unitTag(item.baseUnit)}</i>
+              </span>
+              <span className="stk-item-level">
+                <Gauge item={item} />
+                <span className="stk-item-state" data-tone={levelOf(item)}>
+                  {stateLabel(item, days != null ? { daysLeft: days } as CoverRow : undefined, t).text}
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+        {/* The one thing the rows cannot show: that they move without being touched. */}
+        <p className="stk-sample-note">{t('sampleNote')}</p>
+      </figure>
 
       <div className="stk-do">
         <button className="key" onClick={onAdd}>
@@ -621,6 +648,22 @@ function FirstRun({ t, onAdd }: { t: T; onAdd: () => void }) {
     </header>
   );
 }
+
+/** The shelf an owner is being offered, in the three states that matter. Not their data,
+    and said so on screen — but real rows, so what they see is what they get. */
+const sample = (
+  id: number, nameEn: string, nameAr: string, baseUnit: BaseUnit,
+  onHand: number, par: number, reorder: number,
+): StockItemRow => ({
+  id, nameEn, nameAr, kind: 'INGREDIENT', baseUnit, purchaseUnitSize: 1, costPerBaseUnit: 0,
+  wastePct: 0, allergens: [], archived: false, onHand, parLevel: par, reorderPoint: reorder,
+  low: onHand > 0 && onHand <= reorder, out: onHand <= 0,
+});
+const SAMPLE: { item: StockItemRow; days?: number }[] = [
+  { item: sample(-1, 'Coffee beans', 'حبوب بن', 'G', 0, 3000, 1000) },
+  { item: sample(-2, 'Milk', 'حليب', 'ML', 3500, 12000, 4000) },
+  { item: sample(-3, 'Cups 12oz', 'أكواب ١٢ أونصة', 'PIECE', 180, 300, 100), days: 6 },
+];
 
 /* ================================================================== filter rail */
 
