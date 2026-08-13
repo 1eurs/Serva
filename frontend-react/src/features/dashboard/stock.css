@@ -862,8 +862,20 @@ html[dir="rtl"] .stk-panel-note { text-align: start; }
 .stk-spec select { font-family: var(--font-ar); font-size: 14px; padding-inline: 4px; margin-inline: 3px 0; }
 .stk-spec input:focus-visible, .stk-spec select:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
 .stk-spec input.w-num { inline-size: 8ch; }
-.stk-spec input.w-txt { inline-size: 12ch; text-align: start; font-family: var(--font-ar); font-weight: 700; }
+/* The amount and its unit are one phrase — "1 kg" — so they are set tight against each
+   other. Centred in its own box with a full margin, the number read as a second field. */
+.stk-spec input.w-amt { inline-size: 5ch; text-align: end; margin-inline-end: 0; }
+.stk-spec input.w-amt + select { margin-inline-start: 2px; }
 .stk-spec input.w-cost { inline-size: 9ch; }
+/* The one blank that can be left empty says so, rather than sitting there looking
+   like a question the owner is failing to answer. */
+.stk-spec-opt {
+  display: inline-block; margin-inline-end: 8px; vertical-align: 1px;
+  padding: 2px 7px; border-radius: 999px;
+  background: var(--bg-2); border: var(--bw-hair) solid var(--line-2);
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+}
 /* What the sentence adds up to. Live, so a wrong pack size is caught here
    rather than discovered at the next stocktake. */
 .stk-spec-sum {
@@ -887,6 +899,15 @@ html[dir="rtl"] .stk-panel-note { text-align: start; }
 }
 .stk-chips button.on { background: var(--lime); color:var(--fill-ink); box-shadow: var(--hard-sm); }
 .stk-chips button:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+
+/* The starter list. An opening stock list is a dozen things every café buys, so the first
+   items are a tap each — one sideways line, because the form's own question has to stay
+   above the fold on a phone. */
+.stk-presets { display: flex; flex-direction: column; gap: 5px; }
+.stk-presets > .stk-sec-h { display: block; }
+/* A menu to scan rather than a dozen equal decisions, and a scroll the thumb can find:
+   the last pill is cut rather than flush, which is what says the line continues. */
+.stk-presets .stk-rail { padding-block: 2px; margin-inline-end: -18px; padding-inline-end: 18px; }
 
 .stk-toggle {
   display: flex; gap: 12px; align-items: flex-start;

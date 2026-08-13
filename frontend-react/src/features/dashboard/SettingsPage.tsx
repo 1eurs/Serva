@@ -161,7 +161,7 @@ export default function SettingsPage({
 
   return (
     <div className="tables-wrap settings-page">
-      <nav className="seg seg-wrap settings-subnav" role="tablist">
+      <nav className="seg settings-subnav" role="tablist">
         {items.map((i) => (
           <button key={i.key} type="button" role="tab" aria-selected={active === i.key}
             className={active === i.key ? 'on' : ''} onClick={() => onSection(i.key)}>

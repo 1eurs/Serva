@@ -38,7 +38,7 @@ import './settings.css';
 
 const DICT: Dict = {
   ar: { title: 'شاشة المطبخ', live: 'مباشر', logoutT: 'خروج', cur: 'ر.ع', min: 'د', empty: 'لا طلبات',
-        nav_board: 'الطلبات المباشرة', nav_tables: 'الطاولات ورموز QR', nav_orders: 'سجل الطلبات', nav_menu: 'إدارة القائمة', nav_look: 'شكل قائمة العملاء', nav_team: 'الفريق', nav_analytics: 'التحليلات', nav_neworder: 'طلب جديد', nav_profile: 'ملف المطعم', nav_loyalty: 'الولاء', nav_loyaltySetup: 'إعدادات الولاء', nav_stock: 'المخزون', nav_settings: 'الإعدادات', more: 'المزيد',
+        nav_board: 'الطلبات المباشرة', nav_tables: 'الطاولات ورموز QR', nav_orders: 'سجل الطلبات', nav_menu: 'إدارة القائمة', nav_look: 'شكل قائمة العملاء', nav_team: 'الفريق', nav_analytics: 'التحليلات', nav_neworder: 'طلب جديد', nav_profile: 'ملف المطعم', nav_loyalty: 'الولاء', nav_loyaltySetup: 'إعدادات الولاء', nav_stock: 'المخزون', nav_settings: 'الإعدادات', more: 'المزيد', beta: 'تجريبي',
         col_PENDING: 'جديد', col_ACCEPTED: 'قيد التنفيذ', col_PREPARING: 'قيد التحضير', col_READY: 'جاهز',
         table: 'طاولة', car: 'خدمة السيارة', note: 'ملاحظة', loyaltyReward: 'مكافأة ولاء',
         paymentTitle: 'كيف دفع العميل؟', paymentSub: 'اختر طريقة الدفع قبل إنهاء الطلب.', paymentCash: 'نقداً', paymentCard: 'بطاقة / فيزا',
@@ -77,7 +77,7 @@ const DICT: Dict = {
         emailChanged: 'تم تغيير البريد الإلكتروني', emailInvalid: 'أدخل بريدًا صحيحًا',
         role_owner: 'مالك المطعم', role_staff: 'موظف' },
   en: { title: 'Kitchen Display', live: 'Live', logoutT: 'Logout', cur: 'OMR', min: 'min', empty: 'No orders',
-        nav_board: 'Live orders', nav_tables: 'Tables & QR', nav_orders: 'Order history', nav_menu: 'Menu', nav_look: 'Customer menu look', nav_team: 'Team', nav_analytics: 'Analytics', nav_neworder: 'New order', nav_profile: 'Restaurant profile', nav_loyalty: 'Loyalty', nav_loyaltySetup: 'Loyalty settings', nav_stock: 'Stock', nav_settings: 'Settings', more: 'More',
+        nav_board: 'Live orders', nav_tables: 'Tables & QR', nav_orders: 'Order history', nav_menu: 'Menu', nav_look: 'Customer menu look', nav_team: 'Team', nav_analytics: 'Analytics', nav_neworder: 'New order', nav_profile: 'Restaurant profile', nav_loyalty: 'Loyalty', nav_loyaltySetup: 'Loyalty settings', nav_stock: 'Stock', nav_settings: 'Settings', more: 'More', beta: 'Beta',
         col_PENDING: 'New', col_ACCEPTED: 'In progress', col_PREPARING: 'Preparing', col_READY: 'Ready',
         table: 'Table', car: 'Outdoor car', note: 'Note', loyaltyReward: 'Loyalty reward',
         paymentTitle: 'How did the customer pay?', paymentSub: 'Choose the payment method before completing the order.', paymentCash: 'Cash', paymentCard: 'Card / Visa',
@@ -333,13 +333,15 @@ function Shell() {
     { key: 'analytics', icon: <IcAnalytics />, label: t('nav_analytics'), show: can(user, 'ANALYTICS') },
     { key: 'loyalty', icon: <IcLoyalty />, label: t('nav_loyalty'), show: can(user, 'PROFILE') },
     { key: 'menu', icon: <IcMenu />, label: t('nav_menu'), show: can(user, 'MENU') },
-    { key: 'stock', icon: <IcStock />, label: t('nav_stock'), show: can(user, 'STOCK') },
+    // Stock is the newest thing in the product and the only one that can be wrong in a way
+    // that costs money, so it says so on the tab itself — not in a release note nobody reads.
+    { key: 'stock', icon: <IcStock />, label: t('nav_stock'), show: can(user, 'STOCK'), beta: true },
     { key: 'tables', icon: <IcTables />, label: t('nav_tables'), show: can(user, 'QR_TABLES') },
     { key: 'team', icon: <IcTeam />, label: t('nav_team'), show: can(user, 'TEAM') },
     // Always shown: SettingsPage gates its own sections, and Appearance is available to
     // everyone — a barista who prefers the quieter skin can switch it themselves.
     { key: 'settings', icon: <IcSettings />, label: t('nav_settings'), show: true },
-  ] as { key: Page; icon: ReactNode; label: string; show: boolean }[]).filter((i) => i.show);
+  ] as { key: Page; icon: ReactNode; label: string; show: boolean; beta?: boolean }[]).filter((i) => i.show);
 
   // Phone bottom bar holds at most 5 items; anything past that moves into a "More" sheet so
   // touch targets stay big and nothing hides off-screen. Few-permission staff keep all tabs.
@@ -486,8 +488,13 @@ function Shell() {
         <div className="logo">S.</div>
         <nav className="nav">
           {navItems.map((it) => (
-            <button key={it.key} className={page === it.key ? 'on' : ''} onClick={() => setPage(it.key)} aria-label={it.label}>
-              {it.icon}<span className="tip">{it.label}</span>
+            <button key={it.key} className={page === it.key ? 'on' : ''} onClick={() => setPage(it.key)}
+              aria-label={it.beta ? `${it.label} · ${t('beta')}` : it.label}>
+              {it.icon}
+              {/* Said on the icon, because the rail is where the tab is chosen and a label
+                  that only appears once you are inside is a label that arrives too late. */}
+              {it.beta && <span className="beta-tag" aria-hidden>{t('beta')}</span>}
+              <span className="tip">{it.label}{it.beta ? ` · ${t('beta')}` : ''}</span>
             </button>
           ))}
         </nav>
@@ -543,7 +550,8 @@ function Shell() {
       <nav className="dnav-bottom">
         {primaryNav.map((it) => (
           <button key={it.key} className={page === it.key ? 'on' : ''} onClick={() => setPage(it.key)}>
-            <span className="ic">{it.icon}</span><span className="lb">{it.label}</span>
+            <span className="ic">{it.icon}{it.beta && <span className="beta-tag" aria-hidden>{t('beta')}</span>}</span>
+            <span className="lb">{it.label}</span>
           </button>
         ))}
         {overflowNav.length > 0 && (
@@ -562,7 +570,8 @@ function Shell() {
               {overflowNav.map((it) => (
                 <button key={it.key} role="menuitem" className={'more-item' + (page === it.key ? ' on' : '')}
                   onClick={() => { setPage(it.key); setMoreOpen(false); }}>
-                  <span className="more-ic">{it.icon}</span><span className="more-lb">{it.label}</span>
+                  <span className="more-ic">{it.icon}</span>
+                  <span className="more-lb">{it.label}{it.beta && <em className="beta-inline">{t('beta')}</em>}</span>
                 </button>
               ))}
             </div>

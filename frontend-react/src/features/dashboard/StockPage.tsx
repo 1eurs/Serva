@@ -67,12 +67,16 @@ const DICT: Dict = {
 
     /* نموذج الصنف */
     nameEn: 'الاسم (إنجليزي)', nameAr: 'الاسم (عربي)',
-    specCount1: 'أحسبه بالـ', specBuy1: 'وأشتريه كـ', specBuy2: 'فيها', specBuy3: 'وتكلّفني',
-    specCurrency: 'ر.ع.',
-    specPerBase: '{c} لكل {u}', specPerPack: '{c} لكل {p}', specFillHint: 'اكتب سعر العبوة كما هو في الفاتورة.',
-    yield1: 'و{p} تكفي تقريباً', yield2: 'حصة.', yieldAria: 'عدد الحصص في العبوة',
+    startFrom: 'ابدأ من شي تشتريه',
+    packA: 'العبوة اللي أشتريها فيها', packB: 'وسعرها', specCurrency: 'ر.ع.',
+    packAmountAria: 'حجم العبوة', packUnitAria: 'وحدة العبوة', packCostAria: 'سعر العبوة',
+    uKG: 'كيلو', uG: 'جرام', uL: 'لتر', uML: 'مل', uPIECE: 'حبة',
+    specPerBase: '{c} لكل {u}', specCountedIn: 'المخزون يُحسب بالـ{u}',
+    specFillHint: 'اكتب سعر العبوة كما هو في الفاتورة.',
+    yield1: 'والعبوة تكفي تقريباً', yield2: 'حصة.', yieldAria: 'عدد الحصص في العبوة',
     yieldPer: 'يعني {q} {u} للحصة', yieldCost: '{c} تكلفة الحصة',
-    yieldHint: 'تقدير كافي — كم كوب يطلع من العبوة؟ منها نحسب تكلفة الكوب.',
+    optional: 'اختياري',
+    yieldHint: 'تجاوزها إذا ما كنت متأكد — كم كوب يطلع من العبوة؟ منها نحسب تكلفة الكوب.',
     category: 'التصنيف',
     save: 'حفظ', cancel: 'إلغاء', archive: 'أرشفة الصنف', archived: 'تمت الأرشفة', archiveWarn: 'يختفي من المخزون. الحركات والوصفات تبقى كما هي.',
     add: 'إضافة', saved: 'تم الحفظ',
@@ -146,12 +150,16 @@ const DICT: Dict = {
 
     /* item form */
     nameEn: 'Name (English)', nameAr: 'Name (Arabic)',
-    specCount1: 'I count it in', specBuy1: 'and I buy it as a', specBuy2: 'that holds', specBuy3: 'and costs me',
-    specCurrency: 'OMR',
-    specPerBase: '{c} per {u}', specPerPack: '{c} per {p}', specFillHint: 'Type the pack price straight off the invoice.',
-    yield1: 'One {p} makes about', yield2: 'servings.', yieldAria: 'Servings per pack',
+    startFrom: 'Start from something you buy',
+    packA: 'The pack I buy is', packB: 'and costs', specCurrency: 'OMR',
+    packAmountAria: 'Pack size', packUnitAria: 'Pack unit', packCostAria: 'Pack price',
+    uKG: 'kg', uG: 'g', uL: 'L', uML: 'ml', uPIECE: 'pieces',
+    specPerBase: '{c} per {u}', specCountedIn: 'stock is counted in {u}',
+    specFillHint: 'Type the pack price straight off the invoice.',
+    yield1: 'One pack makes about', yield2: 'servings.', yieldAria: 'Servings per pack',
     yieldPer: 'That is {q} {u} a serving', yieldCost: '{c} a serving',
-    yieldHint: 'A rough count is enough — how many cups come out of one pack? Cup cost comes from this.',
+    optional: 'Optional',
+    yieldHint: 'Skip it if you are not sure — how many cups come out of one pack? Cup cost comes from this.',
     category: 'Category',
     save: 'Save', cancel: 'Cancel', archive: 'Archive item', archived: 'Archived', archiveWarn: 'It leaves your stock list. History and recipes keep working.',
     add: 'Add', saved: 'Saved',
@@ -198,12 +206,67 @@ const unitTag = (u?: BaseUnit | null): string => (u === 'G' ? 'g' : u === 'ML' ?
 const fill = (s: string, vars: Record<string, string | number>) =>
   Object.entries(vars).reduce((acc, [k, v]) => acc.replace(`{${k}}`, String(v)), s);
 
-/** How each counting unit is normally bought — used to prefill the purchase unit. */
-const UNIT_DEFAULTS: Record<BaseUnit, { label: string; size: number }> = {
-  G: { label: '1 kg', size: 1000 },
-  ML: { label: '1 L', size: 1000 },
-  PIECE: { label: 'each', size: 1 },
+/**
+ * The units a pack is sold in, as they appear on an invoice. Picking one answers both
+ * questions the form used to ask separately — what the shelf counts in, and how many of
+ * those a pack holds — because "1 kg" already says "1000 grams" to everyone but a form.
+ */
+const PACK_UNITS = {
+  KG: { base: 'G' as BaseUnit, per: 1000 },
+  G: { base: 'G' as BaseUnit, per: 1 },
+  L: { base: 'ML' as BaseUnit, per: 1000 },
+  ML: { base: 'ML' as BaseUnit, per: 1 },
+  PIECE: { base: 'PIECE' as BaseUnit, per: 1 },
+} as const;
+type PackUnit = keyof typeof PACK_UNITS;
+const PACK_ORDER: PackUnit[] = ['KG', 'G', 'L', 'ML', 'PIECE'];
+
+/**
+ * Items are stored the way the ledger needs them — a base unit and a pack size counted in
+ * base units — so editing one has to read the invoice wording back out. 1000 g is the kilo
+ * it was typed as; 750 g was never a kilo and stays in grams.
+ */
+const packUnitOf = (base: BaseUnit, size: number): PackUnit =>
+  base === 'PIECE' ? 'PIECE'
+    : size >= 1000 && size % 1000 === 0 ? (base === 'G' ? 'KG' : 'L')
+      : (base === 'G' ? 'G' : 'ML');
+
+/** The aisles a café's stockroom actually has. Offered as chips so two people typing
+    "Dairy" and "dairy" don't end up walking two different shelves. */
+const CATS = {
+  coffee: { en: 'Coffee', ar: 'بن' },
+  dairy: { en: 'Dairy', ar: 'ألبان' },
+  syrups: { en: 'Syrups', ar: 'شرابات' },
+  dry: { en: 'Dry goods', ar: 'مواد جافة' },
+  bakery: { en: 'Bakery', ar: 'مخبوزات' },
+  drinks: { en: 'Drinks', ar: 'مشروبات' },
+  packaging: { en: 'Packaging', ar: 'تغليف' },
+} as const;
+type CatKey = keyof typeof CATS;
+
+/**
+ * What a café buys. Six or seven of these *is* an opening stock list, so the first items
+ * should cost a tap rather than a form each: the preset knows the name in both languages,
+ * the aisle, and the pack it comes in. The price is the only thing left to type, because
+ * it is the only line on the invoice that is genuinely theirs.
+ */
+type Preset = {
+  en: string; ar: string; cat: CatKey; unit: PackUnit; amount: number; servings: number | null;
 };
+const PRESETS: Preset[] = [
+  { en: 'Coffee beans', ar: 'حبوب بن', cat: 'coffee', unit: 'KG', amount: 1, servings: 55 },
+  { en: 'Milk', ar: 'حليب', cat: 'dairy', unit: 'L', amount: 1, servings: 6 },
+  { en: 'Cups 12oz', ar: 'أكواب ١٢ أونصة', cat: 'packaging', unit: 'PIECE', amount: 50, servings: 50 },
+  { en: 'Lids', ar: 'أغطية', cat: 'packaging', unit: 'PIECE', amount: 50, servings: 50 },
+  { en: 'Sleeves', ar: 'أكمام', cat: 'packaging', unit: 'PIECE', amount: 50, servings: 50 },
+  { en: 'Napkins', ar: 'مناديل', cat: 'packaging', unit: 'PIECE', amount: 100, servings: 100 },
+  { en: 'Sugar', ar: 'سكر', cat: 'dry', unit: 'KG', amount: 1, servings: 100 },
+  { en: 'Tea bags', ar: 'أكياس شاي', cat: 'dry', unit: 'PIECE', amount: 100, servings: 100 },
+  { en: 'Chocolate powder', ar: 'بودرة شوكولاتة', cat: 'dry', unit: 'KG', amount: 1, servings: 40 },
+  { en: 'Vanilla syrup', ar: 'شراب فانيلا', cat: 'syrups', unit: 'ML', amount: 750, servings: 25 },
+  { en: 'Croissants', ar: 'كرواسون', cat: 'bakery', unit: 'PIECE', amount: 24, servings: 24 },
+  { en: 'Water bottles', ar: 'مياه معبأة', cat: 'drinks', unit: 'PIECE', amount: 24, servings: 24 },
+];
 
 type Level = 'out' | 'low' | 'ok' | 'unset';
 /**
@@ -296,7 +359,9 @@ export default function StockPage({ branchId }: { branchId?: number | null }) {
       )}
       {sheet?.k === 'edit' && (
         <ItemEditor t={t} branchId={scope} queryKey={key}
-          item={sheet.id == null ? null : byId(sheet.id) ?? null} onClose={() => setSheet(null)} />
+          item={sheet.id == null ? null : byId(sheet.id) ?? null}
+          categories={[...new Set(items.map((i) => i.category?.trim()).filter(Boolean) as string[])].sort()}
+          onClose={() => setSheet(null)} />
       )}
       {sheet?.k === 'item' && byId(sheet.id) && (
         <ItemPanel t={t} branchId={scope} item={byId(sheet.id)!} cover={cover.get(sheet.id)}
@@ -1241,22 +1306,31 @@ function AdjustSheet({ t, branchId, queryKey, item, onClose }: {
 
 /**
  * The unit model — counted in grams, bought as a 1 kg bag, costed per gram — was four
- * disconnected labelled fields, and it was the single thing nobody understood. It is now
- * one sentence you fill in, with what it adds up to shown live underneath.
+ * disconnected labelled fields, and it was the single thing nobody understood. Written as
+ * a sentence it was still four blanks: owners told us it was complicated, and the two they
+ * stumbled on were a pair — "I buy it as a [1 kg] that holds [1000] grams" says the same
+ * thing twice, in two units, and the second half is a conversion nobody should be doing.
+ *
+ * So the form asks for the pack the way the invoice writes it — a number and a unit — and
+ * reads the rest off it. Two blanks and a price, with the arithmetic shown live underneath.
  */
-function ItemEditor({ t, branchId, queryKey, item, onClose }: {
+function ItemEditor({ t, branchId, queryKey, item, categories, onClose }: {
   t: T; branchId?: number; queryKey: unknown[];
-  item: StockItemRow | null; onClose: () => void;
+  item: StockItemRow | null; categories: string[]; onClose: () => void;
 }) {
   const qc = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
   const { lang } = useI18n();
-  const [f, setF] = useState<StockItemPayload & { parLevel: string; reorderPoint: string }>({
+  /* Everything the pack sentence owns — the unit, the size, the price — is held in `pack`
+     and `packCost` below, so it is off this form rather than kept in two places. */
+  type Form = Omit<StockItemPayload,
+    'baseUnit' | 'purchaseUnitSize' | 'purchaseUnitLabel' | 'costPerBaseUnit'>
+    & { parLevel: string; reorderPoint: string };
+  const [f, setF] = useState<Form>({
     nameEn: item?.nameEn ?? '', nameAr: item?.nameAr ?? '',
-    kind: item?.kind ?? 'INGREDIENT', baseUnit: item?.baseUnit ?? 'G',
-    purchaseUnitLabel: item?.purchaseUnitLabel ?? '', purchaseUnitSize: item?.purchaseUnitSize ?? 1,
-    costPerBaseUnit: item?.costPerBaseUnit ?? 0, wastePct: item?.wastePct ?? 0,
+    kind: item?.kind ?? 'INGREDIENT',
+    wastePct: item?.wastePct ?? 0,
     batchYieldBase: item?.batchYieldBase ?? null, category: item?.category ?? '',
     servingsPerPack: item?.servingsPerPack ?? null,
     countFrequency: item?.countFrequency ?? null, allergens: item?.allergens ?? [],
@@ -1266,38 +1340,88 @@ function ItemEditor({ t, branchId, queryKey, item, onClose }: {
   });
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((p) => ({ ...p, [k]: v }));
 
-  /* Cafés buy grams by the kilo and millilitres by the litre, so switching the counting
-     unit should carry the obvious purchase unit with it. Only applied while the owner
-     hasn't written their own label — never overwrite something they typed. */
-  const onUnitChange = (u: BaseUnit) => setF((p) => {
-    const auto = !p.purchaseUnitLabel?.trim()
-      || Object.values(UNIT_DEFAULTS).some((d) => d.label === p.purchaseUnitLabel?.trim());
-    return auto
-      ? { ...p, baseUnit: u, purchaseUnitLabel: UNIT_DEFAULTS[u].label, purchaseUnitSize: UNIT_DEFAULTS[u].size }
-      : { ...p, baseUnit: u };
+  /* The pack the owner buys. Everything the ledger needs — the counting unit, the pack
+     size in that unit — is derived from it, so neither is asked for. A new item opens on
+     the pack most things are bought in; the old form opened on "holds 1 gram", which
+     costed a kilo of beans at a thousandth of what it cost. */
+  const [pack, setPack] = useState<{ amount: number | null; unit: PackUnit; label: string }>(() => {
+    const stored = item && item.purchaseUnitSize > 0 ? item.purchaseUnitSize : 0;
+    const unit = item ? packUnitOf(item.baseUnit, stored) : 'KG';
+    return {
+      amount: stored > 0 ? stored / PACK_UNITS[unit].per : 1,
+      unit,
+      label: item?.purchaseUnitLabel?.trim() || '',
+    };
   });
+  /* A pack counted in pieces answers its own yield: fifty cups is fifty servings, and a
+     serving of a cup is one cup. So it is filled in — and kept in step with the pack — for
+     as long as the owner hasn't said otherwise. A tray of cake is the exception they can
+     type over, which is why the field stays on screen rather than disappearing. */
+  const [yieldTyped, setYieldTyped] = useState(false);
 
-  const size = Number(f.purchaseUnitSize) || 1;
-  const perBase = Number(f.costPerBaseUnit) || 0;
-  /* The sentence asks for the pack price, because that is what the invoice says. The API
-     wants cost per base unit, so the two are kept in step here rather than in anyone's head. */
-  const [packCost, setPackCost] = useState<string>(perBase > 0 ? (perBase * size).toFixed(3) : '');
-  const onPackCost = (v: string) => {
-    setPackCost(v);
-    const n = Number(v);
-    set('costPerBaseUnit', Number.isFinite(n) && size > 0 ? n / size : 0);
+  /* A label the owner wrote by hand ("sack", "carton") survives untouched, but the moment
+     the pack itself changes it would be describing the wrong thing — so it is rewritten. */
+  const editPack = (next: Partial<{ amount: number | null; unit: PackUnit }>) => {
+    setPack((p) => {
+      const q = { ...p, ...next };
+      return { ...q, label: `${q.amount ?? 1} ${t(`u${q.unit}`)}` };
+    });
+    if (yieldTyped) return;
+    const q = { amount: pack.amount, unit: pack.unit, ...next };
+    setF((s) => ({
+      ...s,
+      servingsPerPack: q.unit === 'PIECE' ? q.amount
+        // Leaving pieces takes the piece count with it — 50 was the number of lids, and it
+        // means nothing once the pack is a kilo.
+        : pack.unit === 'PIECE' ? null
+          : s.servingsPerPack,
+    }));
   };
-  const unitWord = t(f.baseUnit);
-  const packWord = f.purchaseUnitLabel?.trim() || t('pack1');
+
+  /* The whole point of the presets: a name in both languages, the aisle, and the pack it
+     comes in — all of it typed once, here, instead of by every owner who opens this form. */
+  const [preset, setPreset] = useState<string | null>(null);
+  const applyPreset = (p: Preset) => {
+    setPreset(p.en);
+    setYieldTyped(false);
+    setF((s) => ({
+      ...s, nameEn: p.en, nameAr: p.ar,
+      category: CATS[p.cat][lang === 'ar' ? 'ar' : 'en'],
+      servingsPerPack: p.servings,
+    }));
+    setPack({ amount: p.amount, unit: p.unit, label: `${p.amount} ${t(`u${p.unit}`)}` });
+  };
+
+  /* Their own aisles first — the ones already on the shelf — then the rest of the usual set. */
+  const catChips = useMemo(() => {
+    const mine = categories.map((c) => c.trim()).filter(Boolean);
+    const usual = Object.values(CATS).map((c) => (lang === 'ar' ? c.ar : c.en));
+    return [...new Set([...mine, ...usual])];
+  }, [categories, lang]);
+
+  const baseUnit = PACK_UNITS[pack.unit].base;
+  const size = pack.amount && pack.amount > 0
+    ? Math.round(pack.amount * PACK_UNITS[pack.unit].per * 1000) / 1000 : 0;
+  const packWord = pack.label || `${pack.amount ?? 1} ${t(`u${pack.unit}`)}`;
+
+  /* The sentence asks for the pack price, because that is what the invoice says. Cost per
+     base unit — what the API stores — is derived, so it can never drift out of step with a
+     pack size the owner corrected afterwards. */
+  const [packCost, setPackCost] = useState<string>(
+    item && item.costPerBaseUnit > 0
+      ? String(Number((item.costPerBaseUnit * (item.purchaseUnitSize || 1)).toFixed(3)))
+      : '');
+  const packCostNum = Number(packCost);
+  const perBase = size > 0 && Number.isFinite(packCostNum) && packCostNum > 0 ? packCostNum / size : 0;
   const servingsPerPack = Number(f.servingsPerPack) || 0;
 
   const save = useMutation({
     mutationFn: async () => {
       const body: StockItemPayload = {
-        nameEn: f.nameEn.trim(), nameAr: (f.nameAr || f.nameEn).trim(), kind: f.kind, baseUnit: f.baseUnit,
-        purchaseUnitLabel: f.purchaseUnitLabel || null,
-        purchaseUnitSize: size,
-        costPerBaseUnit: Number(f.costPerBaseUnit) || 0,
+        nameEn: f.nameEn.trim(), nameAr: (f.nameAr || f.nameEn).trim(), kind: f.kind, baseUnit,
+        purchaseUnitLabel: packWord,
+        purchaseUnitSize: size || 1,
+        costPerBaseUnit: perBase,
         wastePct: Number(f.wastePct) || 0,
         batchYieldBase: f.kind === 'PREP' ? Number(f.batchYieldBase) || 1 : null,
         servingsPerPack: Number(f.servingsPerPack) > 0 ? Number(f.servingsPerPack) : null,
@@ -1330,45 +1454,69 @@ function ItemEditor({ t, branchId, queryKey, item, onClose }: {
   return (
     <Sheet title={item ? f.nameEn || f.nameAr : t('addItem')} onClose={onClose}
       onSubmit={() => save.mutate()} submitLabel={t('save')} busy={save.isPending}>
+      {/* Only when adding. On an existing item these would be twelve buttons that quietly
+          overwrite what is already there. */}
+      {!item && (
+        <div className="stk-presets">
+          <span className="stk-sec-h">{t('startFrom')}</span>
+          {/* One line that scrolls sideways, in the same pill the shelf's own category rail
+              uses. Wrapped, twelve of these opened the sheet on four rows of buttons and
+              pushed the actual question — the pack — off the bottom of a phone. */}
+          <div className="stk-rail">
+            {PRESETS.map((p) => (
+              <button type="button" key={p.en} className={`stk-chip${preset === p.en ? ' on' : ''}`}
+                onClick={() => applyPreset(p)}>{lang === 'ar' ? p.ar : p.en}</button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="stk-grid">
         <label className="stk-f"><span>{t('nameEn')}</span>
           <input value={f.nameEn} onChange={(e) => set('nameEn', e.target.value)} autoFocus={!item} /></label>
-        <label className="stk-f"><span>{t('nameAr')}</span>
+        <label className="stk-f"><span>{t('nameAr')} · {t('optional')}</span>
           <input dir="rtl" value={f.nameAr} placeholder={f.nameEn}
             onChange={(e) => set('nameAr', e.target.value)} /></label>
-        {/* "Kind of thing" (INGREDIENT / GOOD / PREP) is gone. It asked the owner to
-            classify their stock before they had a reason to care, and nothing on this
-            screen behaves differently for the answer. New items are INGREDIENT; the
-            column still exists for anything already classified. */}
-        <label className="stk-f"><span>{t('category')}</span>
-          <input value={f.category ?? ''} placeholder={t('categoryEg')}
-            onChange={(e) => set('category', e.target.value)} /></label>
       </div>
 
-      {/* The spec sentence. Read it out loud and it is exactly what the owner would say. */}
+      {/* "Kind of thing" (INGREDIENT / GOOD / PREP) is gone. It asked the owner to
+          classify their stock before they had a reason to care, and nothing on this
+          screen behaves differently for the answer. New items are INGREDIENT; the
+          column still exists for anything already classified.
+
+          The category stays, because it is what the shelf is walked by, and it suggests —
+          their own aisles first, then the usual set. Typed freehand from nothing it splits
+          one aisle into "Dairy", "dairy" and "milk" by the third person to use it. A
+          datalist rather than a row of chips: the same help, at no cost in height, and it
+          still takes anything they want to type. */}
+      <label className="stk-f"><span>{t('category')} · {t('optional')}</span>
+        <input value={f.category ?? ''} placeholder={t('categoryEg')} list="stk-cats"
+          onChange={(e) => set('category', e.target.value)} />
+        <datalist id="stk-cats">{catChips.map((c) => <option key={c} value={c} />)}</datalist>
+      </label>
+
+      {/* The pack sentence. Read it out loud and it is exactly what the owner would say,
+          and exactly what the invoice in their hand says: a number, a unit, a price. */}
       <div className="stk-spec">
-        {t('specCount1')}{' '}
-        <select value={f.baseUnit} aria-label={t('specCount1')}
-          onChange={(e) => onUnitChange(e.target.value as BaseUnit)}>
-          {(['G', 'ML', 'PIECE'] as BaseUnit[]).map((u) => <option key={u} value={u}>{t(u)}</option>)}
+        {t('packA')}{' '}
+        <NumField className="w-amt" value={pack.amount} aria-label={t('packAmountAria')}
+          min="0" step="0.5" onValue={(n) => editPack({ amount: n })} />
+        <select value={pack.unit} aria-label={t('packUnitAria')}
+          onChange={(e) => editPack({ unit: e.target.value as PackUnit })}>
+          {PACK_ORDER.map((u) => <option key={u} value={u}>{t(`u${u}`)}</option>)}
         </select>
-        {', '}{t('specBuy1')}{' '}
-        <input className="w-txt" value={f.purchaseUnitLabel ?? ''} aria-label={t('specBuy1')}
-          placeholder={UNIT_DEFAULTS[f.baseUnit].label}
-          onChange={(e) => set('purchaseUnitLabel', e.target.value)} />
-        {' '}{t('specBuy2')}{' '}
-        <NumField className="w-num" value={f.purchaseUnitSize ?? 1} aria-label={t('specBuy2')}
-          onValue={(n) => set('purchaseUnitSize', n ?? 1)} />
-        {' '}{unitWord}{' '}{t('specBuy3')}{' '}
+        {' '}{t('packB')}{' '}
         <input className="w-cost" type="number" inputMode="decimal" min="0" step="0.001"
-          value={packCost} aria-label={t('specBuy3')} onChange={(e) => onPackCost(e.target.value)} />
+          value={packCost} aria-label={t('packCostAria')} onChange={(e) => setPackCost(e.target.value)} />
         {' '}{t('specCurrency')}.
         <div className="stk-spec-sum">
           {perBase > 0
             ? <>
               {/* "0.0085 per gram" — singular, because it is the price of exactly one. */}
-              <span>{fill(t('specPerBase'), { c: perBase.toFixed(6).replace(/0+$/, ''), u: t(`${f.baseUnit}1`) })}</span>
-              <span>{fill(t('specPerPack'), { c: omr(perBase * size), p: packWord })}</span>
+              <span>{fill(t('specPerBase'), { c: perBase.toFixed(6).replace(/\.?0+$/, ''), u: t(`${baseUnit}1`) })}</span>
+              {/* The counting unit is no longer asked for, so it is answered here instead —
+                  it is what every quantity on the rest of the page will be written in. */}
+              <span>{fill(t('specCountedIn'), { u: t(baseUnit) })}</span>
             </>
             : <span>{t('specFillHint')}</span>}
         </div>
@@ -1377,17 +1525,19 @@ function ItemEditor({ t, branchId, queryKey, item, onClose }: {
       {/* The yield. One sentence, one number, and it is the number that makes cup cost
           possible without anyone typing a gram: a recipe line is just this said backwards
           (1 kg ÷ 55 drinks = 18.2 g). Asked here because the pack is already on screen —
-          "how far does this bag go" only makes sense next to what the bag is. */}
+          "how far does this bag go" only makes sense next to what the bag is. Marked
+          optional, because it is the one blank an owner can honestly not know yet. */}
       <div className="stk-spec">
-        {fill(t('yield1'), { p: packWord })}{' '}
+        <span className="stk-spec-opt">{t('optional')}</span>
+        {t('yield1')}{' '}
         <NumField className="w-num" value={f.servingsPerPack ?? null} aria-label={t('yieldAria')}
-          onValue={(n) => set('servingsPerPack', n)} />
+          onValue={(n) => { setYieldTyped(true); set('servingsPerPack', n); }} />
         {' '}{t('yield2')}
         <div className="stk-spec-sum">
           {servingsPerPack > 0 && size > 0
             ? <>
               <span>{fill(t('yieldPer'), {
-                q: qty(size / servingsPerPack, f.baseUnit), u: unitTag(f.baseUnit) || t(`${f.baseUnit}1`),
+                q: qty(size / servingsPerPack, baseUnit), u: unitTag(baseUnit) || t(`${baseUnit}1`),
               })}</span>
               {perBase > 0 && (
                 <span className="stk-yield-cost">

@@ -14,6 +14,24 @@
 .rail .nav button:hover .tip{opacity:1}
 .rail .out{width:48px;height:48px;border-radius:13px;border:0;background:transparent;color:var(--muted);font-size:20px;cursor:pointer}
 
+/* "Beta" on a tab. Solid ink on the icon rather than a tinted pill, because it has to stay
+   readable on the selected tab's accent fill as well as the transparent one beside it —
+   and because a flag that only shows in one of the two states is a flag people learn to
+   stop seeing. Small, but not decoration: this is the one screen whose numbers touch money. */
+.beta-tag{position:absolute;bottom:-1px;left:50%;transform:translateX(-50%);
+  padding:0 4px;border-radius:999px;background:var(--ink);color:var(--bg-2);
+  font-family:var(--font-mono);font-size:7.5px;font-weight:700;line-height:13px;
+  letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;pointer-events:none}
+/* Arabic has no small-caps trick to lean on and loses its dots first, so it gets its own
+   face and a little more size rather than the mono stack's Latin fallback. */
+html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
+  font-family:var(--font-ar);font-size:8.5px;letter-spacing:0}
+/* In the "More" sheet the label is text, so the flag can be a word beside it. */
+.beta-inline{margin-inline-start:6px;padding:1px 5px;border-radius:999px;
+  border:1px solid var(--line-2);background:var(--surface);color:var(--muted);
+  font-family:var(--font-mono);font-style:normal;font-size:9px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase}
+
 .dmain{flex:1;display:flex;flex-direction:column;min-width:0}
 .dtop{display:flex;align-items:center;gap:14px;padding:14px 22px;border-bottom:1px solid var(--line);background:var(--glass);backdrop-filter:blur(12px)}
 .dtop h2{font-size:18px;font-weight:700}
@@ -752,7 +770,10 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
     padding:6px 6px calc(6px + env(safe-area-inset-bottom));gap:2px}
   .dnav-bottom button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:transparent;
     color:var(--muted);font-family:var(--font-ar);font-size:10px;font-weight:600;padding:6px 2px;border-radius:12px;cursor:pointer}
-  .dnav-bottom button .ic{font-size:19px;line-height:1}
+  .dnav-bottom button .ic{font-size:19px;line-height:1;position:relative}
+  /* On the phone bar the icon sits above its own text label, so the flag hangs off the
+     icon rather than covering the word underneath it. */
+  .dnav-bottom button .beta-tag{bottom:-5px}
   .dnav-bottom button .lb{white-space:nowrap;max-width:62px;overflow:hidden;text-overflow:ellipsis}
   .dnav-bottom button.on{color:var(--accent-text)}
   .dnav-bottom button.on .ic{filter:drop-shadow(0 0 8px var(--accent-glow))}

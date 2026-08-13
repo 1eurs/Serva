@@ -21,6 +21,14 @@
    =========================================================================== */
 
 .settings-page{display:flex;flex-direction:column;gap:16px}
+/* The pane is what scrolls; nothing in this column may be compressed to make room.
+   Without this the tab strip DISAPPEARED. It is a flex item, so flex-shrink:1 applies,
+   and the min-height:auto that would normally protect it does not: the strip carries
+   overflow-x:auto so its tabs can scroll sideways, and a scroll container's automatic
+   minimum size is 0. Any pane taller than the viewport therefore squeezed the nav from
+   38px down to its 12px of padding — buttons clipped, tabs unreachable, and no way to
+   leave the pane you were on. Same guard .tables-wrap.stock-page > * already carries. */
+.settings-page > *{flex:0 0 auto}
 
 /* ---- sub-nav: the pane switcher, weighted like the rest of the chrome ---- */
 .settings-subnav{align-self:flex-start;padding:4px;box-shadow:var(--hard-sm)}
