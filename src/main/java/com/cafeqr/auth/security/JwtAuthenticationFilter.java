@@ -23,9 +23,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final JwtService jwtService;
+    private final StreamTicketService streamTickets;
 
-    public JwtAuthenticationFilter(JwtService jwtService) {
+    public JwtAuthenticationFilter(JwtService jwtService, StreamTicketService streamTickets) {
         this.jwtService = jwtService;
+        this.streamTickets = streamTickets;
     }
 
     @Override
@@ -50,18 +52,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Reads the bearer token from the Authorization header, or falls back to the
-     * {@code access_token} query parameter (used by SSE / EventSource, which cannot set headers).
+     * Reads the bearer token from the Authorization header, or — on a stream endpoint only —
+     * exchanges a {@code ticket} query parameter for the token held behind it.
+     *
+     * <p>This used to accept the access token itself as {@code ?access_token=}, on every
+     * endpoint. EventSource cannot set headers, so something has to travel in the URL; what
+     * travelled was the full token, and it travelled into the nginx access log, browser
+     * history and any outgoing Referer, where it stayed valid against the whole API for its
+     * remaining life. A ticket is opaque, expires in minutes, and {@link #isStreamPath} keeps
+     * it from opening anything but a stream.
      */
     private String resolveToken(HttpServletRequest request) {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (header != null && header.startsWith(BEARER_PREFIX)) {
             return header.substring(BEARER_PREFIX.length()).trim();
         }
-        String param = request.getParameter("access_token");
-        if (param != null && !param.isBlank()) {
-            return param.trim();
+        String ticket = request.getParameter("ticket");
+        if (ticket != null && !ticket.isBlank() && isStreamPath(request)) {
+            return streamTickets.resolve(ticket.trim());
         }
         return null;
+    }
+
+    /** Streams are the only endpoints that cannot send a header, so the only ones a ticket opens. */
+    private boolean isStreamPath(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return path != null && path.endsWith("/stream");
     }
 }

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { create as createQrMatrix } from 'qrcode/lib/core/qrcode.js';
-import { api, upload, ApiError, logout, accessTokenValue, changeEmail, freshStreamToken, onAuthChange, syncUser } from '../../lib/api';
+import { api, upload, ApiError, logout, changeEmail, streamTicket, onAuthChange, syncUser } from '../../lib/api';
 import { useAuth, isManager, canAcceptOrders, can } from '../../lib/auth';
 import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
@@ -184,12 +184,21 @@ function useLiveOrderAlerts(branchId: number | undefined, ping: () => void, t: (
   const lastFallbackRefresh = useRef(0);
   const prevStreamStatus = useRef<StreamStatus | null>(null);
 
-  // EventSource bakes the JWT into its URL and can't change it on auto-reconnect, so when
-  // the token rotates (or expires mid-stream) we rebuild the URL and the effect reconnects.
-  const [streamToken, setStreamToken] = useState(accessTokenValue);
-  useEffect(() => onAuthChange(() => setStreamToken(accessTokenValue())), []);
-  const streamUrl = branchId && streamToken
-    ? `/api/dashboard/orders/stream?branchId=${branchId}&access_token=${encodeURIComponent(streamToken)}`
+  /* EventSource can't send a header, so the credential rides in the URL — which is why it is
+     a stream ticket and not the access token it used to be: opaque, minutes long, and no use
+     against anything but a stream. It also can't change its URL on auto-reconnect, so a new
+     ticket is fetched whenever the session changes or the stream drops, and the new URL is
+     what makes the effect reconnect. */
+  const [ticket, setTicket] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    const load = () => { streamTicket().then((tk) => { if (live) setTicket(tk); }); };
+    load();
+    const off = onAuthChange(load);
+    return () => { live = false; off(); };
+  }, []);
+  const streamUrl = branchId && ticket
+    ? `/api/dashboard/orders/stream?branchId=${branchId}&ticket=${encodeURIComponent(ticket)}`
     : null;
 
   const handleStreamStatus = (status: StreamStatus) => {
@@ -205,8 +214,8 @@ function useLiveOrderAlerts(branchId: number | undefined, ping: () => void, t: (
     if (now - lastFallbackRefresh.current > 5_000) {
       lastFallbackRefresh.current = now;
       qc.invalidateQueries({ queryKey: liveKey });
-      // An expired JWT is the other common drop cause — swap in a fresh one if needed.
-      freshStreamToken().then((tk) => { if (tk) setStreamToken((p) => (tk !== p ? tk : p)); });
+      // An expired ticket is the other common drop cause — swap in a fresh one.
+      streamTicket().then((tk) => { if (tk) setTicket((p) => (tk !== p ? tk : p)); });
     }
   };
 
@@ -793,18 +802,29 @@ function useQrActivity(branchId?: number) {
     enabled: !!branchId,
     refetchInterval: 30_000,
   });
-  const [token, setToken] = useState(accessTokenValue);
-  useEffect(() => onAuthChange(() => setToken(accessTokenValue())), []);
+  // Same ticket-not-token rule as the order stream — see useLiveOrderAlerts.
+  const [ticket, setTicket] = useState<string | null>(null);
   useEffect(() => {
-    if (!branchId) return;
-    const url = `/api/dashboard/qr-activity/stream?branchId=${branchId}${token ? `&access_token=${encodeURIComponent(token)}` : ''}`;
+    let live = true;
+    const load = () => { streamTicket().then((tk) => { if (live) setTicket(tk); }); };
+    load();
+    const off = onAuthChange(load);
+    return () => { live = false; off(); };
+  }, []);
+  useEffect(() => {
+    if (!branchId || !ticket) return;
+    const url = `/api/dashboard/qr-activity/stream?branchId=${branchId}&ticket=${encodeURIComponent(ticket)}`;
     const es = new EventSource(url);
     const onMsg = (e: MessageEvent) => {
       try { qc.setQueryData(['qr-activity', branchId], JSON.parse(e.data) as QrActivity); } catch { /* ignore */ }
     };
     es.addEventListener('qr-activity', onMsg as EventListener);
+    /* A ticket that expired while the tab slept makes the reconnect 401, and EventSource
+       gives up for good on a bad status — so a failure fetches a fresh one, which changes
+       the URL and rebuilds the connection. */
+    es.onerror = () => { streamTicket().then((tk) => { if (tk && tk !== ticket) setTicket(tk); }); };
     return () => { es.removeEventListener('qr-activity', onMsg as EventListener); es.close(); };
-  }, [branchId, qc, token]);
+  }, [branchId, qc, ticket]);
   return data;
 }
 

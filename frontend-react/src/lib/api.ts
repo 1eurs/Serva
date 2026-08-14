@@ -32,7 +32,6 @@ let currentUser: UserResponse | null = (() => {
 })();
 export const getUser = (): UserResponse | null => currentUser;
 export const isAuthed = () => !!accessToken;
-export const accessTokenValue = () => accessToken; // needed for SSE (?access_token=)
 
 function setSession(auth: AuthResponse) {
   accessToken = auth.accessToken;
@@ -106,14 +105,30 @@ function jwtSecondsLeft(token: string): number {
 }
 
 /**
- * Access token safe to open a long-lived stream with. EventSource bakes the token into its
- * URL and can't change it on auto-reconnect, so callers must rebuild the URL through this —
- * it refreshes first whenever the current token is expired or about to be.
+ * A ticket to open a long-lived stream with.
+ *
+ * EventSource can't set headers, so the credential has to ride in the URL — and a URL is
+ * written to the server's access log, kept in browser history and handed out in a Referer.
+ * This used to be the access token itself, which made every one of those a copy of the
+ * user's full API access. A ticket is opaque, dies in minutes, and the server only accepts
+ * it on a stream endpoint.
+ *
+ * The session token is refreshed first when it is close to expiring, because the ticket is
+ * only an indirection to it and can't outlive it.
  */
-export async function freshStreamToken(): Promise<string | null> {
-  if (accessToken && jwtSecondsLeft(accessToken) > 120) return accessToken;
-  if (refreshToken) await tryRefresh();
-  return accessToken;
+export async function streamTicket(): Promise<string | null> {
+  if (!accessToken || jwtSecondsLeft(accessToken) <= 120) {
+    if (refreshToken) await tryRefresh();
+  }
+  if (!accessToken) return null;
+  try {
+    // `api` is declared below; this only ever runs after the module has finished loading.
+    const res = await api.post<{ ticket: string }>('/api/dashboard/stream-ticket', {});
+    return res?.ticket ?? null;
+  } catch {
+    // Offline or a refused session — the caller keeps polling and retries on the next drop.
+    return null;
+  }
 }
 
 /**
