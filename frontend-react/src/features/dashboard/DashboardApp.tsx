@@ -15,7 +15,7 @@ import { fmtElapsed } from '../../lib/format';
 import { Money } from '../../lib/Money';
 import { carColorOf } from '../../lib/carColors';
 import { useSkin } from '../../lib/skin';
-import ReceiptCapture, { type PendingReceipt } from './ReceiptCapture';
+import ReceiptCapture, { type PendingReceipt, type ReceiptOutput } from './ReceiptCapture';
 import { ReceiptPrinterProvider, useReceiptPrinter } from './receiptPrinter';
 import type { OrderResponse, OrderStatus, BranchResponse, TableResponse, Restaurant, QrActivity, QrCartItem } from '../../lib/types';
 import { BRAND } from '../../lib/brand';
@@ -469,11 +469,12 @@ function Shell() {
   // every staff device (all paired to the same WiFi printer), and whichever device completes
   // an order prints it right there — no cross-device forwarding.
   const [printQueue, setPrintQueue] = useState<PendingReceipt[]>([]);
-  const printReceipt = useCallback((o: OrderResponse) => {
+  const printReceipt = useCallback((o: OrderResponse, output: ReceiptOutput = 'printer') => {
     setPrintQueue((prev) => [...prev, {
       order: o,
       restaurant: restaurantQ.data,
       tableNumber: o.tableId != null ? printTableNo.get(o.tableId) ?? null : null,
+      output,
     }]);
   }, [restaurantQ.data, printTableNo]);
 

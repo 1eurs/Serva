@@ -325,6 +325,9 @@ html[dir] .drawer.open{transform:none;visibility:visible}
 .kv:last-child{border-bottom:0}.kv .k{color:var(--muted)}.kv .v{font-weight:500}
 .subbox{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px}
 .drawer-ft{padding:16px 20px calc(16px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:var(--tap-gap)}.drawer-ft .btn{flex:1}
+/* Square glyph-only action sharing a footer with worded buttons — it takes its own width
+   instead of an equal third, so the labelled buttons keep room for Arabic. */
+.drawer-ft .btn.glyph{flex:0 0 auto;padding-inline:0;width:var(--tap-lg);font-size:17px}
 
 /* ---- modal (shared) ---- */
 /* Padded for the notch and the home indicator: a dialog centred in `inset:0`

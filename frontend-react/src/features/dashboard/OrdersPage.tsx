@@ -11,12 +11,12 @@ import { useReceiptPrinter } from './receiptPrinter';
 const DICT: Dict = {
   ar: { cur: 'ر.ع', all: 'الكل', table: 'طاولة', car: 'خدمة السيارة', carPlate: 'لوحة السيارة', thNo: 'الطلب', thTime: 'الوقت', thType: 'النوع', thStatus: 'الحالة', thPay: 'الدفع', thTotal: 'الإجمالي',
         prev: 'السابق', next: 'التالي', page: 'صفحة', none: 'لا طلبات', markPaid: 'تحديد كمدفوع', paid: 'مدفوع', unpaid: 'غير مدفوع', items: 'الأصناف', timeline: 'التسلسل الزمني',
-        customer: 'العميل', note: 'ملاحظة العميل', carColor: 'لون السيارة', subtotal: 'المجموع', vat: 'الضريبة', total: 'الإجمالي', close: 'إغلاق', detail: 'تفاصيل الطلب', printInv: 'طباعة الفاتورة',
+        customer: 'العميل', note: 'ملاحظة العميل', carColor: 'لون السيارة', subtotal: 'المجموع', vat: 'الضريبة', total: 'الإجمالي', close: 'إغلاق', detail: 'تفاصيل الطلب', printInv: 'طباعة الفاتورة', savePdf: 'حفظ الفاتورة PDF',
         st_PENDING: 'جديد', st_ACCEPTED: 'قيد التنفيذ', st_PREPARING: 'تحضير', st_READY: 'جاهز', st_COMPLETED: 'مكتمل', st_DECLINED: 'مرفوض', st_CANCELLED: 'ملغى',
         ts_createdAt: 'أُنشئ', ts_acceptedAt: 'قُبل', ts_preparingAt: 'بدأ التحضير', ts_readyAt: 'جاهز', ts_completedAt: 'اكتمل', ts_declinedAt: 'رُفض', ts_cancelledAt: 'أُلغي' },
   en: { cur: 'OMR', all: 'All', table: 'Table', car: 'Outdoor car', carPlate: 'Car plate', thNo: 'Order', thTime: 'Time', thType: 'Type', thStatus: 'Status', thPay: 'Payment', thTotal: 'Total',
         prev: 'Prev', next: 'Next', page: 'Page', none: 'No orders', markPaid: 'Mark paid', paid: 'Paid', unpaid: 'Unpaid', items: 'Items', timeline: 'Timeline',
-        customer: 'Customer', note: 'Customer note', carColor: 'Car color', subtotal: 'Subtotal', vat: 'VAT', total: 'Total', close: 'Close', detail: 'Order detail', printInv: 'Print invoice',
+        customer: 'Customer', note: 'Customer note', carColor: 'Car color', subtotal: 'Subtotal', vat: 'VAT', total: 'Total', close: 'Close', detail: 'Order detail', printInv: 'Print invoice', savePdf: 'Save invoice as PDF',
         st_PENDING: 'New', st_ACCEPTED: 'In progress', st_PREPARING: 'Preparing', st_READY: 'Ready', st_COMPLETED: 'Completed', st_DECLINED: 'Declined', st_CANCELLED: 'Cancelled',
         ts_createdAt: 'Created', ts_acceptedAt: 'Accepted', ts_preparingAt: 'Preparing', ts_readyAt: 'Ready', ts_completedAt: 'Completed', ts_declinedAt: 'Declined', ts_cancelledAt: 'Cancelled' },
 };
@@ -158,6 +158,8 @@ function OrderDetail({ id, onClose }: { id: number; onClose: () => void }) {
       </div>
       <div className="drawer-ft">
         <button className="btn ghost" onClick={() => printReceipt(o)}>🖨 {t('printInv')}</button>
+        <button className="btn ghost glyph" title={t('savePdf')} aria-label={t('savePdf')}
+          onClick={() => printReceipt(o, 'pdf')}>📄</button>
         {o.paymentStatus === 'PAID'
           ? <button className="btn ghost" disabled>✓ {t('paid')}{o.paymentMethod ? ` · ${o.paymentMethod}` : ''}</button>
           : <button className="btn" disabled={pay.isPending} onClick={() => pay.mutate()}>{t('markPaid')}</button>}
