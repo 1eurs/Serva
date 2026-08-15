@@ -25,20 +25,14 @@ jobs:
           cache: maven
 
       - name: Run tests
-        # CafeQrFlowIntegrationTest is EXCLUDED, and this is deliberate rather
-        # than cosmetic. It could not even load its Spring context (see
-        # src/test/resources/application-test.yml), so it has been dead since the
-        # SecretValidation guard landed. With that fixed it now runs and fails on
-        # two genuine assertions:
-        #   - both @Test methods call /api/auth/register-platform-admin, which
-        #     only succeeds while no admin exists; they share one Testcontainers
-        #     database, so the second always gets 409.
-        #   - POST /api/admin/restaurants returns 400 for the payload the test
-        #     sends — the API contract moved while the test was not running.
-        # Those are real drift and need a real fix. Delete this exclusion the
-        # moment they are repaired; a suite that never goes green gets ignored,
-        # which is precisely how this test rotted in the first place.
-        run: mvn -B test -Dtest='!CafeQrFlowIntegrationTest'
+        # Whole suite, CafeQrFlowIntegrationTest included — it spins up a real
+        # Postgres via Testcontainers, which works out of the box on the runner.
+        # (Locally on Docker 29 it needs -DargLine="-Dapi.version=1.44", because
+        # docker-java negotiates below Docker 29's minimum API version of 1.44.
+        # Deliberately not pinned here or in the pom: the runner's Docker is
+        # older and negotiates fine, and hardcoding 1.44 would break anyone on a
+        # Docker too old to speak it.)
+        run: mvn -B test
 
       - name: Upload surefire reports on failure
         if: failure()
