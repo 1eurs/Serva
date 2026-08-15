@@ -117,7 +117,7 @@ public class AuthService {
 
     @Transactional
     public AuthResponse refresh(RefreshRequest request) {
-        RefreshToken stored = refreshTokenRepository.findByToken(request.refreshToken())
+        RefreshToken stored = refreshTokenRepository.findByTokenHash(Tokens.sha256(request.refreshToken()))
                 .orElseThrow(() -> new UnauthorizedException(ErrorCode.TOKEN_INVALID, "Invalid refresh token"));
         if (!stored.isActive()) {
             throw new UnauthorizedException(ErrorCode.TOKEN_EXPIRED, "Refresh token expired or revoked");
@@ -152,9 +152,10 @@ public class AuthService {
             }
             passwordResetTokenRepository.invalidateAllForUser(user.getId());
 
+            String rawResetToken = Tokens.random(48);
             PasswordResetToken token = new PasswordResetToken();
             token.setUserId(user.getId());
-            token.setToken(Tokens.random(48));
+            token.setTokenHash(Tokens.sha256(rawResetToken));
             token.setExpiresAt(Instant.now().plus(RESET_TTL_MINUTES, ChronoUnit.MINUTES));
             token.setUsed(false);
             token.setCreatedAt(Instant.now());
@@ -162,14 +163,14 @@ public class AuthService {
 
             // Emailed after commit (so a rollback never sends a live reset link).
             events.publishEvent(new PasswordResetRequestedEvent(
-                    user.getEmail(), user.getFullName(), token.getToken()));
+                    user.getEmail(), user.getFullName(), rawResetToken));
         });
     }
 
     /** Consumes a reset token, sets the new password, and revokes existing sessions. */
     @Transactional
     public void resetPassword(String rawToken, String newPassword) {
-        PasswordResetToken token = passwordResetTokenRepository.findByToken(rawToken)
+        PasswordResetToken token = passwordResetTokenRepository.findByTokenHash(Tokens.sha256(rawToken))
                 .filter(PasswordResetToken::isUsable)
                 .orElseThrow(() -> new BadRequestException(
                         ErrorCode.TOKEN_INVALID, "This reset link is invalid or has expired"));
@@ -263,13 +264,15 @@ public class AuthService {
     }
 
     private String createRefreshToken(Long userId) {
+        // The raw value exists only here and in the response; the row keeps its hash.
+        String raw = Tokens.random(48);
         RefreshToken token = new RefreshToken();
         token.setUserId(userId);
-        token.setToken(Tokens.random(48));
+        token.setTokenHash(Tokens.sha256(raw));
         token.setExpiresAt(Instant.now().plus(refreshTtlDays, ChronoUnit.DAYS));
         token.setRevoked(false);
         token.setCreatedAt(Instant.now());
         refreshTokenRepository.save(token);
-        return token.getToken();
+        return raw;
     }
 }

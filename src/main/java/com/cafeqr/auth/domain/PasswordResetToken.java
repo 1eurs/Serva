@@ -21,8 +21,8 @@ public class PasswordResetToken {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    @Column(name = "token", nullable = false)
-    private String token;
+    @Column(name = "token_hash", nullable = false)
+    private String tokenHash;
 
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
@@ -53,12 +53,12 @@ public class PasswordResetToken {
         this.userId = userId;
     }
 
-    public String getToken() {
-        return token;
+    public String getTokenHash() {
+        return tokenHash;
     }
 
-    public void setToken(String token) {
-        this.token = token;
+    public void setTokenHash(String tokenHash) {
+        this.tokenHash = tokenHash;
     }
 
     public Instant getExpiresAt() {
