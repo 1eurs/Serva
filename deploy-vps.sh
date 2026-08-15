@@ -95,7 +95,7 @@ rsync -avz --delete \
   --exclude '.git' --exclude '.DS_Store' --exclude '.claude' --exclude '.agents' \
   --exclude 'target' --exclude 'node_modules' --exclude 'dist' \
   "$ROOT/src" "$ROOT/pom.xml" "$ROOT/Dockerfile" "$ROOT/.dockerignore" \
-  "$ROOT/docker-compose.yml" \
+  "$ROOT/docker-compose.yml" "$ROOT/scripts" \
   "$VPS_HOST:$VPS_DIR/"
 
 echo ""
@@ -113,6 +113,22 @@ ssh "$VPS_HOST" "grep -q '^POSTGRES_PASSWORD=' $VPS_DIR/.env" || {
 echo ""
 echo "==> Building backend image natively on the VPS (x86_64)"
 ssh "$VPS_HOST" "cd $VPS_DIR && docker compose build backend"
+
+echo ""
+echo "==> Rehearsing migrations against a copy of production"
+# Flyway runs at application startup, so without this every migration would meet
+# production data for the first time in production, mid-service, with no way back
+# but a restore. This boots the new image against a throwaway copy first, and also
+# leaves a dump taken moments before the deploy as a restore point.
+if [ "${DEPLOY_SKIP_CHECKS:-0}" = "1" ]; then
+    echo "!!  DEPLOY_SKIP_CHECKS=1 — skipping the rehearsal too."
+else
+    ssh "$VPS_HOST" "cd $VPS_DIR && bash scripts/rehearse-migrations.sh cafeqr-backend:deploy" || {
+        echo "" >&2
+        echo "ERROR: migration rehearsal failed — production was NOT touched." >&2
+        exit 1
+    }
+fi
 
 echo ""
 echo "==> Restarting containers"
