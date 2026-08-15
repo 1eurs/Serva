@@ -3,6 +3,7 @@ package com.cafeqr;
 import com.cafeqr.otp.OtpService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -18,6 +19,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -57,12 +59,27 @@ class CafeQrFlowIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @Test
-    void fullOrderingFlowWithTenantIsolation() throws Exception {
-        // 1. First platform admin registers and is logged in.
-        String adminToken = read(post("/api/auth/register-platform-admin", Map.of(
+    /**
+     * Registered once for the whole class rather than per test.
+     * {@code /api/auth/register-platform-admin} only succeeds while no admin exists, and both
+     * tests share a single Testcontainers database, so registering per test made whichever
+     * test ran second fail with 409.
+     */
+    private static String adminToken;
+
+    @BeforeEach
+    void ensurePlatformAdmin() throws Exception {
+        if (adminToken != null) {
+            return;
+        }
+        adminToken = read(post("/api/auth/register-platform-admin", Map.of(
                 "fullName", "Admin", "email", "admin@cafeqr.test", "password", "Admin123!")),
                 "$.data.accessToken");
+    }
+
+    @Test
+    void fullOrderingFlowWithTenantIsolation() throws Exception {
+        // 1. Platform admin is registered by ensurePlatformAdmin().
 
         // 2. Admin creates a restaurant.
         MvcResult restaurantResult = perform(authed(post("/api/admin/restaurants", Map.of(
@@ -72,15 +89,20 @@ class CafeQrFlowIntegrationTest {
         Number restaurantId = json(restaurantResult, "$.data.id");
         String slug = json(restaurantResult, "$.data.slug");
 
-        // 3. Admin creates the restaurant owner.
+        // 3. Admin creates the restaurant owner. There are no fixed roles any more — the
+        //    creator picks a username and toggles exactly which permissions the account gets
+        //    (Permission.ownerSet() is the equivalent of the old RESTAURANT_OWNER role).
         perform(authed(post("/api/users", Map.of(
-                "fullName", "Owner", "email", "owner@cafeqr.test", "password", "Owner123!",
-                "role", "RESTAURANT_OWNER", "restaurantId", restaurantId)), adminToken))
+                "username", "owner@cafeqr.test", "password", "Owner123!",
+                "fullName", "Owner", "email", "owner@cafeqr.test",
+                "permissions", List.of("ORDERS", "PAYMENTS", "MENU", "QR_TABLES", "TEAM",
+                        "ANALYTICS", "PROFILE", "BRANCHES", "STOCK"),
+                "restaurantId", restaurantId)), adminToken))
                 .andExpect(status().isOk());
 
-        // 4. Owner logs in.
+        // 4. Owner logs in. Login identifies by username, not email.
         String ownerToken = read(post("/api/auth/login", Map.of(
-                "email", "owner@cafeqr.test", "password", "Owner123!")), "$.data.accessToken");
+                "username", "owner@cafeqr.test", "password", "Owner123!")), "$.data.accessToken");
 
         // 5. Owner creates a branch.
         Number branchId = json(perform(authed(post(
@@ -160,11 +182,14 @@ class CafeQrFlowIntegrationTest {
         Number restaurantId2 = json(perform(authed(post("/api/admin/restaurants",
                 Map.of("name", "Other Cafe")), adminToken)).andReturn(), "$.data.id");
         perform(authed(post("/api/users", Map.of(
-                "fullName", "Owner2", "email", "owner2@cafeqr.test", "password", "Owner123!",
-                "role", "RESTAURANT_OWNER", "restaurantId", restaurantId2)), adminToken))
+                "username", "owner2@cafeqr.test", "password", "Owner123!",
+                "fullName", "Owner2", "email", "owner2@cafeqr.test",
+                "permissions", List.of("ORDERS", "PAYMENTS", "MENU", "QR_TABLES", "TEAM",
+                        "ANALYTICS", "PROFILE", "BRANCHES", "STOCK"),
+                "restaurantId", restaurantId2)), adminToken))
                 .andExpect(status().isOk());
         String owner2Token = read(post("/api/auth/login", Map.of(
-                "email", "owner2@cafeqr.test", "password", "Owner123!")), "$.data.accessToken");
+                "username", "owner2@cafeqr.test", "password", "Owner123!")), "$.data.accessToken");
 
         perform(authed(get("/api/dashboard/orders/" + orderId), owner2Token))
                 .andExpect(status().isForbidden())
@@ -177,9 +202,8 @@ class CafeQrFlowIntegrationTest {
 
     @Test
     void rejectsInvalidStatusTransitionViaApi() throws Exception {
-        String adminToken = read(post("/api/auth/register-platform-admin", Map.of(
-                "fullName", "Admin", "email", "admin2@cafeqr.test", "password", "Admin123!")),
-                "$.data.accessToken");
+        // Platform admin comes from ensurePlatformAdmin() — registering a second one here
+        // always returned 409, since only the first registration can ever succeed.
         // No order exists with id 999999 -> 404 (sanity that the dashboard is wired & secured).
         perform(authed(patch("/api/dashboard/orders/999999/accept", null), adminToken))
                 .andExpect(status().isNotFound());
