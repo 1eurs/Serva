@@ -1,14 +1,21 @@
 package com.cafeqr.otp;
 
+import com.cafeqr.otp.domain.OtpCode;
+import com.cafeqr.otp.repository.OtpCodeRepository;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * In-memory OTP store keyed by normalized phone number.
+ * OTP codes keyed by normalized phone number.
  * TTL is 5 minutes; max 5 failed attempts before the entry is invalidated.
+ *
+ * <p>Backed by the database rather than a map on the heap. As a map this could not survive a
+ * restart — a customer who requested a code moments before a deploy would enter a correct
+ * code and be told it was invalid — and a code issued by one backend instance could never be
+ * verified by another, which ruled out running a second one.
  */
 @Component
 public class OtpStore {
@@ -16,42 +23,66 @@ public class OtpStore {
     static final int TTL_SECONDS = 300;
     private static final int MAX_ATTEMPTS = 5;
 
-    private final ConcurrentHashMap<String, Entry> store = new ConcurrentHashMap<>();
+    private final OtpCodeRepository repository;
 
-    record Entry(String code, Instant expiresAt, int attempts) {
-        boolean expired() { return Instant.now().isAfter(expiresAt); }
-        boolean tooManyAttempts() { return attempts >= MAX_ATTEMPTS; }
-        Entry withAttempt() { return new Entry(code, expiresAt, attempts + 1); }
+    public OtpStore(OtpCodeRepository repository) {
+        this.repository = repository;
     }
 
+    /**
+     * Stores a code for a phone, replacing any code already outstanding.
+     *
+     * <p>Replacing rather than adding is what makes "request a new code" invalidate the old
+     * one, so several codes are never live for one phone at the same time.
+     */
+    @Transactional
     void put(String phone, String code) {
-        store.put(phone, new Entry(code, Instant.now().plusSeconds(TTL_SECONDS), 0));
+        OtpCode entry = repository.findByPhone(phone).orElseGet(() -> {
+            OtpCode fresh = new OtpCode();
+            fresh.setPhone(phone);
+            fresh.setCreatedAt(Instant.now());
+            return fresh;
+        });
+        entry.setCode(code);
+        entry.setAttempts(0);
+        entry.setExpiresAt(Instant.now().plusSeconds(TTL_SECONDS));
+        repository.save(entry);
     }
 
+    @Transactional(readOnly = true)
     String peek(String phone) {
-        Entry entry = store.get(phone);
-        if (entry == null || entry.expired()) {
-            return null;
-        }
-        return entry.code();
+        return repository.findByPhone(phone)
+                .filter(entry -> !entry.isExpired())
+                .map(OtpCode::getCode)
+                .orElse(null);
     }
 
+    @Transactional
     boolean verify(String phone, String code) {
-        Entry entry = store.get(phone);
-        if (entry == null || entry.expired() || entry.tooManyAttempts()) {
-            store.remove(phone);
+        OtpCode entry = repository.findByPhone(phone).orElse(null);
+        if (entry == null) {
             return false;
         }
-        if (!entry.code().equals(code)) {
-            store.put(phone, entry.withAttempt());
+        if (entry.isExpired() || entry.getAttempts() >= MAX_ATTEMPTS) {
+            repository.deleteByPhone(phone);
             return false;
         }
-        store.remove(phone);
+        if (!entry.getCode().equals(code)) {
+            // Count the miss rather than deleting, so the attempt ceiling is what stops a
+            // guessing run — deleting on the first wrong digit would let anyone knock a real
+            // customer's code out by typing one wrong.
+            entry.setAttempts(entry.getAttempts() + 1);
+            repository.save(entry);
+            return false;
+        }
+        repository.deleteByPhone(phone);
         return true;
     }
 
+    /** Codes are consumed on success, so this only clears the ones nobody came back for. */
     @Scheduled(fixedDelay = 60_000)
+    @Transactional
     void evictExpired() {
-        store.entrySet().removeIf(e -> e.getValue().expired());
+        repository.deleteExpired(Instant.now());
     }
 }
