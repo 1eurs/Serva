@@ -10,7 +10,7 @@ import java.util.Optional;
 
 public interface PasswordResetTokenRepository extends JpaRepository<PasswordResetToken, Long> {
 
-    Optional<PasswordResetToken> findByToken(String token);
+    Optional<PasswordResetToken> findByTokenHash(String tokenHash);
 
     /** Invalidate any outstanding tokens for a user (called when a fresh one is issued or used). */
     @Modifying
