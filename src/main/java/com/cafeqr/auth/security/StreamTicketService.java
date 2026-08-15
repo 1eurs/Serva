@@ -2,13 +2,6 @@ package com.cafeqr.auth.security;
 
 import org.springframework.stereotype.Service;
 
-import java.security.SecureRandom;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.Base64;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
 /**
  * Short-lived tickets that let an {@code EventSource} open a stream without an access token
  * in the URL.
@@ -19,33 +12,27 @@ import java.util.concurrent.ConcurrentHashMap;
  * access token there: every permission the user has, replayable against every endpoint for
  * the token's lifetime, sitting in a log file.
  *
- * <p>A ticket is an opaque random string that stands in for a token that never leaves the
- * server, and it is only accepted on stream endpoints (see {@link JwtAuthenticationFilter}).
- * So the worst a leaked log line buys is a read-only event stream, for minutes rather than
- * the token's full life, and no other API call at all.
+ * <p>A ticket stands for the same principal but is marked as stream-only, and is only
+ * accepted on stream endpoints (see {@link JwtAuthenticationFilter}). So the worst a leaked
+ * log line buys is a read-only event stream, for minutes rather than the token's full life,
+ * and no other API call at all — {@link JwtService#parsePrincipal} rejects a ticket outright.
  *
  * <p>Deliberately reusable within its window rather than single-use: EventSource reconnects
  * on its own after a network blip and reuses the URL it was given, and a ticket burned on
  * first use would turn every dropped packet into a dead stream.
  *
- * <p>In memory, because Serva runs one backend container. A second instance would need this
- * in Redis or the database — a ticket issued by one node would not resolve on the other.
+ * <p>Stateless by design. This used to be a {@code ConcurrentHashMap} of ticket → token,
+ * which meant a ticket only worked on the instance that minted it and every restart
+ * invalidated every live ticket — a reconnecting kitchen tablet would find its ticket gone.
+ * A signed, stream-scoped token needs no shared store to do the same job.
  */
 @Service
 public class StreamTicketService {
 
-    /** Long enough to survive a reconnect, short enough that a logged URL goes stale fast. */
-    private static final Duration TTL = Duration.ofMinutes(5);
-    /** A ceiling so a runaway client cannot grow the map without bound. */
-    private static final int MAX_LIVE = 20_000;
+    private final JwtService jwtService;
 
-    private final Map<String, Entry> tickets = new ConcurrentHashMap<>();
-    private final SecureRandom random = new SecureRandom();
-
-    private record Entry(String token, Instant expiresAt) {
-        boolean expired(Instant now) {
-            return now.isAfter(expiresAt);
-        }
+    public StreamTicketService(JwtService jwtService) {
+        this.jwtService = jwtService;
     }
 
     /** What a caller gets back: the ticket itself, and how long it is good for. */
@@ -53,39 +40,12 @@ public class StreamTicketService {
     }
 
     /**
-     * Stores an access token behind a fresh ticket.
+     * Mints a ticket for an already-authenticated principal.
      *
-     * <p>The token keeps its own expiry — the ticket only decides how long the indirection
-     * lasts, so a ticket can never outlive the session it stands for.
+     * <p>Takes the principal rather than a raw access token on purpose: the ticket is a fresh
+     * assertion of who the caller is, not a re-wrapping of a credential the caller handed us.
      */
-    public Ticket issue(String accessToken) {
-        sweep();
-        byte[] raw = new byte[32];
-        random.nextBytes(raw);
-        String ticket = Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
-        tickets.put(ticket, new Entry(accessToken, Instant.now().plus(TTL)));
-        return new Ticket(ticket, TTL.toSeconds());
-    }
-
-    /** The access token behind a ticket, or null when it is unknown or has expired. */
-    public String resolve(String ticket) {
-        Entry entry = tickets.get(ticket);
-        if (entry == null) {
-            return null;
-        }
-        if (entry.expired(Instant.now())) {
-            tickets.remove(ticket);
-            return null;
-        }
-        return entry.token();
-    }
-
-    /** Called on issue rather than on a timer: the map only grows when someone adds to it. */
-    private void sweep() {
-        Instant now = Instant.now();
-        tickets.entrySet().removeIf(e -> e.getValue().expired(now));
-        if (tickets.size() >= MAX_LIVE) {
-            tickets.clear();
-        }
+    public Ticket issue(CustomUserDetails user) {
+        return new Ticket(jwtService.generateStreamTicket(user), jwtService.getStreamTicketTtlSeconds());
     }
 }
