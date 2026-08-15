@@ -1,0 +1,11 @@
+# Test profile. CafeQrFlowIntegrationTest runs under @ActiveProfiles("test"),
+# and SecretValidation refuses to start on the committed default JWT secret for
+# every profile except `dev` — so without a secret here the whole integration
+# test fails at context load, before a single assertion runs.
+#
+# This value is throwaway and test-only. It must never match the committed
+# default in application.yml (that is exactly what SecretValidation rejects)
+# and it is not a real secret — the production one lives in the VPS .env.
+app:
+  jwt:
+    secret: dGVzdC1vbmx5LWp3dC1zZWNyZXQtbm90LXVzZWQtYW55d2hlcmUtb3V0c2lkZS10ZXN0cw==
