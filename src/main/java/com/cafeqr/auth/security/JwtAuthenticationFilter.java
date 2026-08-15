@@ -23,21 +23,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final JwtService jwtService;
-    private final StreamTicketService streamTickets;
 
-    public JwtAuthenticationFilter(JwtService jwtService, StreamTicketService streamTickets) {
+    public JwtAuthenticationFilter(JwtService jwtService) {
         this.jwtService = jwtService;
-        this.streamTickets = streamTickets;
+    }
+
+    /** A credential and which family it must belong to, so the two are never parsed alike. */
+    private record Credential(String token, boolean stream) {
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
 
-        String token = resolveToken(request);
-        if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+        Credential credential = resolveCredential(request);
+        if (credential != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
-                CustomUserDetails principal = jwtService.parsePrincipal(token);
+                CustomUserDetails principal = credential.stream()
+                        ? jwtService.parseStreamTicket(credential.token())
+                        : jwtService.parsePrincipal(credential.token());
                 var authentication = new UsernamePasswordAuthenticationToken(
                         principal, null, principal.getAuthorities());
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
@@ -59,17 +63,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * endpoint. EventSource cannot set headers, so something has to travel in the URL; what
      * travelled was the full token, and it travelled into the nginx access log, browser
      * history and any outgoing Referer, where it stayed valid against the whole API for its
-     * remaining life. A ticket is opaque, expires in minutes, and {@link #isStreamPath} keeps
-     * it from opening anything but a stream.
+     * remaining life. A ticket expires in minutes, and two independent things keep it from
+     * opening anything else: {@link #isStreamPath} here, and the type check in
+     * {@link JwtService#parsePrincipal}, which rejects a ticket sent as a bearer token.
      */
-    private String resolveToken(HttpServletRequest request) {
+    private Credential resolveCredential(HttpServletRequest request) {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (header != null && header.startsWith(BEARER_PREFIX)) {
-            return header.substring(BEARER_PREFIX.length()).trim();
+            return new Credential(header.substring(BEARER_PREFIX.length()).trim(), false);
         }
         String ticket = request.getParameter("ticket");
         if (ticket != null && !ticket.isBlank() && isStreamPath(request)) {
-            return streamTickets.resolve(ticket.trim());
+            return new Credential(ticket.trim(), true);
         }
         return null;
     }

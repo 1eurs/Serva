@@ -110,11 +110,15 @@ function jwtSecondsLeft(token: string): number {
  * EventSource can't set headers, so the credential has to ride in the URL — and a URL is
  * written to the server's access log, kept in browser history and handed out in a Referer.
  * This used to be the access token itself, which made every one of those a copy of the
- * user's full API access. A ticket is opaque, dies in minutes, and the server only accepts
- * it on a stream endpoint.
+ * user's full API access. A ticket dies in minutes, and the server refuses it anywhere but
+ * a stream endpoint — and refuses it outright as a bearer token, so a leaked stream URL
+ * opens a read-only event stream and nothing else.
  *
- * The session token is refreshed first when it is close to expiring, because the ticket is
- * only an indirection to it and can't outlive it.
+ * Treat it as opaque here, but note it is not secret-free: it is a signed token, so anyone
+ * holding a leaked URL can read (not use) the claims inside it.
+ *
+ * The session token is still refreshed first when it is close to expiring, so a ticket is
+ * never minted from a session that is about to die under it.
  */
 export async function streamTicket(): Promise<string | null> {
   if (!accessToken || jwtSecondsLeft(accessToken) <= 120) {

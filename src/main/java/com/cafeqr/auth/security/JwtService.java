@@ -27,6 +27,12 @@ public class JwtService {
     private static final String CLAIM_BRANCH_ID = "bid";
     private static final String CLAIM_TYPE = "typ";
     private static final String TYPE_ACCESS = "access";
+    /**
+     * Stream tickets. Long enough to survive an {@code EventSource} reconnect, short enough
+     * that a ticket left in an access log goes stale fast.
+     */
+    private static final String TYPE_STREAM = "stream";
+    private static final long STREAM_TICKET_TTL_MINUTES = 5;
 
     private final SecretKey key;
     private final String issuer;
@@ -61,11 +67,57 @@ public class JwtService {
         return accessTtlMinutes * 60;
     }
 
-    /** Parses and verifies a token, returning the authenticated principal. Throws on any failure. */
+    /**
+     * A stream ticket: the same principal, but marked so it can only ever open a stream.
+     *
+     * <p>Carries no server-side state, which is what lets a ticket issued by one instance be
+     * accepted by another and survive a restart. The safety comes entirely from the
+     * {@link #CLAIM_TYPE} claim — {@link #parsePrincipal} refuses anything that is not an
+     * access token, so a ticket presented in an Authorization header authenticates nothing.
+     */
+    public String generateStreamTicket(CustomUserDetails user) {
+        Instant now = Instant.now();
+        List<String> perms = user.getPermissions().stream().map(Permission::name).toList();
+        return Jwts.builder()
+                .issuer(issuer)
+                .subject(String.valueOf(user.getUserId()))
+                .claim(CLAIM_USERNAME, user.getUsername())
+                .claim(CLAIM_PERMS, perms)
+                .claim(CLAIM_OWNER, user.isOwner())
+                .claim(CLAIM_RESTAURANT_ID, user.getRestaurantId())
+                .claim(CLAIM_BRANCH_ID, user.getBranchId())
+                .claim(CLAIM_TYPE, TYPE_STREAM)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plus(STREAM_TICKET_TTL_MINUTES, ChronoUnit.MINUTES)))
+                .signWith(key)
+                .compact();
+    }
+
+    public long getStreamTicketTtlSeconds() {
+        return STREAM_TICKET_TTL_MINUTES * 60;
+    }
+
+    /** Parses and verifies an access token, returning the principal. Throws on any failure. */
     public CustomUserDetails parsePrincipal(String token) {
+        return parse(token, TYPE_ACCESS);
+    }
+
+    /** Parses and verifies a stream ticket. Throws on any failure, including a non-ticket token. */
+    public CustomUserDetails parseStreamTicket(String token) {
+        return parse(token, TYPE_STREAM);
+    }
+
+    /**
+     * The {@code typ} check is what keeps the token families apart, and it is load-bearing:
+     * every token this application signs — access tokens, stream tickets, and the 30-day
+     * phone-verification tokens minted by OtpService — is signed with the same key, so a
+     * valid signature alone proves nothing about what a token is allowed to do.
+     */
+    private CustomUserDetails parse(String token, String requiredType) {
         Claims claims = Jwts.parser()
                 .verifyWith(key)
                 .requireIssuer(issuer)
+                .require(CLAIM_TYPE, requiredType)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();

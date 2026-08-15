@@ -1,5 +1,6 @@
 package com.cafeqr.auth;
 
+import com.cafeqr.auth.security.CustomUserDetails;
 import com.cafeqr.auth.security.StreamTicketService;
 import com.cafeqr.common.api.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -7,6 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
@@ -31,13 +33,15 @@ public class StreamTicketController {
 
     @Operation(summary = "A short-lived ticket for opening an SSE stream")
     @PostMapping("/api/dashboard/stream-ticket")
-    public ApiResponse<StreamTicketService.Ticket> issue(HttpServletRequest request) {
+    public ApiResponse<StreamTicketService.Ticket> issue(HttpServletRequest request,
+                                                        @AuthenticationPrincipal CustomUserDetails principal) {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (header == null || !header.startsWith(BEARER_PREFIX)) {
-            /* Reachable only by calling this with a ticket instead of a header, which would
-               otherwise let one ticket mint the next and never expire. */
+            /* Belt and braces: a ticket presented here would already fail to authenticate at
+               all, since it is not an access token — but requiring the header keeps the rule
+               that one ticket can never mint the next, and never expire. */
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Bearer token required");
         }
-        return ApiResponse.ok(streamTickets.issue(header.substring(BEARER_PREFIX.length()).trim()));
+        return ApiResponse.ok(streamTickets.issue(principal));
     }
 }

@@ -25,11 +25,12 @@ class JwtAuthenticationFilterTest {
     private final JwtService jwtService = new JwtService(new AppProperties(
             new AppProperties.Jwt(SECRET, 60, 30, "cafeqr"),
             null, "http://localhost:8080", null, null, null, null, null, null));
-    private final StreamTicketService tickets = new StreamTicketService();
-    private final JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtService, tickets);
+    private final StreamTicketService tickets = new StreamTicketService(jwtService);
+    private final JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtService);
 
-    private final String token = jwtService.generateAccessToken(new CustomUserDetails(
-            42L, "owner@cafe.com", "hash", EnumSet.of(Permission.ORDERS), true, 7L, null, true));
+    private final CustomUserDetails user = new CustomUserDetails(
+            42L, "owner@cafe.com", "hash", EnumSet.of(Permission.ORDERS), true, 7L, null, true);
+    private final String token = jwtService.generateAccessToken(user);
 
     @AfterEach
     void clear() {
@@ -58,7 +59,7 @@ class JwtAuthenticationFilterTest {
     @Test
     void ticketOpensAStream() throws Exception {
         MockHttpServletRequest request = get("/api/dashboard/orders/stream");
-        request.setParameter("ticket", tickets.issue(token).ticket());
+        request.setParameter("ticket", tickets.issue(user).ticket());
 
         assertThat(authenticates(request)).isTrue();
     }
@@ -67,7 +68,31 @@ class JwtAuthenticationFilterTest {
     @Test
     void ticketOpensNothingButAStream() throws Exception {
         MockHttpServletRequest request = get("/api/dashboard/orders");
-        request.setParameter("ticket", tickets.issue(token).ticket());
+        request.setParameter("ticket", tickets.issue(user).ticket());
+
+        assertThat(authenticates(request)).isFalse();
+    }
+
+    /**
+     * A ticket is now a signed token rather than an opaque key into a server-side map, so it
+     * would authenticate perfectly well as a bearer token if nothing said otherwise. What
+     * says otherwise is the {@code typ} claim check in JwtService — without it, handing out a
+     * stream ticket would be handing out full API access with a longer blast radius than the
+     * URL-borne access token this whole mechanism replaced.
+     */
+    @Test
+    void ticketIsRefusedAsABearerToken() throws Exception {
+        MockHttpServletRequest request = get("/api/dashboard/orders");
+        request.addHeader("Authorization", "Bearer " + tickets.issue(user).ticket());
+
+        assertThat(authenticates(request)).isFalse();
+    }
+
+    /** And the converse: an access token is not a ticket, even on a stream path. */
+    @Test
+    void accessTokenIsRefusedAsATicket() throws Exception {
+        MockHttpServletRequest request = get("/api/dashboard/orders/stream");
+        request.setParameter("ticket", token);
 
         assertThat(authenticates(request)).isFalse();
     }
