@@ -35,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -56,13 +57,16 @@ public class StockController {
     private final StockService stockService;
     private final StockConsumptionService consumptionService;
     private final StockInsightsService insightsService;
+    private final PurchasingService purchasingService;
 
     public StockController(StockService stockService,
                            StockConsumptionService consumptionService,
-                           StockInsightsService insightsService) {
+                           StockInsightsService insightsService,
+                           PurchasingService purchasingService) {
         this.stockService = stockService;
         this.consumptionService = consumptionService;
         this.insightsService = insightsService;
+        this.purchasingService = purchasingService;
     }
 
     // ============================================================ overview
@@ -77,9 +81,15 @@ public class StockController {
         List<StockItemResponse> low = new ArrayList<>();
         List<StockItemResponse> out = new ArrayList<>();
         BigDecimal value = BigDecimal.ZERO;
+        int items = 0;
+        int counted = 0;
         for (StockItem item : stockService.listItems(false)) {
             StockLevel level = levels.get(item.getId());
             StockItemResponse row = StockItemResponse.from(item, level);
+            items++;
+            if (row.counted()) {
+                counted++;
+            }
             if (row.out()) {
                 out.add(row);
             } else if (row.low()) {
@@ -100,11 +110,17 @@ public class StockController {
         List<StockOverviewResponse.SoldOutRow> soldOut = consumptionService
                 .soldOutDetail(restaurantId, branch).stream()
                 .map(d -> new StockOverviewResponse.SoldOutRow(d.menuItemId(), d.nameEn(), d.nameAr(),
-                        d.reason(), d.blockerId(), d.blockerName()))
+                        d.reason(), d.blockerId(), d.blockerNameEn(), d.blockerNameAr()))
                 .toList();
 
+        /* Counted-when, not just counted-how-many. Everything the page says about the shelf
+           rests on somebody having looked at it, so the page is given the date of that look
+           and quotes it next to the figures rather than presenting them as timeless fact. */
+        StockOverviewResponse.Readiness readiness = new StockOverviewResponse.Readiness(
+                items, counted, stockService.lastCountAt(branch));
+
         return ApiResponse.ok(new StockOverviewResponse(branch, low.size(), out.size(), ending.size(),
-                value.setScale(3, java.math.RoundingMode.HALF_UP), low, out, ending, soldOut));
+                value.setScale(3, java.math.RoundingMode.HALF_UP), low, out, ending, soldOut, readiness));
     }
 
     // ============================================================ catalogue
@@ -159,15 +175,18 @@ public class StockController {
     @PostMapping("/receive")
     public ApiResponse<Void> receive(@Valid @RequestBody StockActions.ReceiveRequest request) {
         Long branch = stockService.resolveBranch(request.branchId());
-        Long restaurantId = stockService.requireCafeScope();
-        Set<Long> touched = new java.util.LinkedHashSet<>();
+        Map<Long, BigDecimal> landed = new LinkedHashMap<>();
         for (StockActions.ReceiveRequest.Line line : request.lines()) {
             stockService.receive(branch, line.stockItemId(), line.quantityBase(),
                     line.unitCost(), request.note());
-            touched.add(line.stockItemId());
+            landed.merge(line.stockItemId(), line.quantityBase(), BigDecimal::add);
         }
-        // A delivery is the usual way an 86'd item comes back; put it on the menu again.
-        consumptionService.refreshAvailability(restaurantId, branch, touched);
+        /* The delivery is also the answer to any order that was waiting for it. Without
+           this the shelf would keep saying those items were on their way for ever, and the
+           owner would have to go and tell a second screen what they had just told this one.
+           Kept here rather than inside StockService.receive so that receiving *against* an
+           order — which already books its own lines — cannot re-enter and pay itself twice. */
+        purchasingService.settleFromDelivery(branch, landed);
         return ApiResponse.message("Delivery recorded");
     }
 
@@ -175,10 +194,8 @@ public class StockController {
     @PostMapping("/waste")
     public ApiResponse<Void> waste(@Valid @RequestBody StockActions.WasteRequest request) {
         Long branch = stockService.resolveBranch(request.branchId());
-        Long restaurantId = stockService.requireCafeScope();
         stockService.logWaste(branch, request.stockItemId(), request.quantityBase(),
                 parseEnum(WasteReason.class, request.reason(), WasteReason.OTHER), request.note());
-        consumptionService.refreshAvailability(restaurantId, branch, Set.of(request.stockItemId()));
         return ApiResponse.message("Waste logged");
     }
 
@@ -186,20 +203,16 @@ public class StockController {
     @PostMapping("/adjust")
     public ApiResponse<Void> adjust(@Valid @RequestBody StockActions.AdjustRequest request) {
         Long branch = stockService.resolveBranch(request.branchId());
-        Long restaurantId = stockService.requireCafeScope();
-        stockService.adjustTo(branch, request.stockItemId(), request.quantityBase(), request.note());
-        consumptionService.refreshAvailability(restaurantId, branch, Set.of(request.stockItemId()));
+        stockService.adjustTo(branch, request.stockItemId(), request.quantityBase(), request.note(),
+                Boolean.TRUE.equals(request.counted()));
         return ApiResponse.message("Stock corrected");
     }
 
     @Operation(summary = "Move stock to another branch")
     @PostMapping("/transfer")
     public ApiResponse<Void> transfer(@Valid @RequestBody StockActions.TransferRequest request) {
-        Long restaurantId = stockService.requireCafeScope();
         stockService.transfer(request.fromBranchId(), request.toBranchId(), request.stockItemId(),
                 request.quantityBase(), request.note());
-        consumptionService.refreshAvailability(restaurantId, request.fromBranchId(), Set.of(request.stockItemId()));
-        consumptionService.refreshAvailability(restaurantId, request.toBranchId(), Set.of(request.stockItemId()));
         return ApiResponse.message("Transferred");
     }
 
@@ -207,9 +220,7 @@ public class StockController {
     @PostMapping("/produce")
     public ApiResponse<Void> produce(@Valid @RequestBody StockActions.ProduceRequest request) {
         Long branch = stockService.resolveBranch(request.branchId());
-        Long restaurantId = stockService.requireCafeScope();
         stockService.produceBatch(branch, request.prepItemId(), request.batches(), request.note());
-        consumptionService.refreshAvailability(restaurantId, branch, Set.of(request.prepItemId()));
         return ApiResponse.message("Batch produced");
     }
 

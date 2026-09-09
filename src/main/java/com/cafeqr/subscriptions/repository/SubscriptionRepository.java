@@ -1,5 +1,6 @@
 package com.cafeqr.subscriptions.repository;
 
+import com.cafeqr.restaurants.domain.Plan;
 import com.cafeqr.subscriptions.domain.Subscription;
 import com.cafeqr.subscriptions.domain.SubscriptionStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,4 +16,6 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     List<Subscription> findByStatusOrderByIdDesc(SubscriptionStatus status);
 
     List<Subscription> findByStatusIn(Collection<SubscriptionStatus> statuses);
+
+    List<Subscription> findByTier(Plan tier);
 }

@@ -1,6 +1,7 @@
 package com.cafeqr.stock;
 
 import com.cafeqr.analytics.Entitlements;
+import com.cafeqr.plans.domain.Feature;
 import com.cafeqr.common.api.ApiResponse;
 import com.cafeqr.stock.dto.InsightResponses;
 import io.swagger.v3.oas.annotations.Operation;
@@ -46,7 +47,7 @@ public class StockInsightsController {
         return ApiResponse.ok(insightsService.daysOfCover(branch).stream()
                 .map(c -> new InsightResponses.Cover(c.item().getId(), c.item().getNameEn(),
                         c.item().getNameAr(), c.item().getBaseUnit().name(),
-                        c.onHand(), c.dailyUsage(), c.daysLeft()))
+                        c.onHand(), c.dailyUsage(), c.daysLeft(), c.observedDays()))
                 .toList());
     }
 
@@ -65,7 +66,7 @@ public class StockInsightsController {
     @GetMapping("/cost-drift")
     public ApiResponse<List<InsightResponses.CostDrift>> costDrift(
             @RequestParam(defaultValue = "5") int thresholdPercent) {
-        entitlements.requirePro();
+        entitlements.require(Feature.STOCK_INSIGHTS);
         return ApiResponse.ok(insightsService.costDrift(BigDecimal.valueOf(thresholdPercent)).stream()
                 .map(d -> new InsightResponses.CostDrift(d.item().getId(), d.item().getNameEn(),
                         d.item().getNameAr(), d.averageCost(), d.latestCost(), d.changePercent()))
@@ -77,7 +78,7 @@ public class StockInsightsController {
     public ApiResponse<List<InsightResponses.MenuEconomics>> menuEconomics(
             @RequestParam(required = false) Long branchId,
             @RequestParam(defaultValue = "30") int days) {
-        entitlements.requirePro();
+        entitlements.require(Feature.STOCK_INSIGHTS);
         Long restaurantId = stockService.requireCafeScope();
         Long branch = stockService.resolveBranch(branchId);
         return ApiResponse.ok(insightsService.menuEconomics(restaurantId, branch, Math.min(days, 365)).stream()

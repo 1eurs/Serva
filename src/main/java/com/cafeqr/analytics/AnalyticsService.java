@@ -6,6 +6,7 @@ import com.cafeqr.analytics.dto.DailyPoint;
 import com.cafeqr.analytics.dto.DaypartPoint;
 import com.cafeqr.analytics.dto.HourlyCount;
 import com.cafeqr.analytics.dto.PaymentMethodRevenueResponse;
+import com.cafeqr.analytics.dto.PlatformTrendPoint;
 import com.cafeqr.analytics.dto.RestaurantStatsResponse;
 import com.cafeqr.auth.security.AccessGuard;
 import com.cafeqr.branches.BranchService;
@@ -17,6 +18,9 @@ import com.cafeqr.orders.domain.OrderStatus;
 import com.cafeqr.orders.repository.OrderItemRepository;
 import com.cafeqr.orders.repository.OrderRepository;
 import com.cafeqr.payments.repository.PaymentRepository;
+import com.cafeqr.restaurants.repository.RestaurantRepository;
+import com.cafeqr.tables.repository.RestaurantTableRepository;
+import com.cafeqr.users.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,6 +52,9 @@ public class AnalyticsService {
     private final MenuItemRepository menuItemRepository;
     private final AccessGuard accessGuard;
     private final PaymentRepository paymentRepository;
+    private final UserRepository userRepository;
+    private final RestaurantTableRepository tableRepository;
+    private final RestaurantRepository restaurantRepository;
 
     public AnalyticsService(OrderRepository orderRepository,
                             OrderItemRepository orderItemRepository,
@@ -55,7 +62,10 @@ public class AnalyticsService {
                             BranchService branchService,
                             MenuItemRepository menuItemRepository,
                             AccessGuard accessGuard,
-                            PaymentRepository paymentRepository) {
+                            PaymentRepository paymentRepository,
+                            UserRepository userRepository,
+                            RestaurantTableRepository tableRepository,
+                            RestaurantRepository restaurantRepository) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.branchRepository = branchRepository;
@@ -63,6 +73,9 @@ public class AnalyticsService {
         this.menuItemRepository = menuItemRepository;
         this.accessGuard = accessGuard;
         this.paymentRepository = paymentRepository;
+        this.userRepository = userRepository;
+        this.tableRepository = tableRepository;
+        this.restaurantRepository = restaurantRepository;
     }
 
     @Transactional(readOnly = true)
@@ -203,20 +216,31 @@ public class AnalyticsService {
     }
 
     /**
-     * Per-restaurant snapshot for the platform admin console — three grouped scans
-     * (orders, branches, menu items) merged in memory, regardless of restaurant count.
+     * Per-restaurant snapshot for the platform admin console — five grouped scans
+     * (orders, branches, menu items, owners, tables) merged in memory, regardless of
+     * restaurant count.
      */
     @Transactional(readOnly = true)
     public List<RestaurantStatsResponse> platformRestaurantStats() {
         Instant todayStart = LocalDate.now(TimeZones.CAFES).atStartOfDay(TimeZones.CAFES).toInstant();
-        Instant windowStart = Instant.now().minus(Duration.ofDays(30));
+        Instant now = Instant.now();
+        Instant windowStart = now.minus(Duration.ofDays(30));
+        Instant weekStart = now.minus(Duration.ofDays(7));
+        Instant prevWeekStart = now.minus(Duration.ofDays(14));
 
         Map<Long, Long> branches = countMap(branchRepository.countPerRestaurant());
         Map<Long, Long> menuItems = countMap(menuItemRepository.countPerRestaurant());
-        List<Object[]> orderRows = orderRepository.platformOrderStats(windowStart, todayStart);
+        Map<Long, Long> owners = countMap(userRepository.countOwnersPerRestaurant());
+        Map<Long, Long> tables = countMap(tableRepository.countPerRestaurant());
+        List<Object[]> orderRows = orderRepository.platformOrderStats(
+                windowStart, todayStart, weekStart, prevWeekStart);
 
+        // A café that has anything at all — a branch, an item, an owner, a QR table —
+        // must appear, even with zero orders. Those are exactly the ones needing attention.
         Set<Long> ids = new HashSet<>(branches.keySet());
         ids.addAll(menuItems.keySet());
+        ids.addAll(owners.keySet());
+        ids.addAll(tables.keySet());
 
         Map<Long, RestaurantStatsResponse> stats = new HashMap<>();
         for (Object[] row : orderRows) {
@@ -230,16 +254,61 @@ public class AnalyticsService {
                     ((Number) row[4]).longValue(),
                     toInstant(row[5]),
                     branches.getOrDefault(restaurantId, 0L),
-                    menuItems.getOrDefault(restaurantId, 0L)));
+                    menuItems.getOrDefault(restaurantId, 0L),
+                    owners.getOrDefault(restaurantId, 0L),
+                    tables.getOrDefault(restaurantId, 0L),
+                    ((Number) row[6]).longValue(),
+                    ((Number) row[7]).longValue()));
         }
-        // Restaurants that have branches/items but no orders yet still get a row.
         for (Long restaurantId : ids) {
-            stats.put(restaurantId, new RestaurantStatsResponse(
-                    restaurantId, 0, 0, BigDecimal.ZERO, 0, null,
+            stats.put(restaurantId, RestaurantStatsResponse.empty(
+                    restaurantId,
                     branches.getOrDefault(restaurantId, 0L),
-                    menuItems.getOrDefault(restaurantId, 0L)));
+                    menuItems.getOrDefault(restaurantId, 0L),
+                    owners.getOrDefault(restaurantId, 0L),
+                    tables.getOrDefault(restaurantId, 0L)));
         }
         return List.copyOf(stats.values());
+    }
+
+    /**
+     * Daily platform totals for the last {@code days} days — one row per day, gaps filled with
+     * zeros so a chart doesn't quietly close up the days nobody ordered.
+     */
+    @Transactional(readOnly = true)
+    public List<PlatformTrendPoint> platformTrend(int days) {
+        LocalDate today = LocalDate.now(TimeZones.CAFES);
+        LocalDate from = today.minusDays(days - 1L);
+        Instant fromInstant = from.atStartOfDay(TimeZones.CAFES).toInstant();
+
+        Map<LocalDate, Object[]> orders = new HashMap<>();
+        for (Object[] row : orderRepository.platformDailyTotals(fromInstant, TimeZones.CAFES.getId())) {
+            orders.put(toLocalDate(row[0]), row);
+        }
+        Map<LocalDate, Long> signups = new HashMap<>();
+        for (Object[] row : restaurantRepository.dailySignups(fromInstant, TimeZones.CAFES.getId())) {
+            signups.put(toLocalDate(row[0]), ((Number) row[1]).longValue());
+        }
+
+        List<PlatformTrendPoint> points = new ArrayList<>(days);
+        for (LocalDate day = from; !day.isAfter(today); day = day.plusDays(1)) {
+            Object[] row = orders.get(day);
+            points.add(new PlatformTrendPoint(
+                    day,
+                    row == null ? 0L : ((Number) row[1]).longValue(),
+                    row == null ? BigDecimal.ZERO : (BigDecimal) row[2],
+                    signups.getOrDefault(day, 0L)));
+        }
+        return points;
+    }
+
+    /** Native {@code ::date} values arrive as {@link java.sql.Date} or already-typed dates. */
+    private static LocalDate toLocalDate(Object value) {
+        return switch (value) {
+            case LocalDate d -> d;
+            case java.sql.Date d -> d.toLocalDate();
+            default -> throw new IllegalStateException("Unexpected date type: " + value.getClass());
+        };
     }
 
     /** Native timestamptz values arrive as different temporal types depending on the JDBC mapping. */

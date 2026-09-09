@@ -19,10 +19,3 @@ export const isManager = (user?: MaybeUser) =>
     || can(user, 'PROFILE') || can(user, 'ANALYTICS') || can(user, 'BRANCHES'));
 
 export const canAcceptOrders = (user?: MaybeUser) => can(user, 'ORDERS');
-
-/**
- * Gate for the premium menu-customization tools (structural kits, occasion decor,
- * theme JSON import/export). For now only platform admins get them; flip this to a
- * subscription/plan flag once a paid "Pro look" tier exists — single source of truth.
- */
-export const canUsePremiumThemes = (user?: MaybeUser) => can(user, 'PLATFORM_ADMIN');

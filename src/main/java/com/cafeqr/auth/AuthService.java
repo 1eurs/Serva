@@ -17,6 +17,8 @@ import com.cafeqr.common.exception.BadRequestException;
 import com.cafeqr.common.exception.ConflictException;
 import com.cafeqr.common.exception.ErrorCode;
 import com.cafeqr.common.exception.ResourceNotFoundException;
+import com.cafeqr.common.util.Names;
+import com.cafeqr.common.util.Pasted;
 import com.cafeqr.common.exception.UnauthorizedException;
 import com.cafeqr.common.util.Tokens;
 import com.cafeqr.users.domain.Permission;
@@ -72,7 +74,7 @@ public class AuthService {
             throw new ConflictException(ErrorCode.CONFLICT,
                     "A platform admin already exists. Ask an existing admin to create more accounts.");
         }
-        if (userRepository.existsByEmailIgnoreCase(request.email())) {
+        if (userRepository.existsByEmailIgnoreCase(Pasted.identifier(request.email()))) {
             throw new ConflictException(ErrorCode.EMAIL_ALREADY_EXISTS, "Email is already registered");
         }
 
@@ -92,19 +94,22 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
+        String username = Pasted.identifier(request.username());
         Authentication authentication;
         try {
             authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(request.username(), request.password()));
+                    new UsernamePasswordAuthenticationToken(username, request.password()));
         } catch (org.springframework.security.authentication.DisabledException e) {
             // An invited member who hasn't opened their link is also "disabled", but the generic
             // message talks about bank transfers and would send them to the wrong place entirely.
+            // It carries its own code as well as its own message: the login screen keys off the
+            // code, and under the shared one it was showing them the bank-transfer text anyway.
             // No extra disclosure: Spring already rejects a disabled account before checking the
             // password, so the account's existence was visible either way.
-            userRepository.findByUsernameIgnoreCase(request.username())
+            userRepository.findByUsernameIgnoreCase(username)
                     .filter(User::isPendingInvite)
                     .ifPresent(pending -> {
-                        throw new BadRequestException(ErrorCode.ACCOUNT_DISABLED,
+                        throw new BadRequestException(ErrorCode.INVITE_PENDING,
                                 "Open the invite link the café sent you to finish setting up your account.");
                     });
             throw e;
@@ -146,7 +151,7 @@ public class AuthService {
      */
     @Transactional
     public void forgotPassword(String email) {
-        userRepository.findByEmailIgnoreCase(email).ifPresent(user -> {
+        userRepository.findByEmailIgnoreCase(Pasted.identifier(email)).ifPresent(user -> {
             if (!user.isActive()) {
                 return; // disabled accounts (e.g. awaiting onboarding payment) can't reset
             }
@@ -169,7 +174,7 @@ public class AuthService {
     /** Consumes a reset token, sets the new password, and revokes existing sessions. */
     @Transactional
     public void resetPassword(String rawToken, String newPassword) {
-        PasswordResetToken token = passwordResetTokenRepository.findByToken(rawToken)
+        PasswordResetToken token = passwordResetTokenRepository.findByToken(Pasted.identifier(rawToken))
                 .filter(PasswordResetToken::isUsable)
                 .orElseThrow(() -> new BadRequestException(
                         ErrorCode.TOKEN_INVALID, "This reset link is invalid or has expired"));
@@ -211,7 +216,7 @@ public class AuthService {
             throw new BadRequestException(ErrorCode.INVALID_CREDENTIALS, "Current password is incorrect");
         }
 
-        String normalizedEmail = newEmail.trim();
+        String normalizedEmail = Pasted.identifier(newEmail);
         if (user.getEmail().equalsIgnoreCase(normalizedEmail)) {
             throw new BadRequestException(ErrorCode.VALIDATION_ERROR, "New email must be different");
         }
@@ -227,10 +232,10 @@ public class AuthService {
     }
 
     @Transactional
-    public UserResponse updateProfile(Long userId, String fullName, String phone) {
+    public UserResponse updateProfile(Long userId, String fullName, String fullNameEn, String fullNameAr, String phone) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> ResourceNotFoundException.of("User", userId));
-        user.setFullName(fullName.trim());
+        Names.applyOnUpdate(user, fullName, fullNameEn, fullNameAr);
         user.setPhone(phone == null || phone.isBlank() ? null : phone.trim());
         return UserResponse.from(user);
     }

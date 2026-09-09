@@ -65,7 +65,67 @@ export function pick(obj: Record<string, any> | null | undefined, field: 'name' 
   return (lang === 'ar' ? ar || en : en || ar) || '';
 }
 
+/**
+ * Display name of a café or a branch. Same preference as {@link pick}, plus a last fallback to
+ * the legacy single `name` column — a café created before names were bilingual has only that,
+ * and an empty header reads as a bug where a name in the other language merely reads as data.
+ */
+export function nameOf(
+  obj: { name?: string | null; nameEn?: string | null; nameAr?: string | null } | null | undefined,
+  lang: Lang,
+): string {
+  if (!obj) return '';
+  const preferred = lang === 'ar' ? obj.nameAr : obj.nameEn;
+  const other = lang === 'ar' ? obj.nameEn : obj.nameAr;
+  return (preferred || other || obj.name) ?? '';
+}
+
+/**
+ * Display name of a person — staff, owner, admin. Same fallback ladder as {@link nameOf}, over
+ * the `fullName*` fields. A person's two names are one name in two scripts, not a translation,
+ * so falling back to the other script always names the right human.
+ */
+export function personName(
+  person: { fullName?: string | null; fullNameEn?: string | null; fullNameAr?: string | null } | null | undefined,
+  lang: Lang,
+): string {
+  if (!person) return '';
+  const preferred = lang === 'ar' ? person.fullNameAr : person.fullNameEn;
+  const other = lang === 'ar' ? person.fullNameEn : person.fullNameAr;
+  return (preferred || other || person.fullName) ?? '';
+}
+
 /** Shared bilingual language toggle button group. */
+/**
+ * Isolate a machine-format value so an RTL page cannot reorder it.
+ *
+ * A string made of ONE numeric run is safe on its own ("1.900", "4/17" — the separator is
+ * a digit-to-digit one, so it stays a single run). A string made of TWO OR MORE runs joined
+ * by a neutral — a space, a dash, "×", "@", "·", or a leading sign — is ordered by the
+ * paragraph instead, so in Arabic it comes out backwards:
+ *
+ *   7:00–23:00  ->  23:00–7:00      (wrong opening hours, not just ugly)
+ *   9123 4567   ->  4567 9123
+ *   @cafe       ->  cafe@
+ *   −12%        ->  %12−
+ *
+ * Use this for anything that is a FORMAT: phone numbers, opening hours, handles, signed
+ * percentages, ranges, IDs, timestamps. Never use it for prose — names, addresses and
+ * descriptions must stay direction-neutral (a plain <bdi>, which is dir="auto"), because
+ * forcing those to LTR creates the same bug in the opposite direction.
+ */
+export function Ltr({ children }: { children: ReactNode }) {
+  return <bdi dir="ltr">{children}</bdi>;
+}
+
+/**
+ * The same isolation for a value that has to live inside a plain string rather than JSX
+ * (a joined preview line, a title attribute). U+2066 LEFT-TO-RIGHT ISOLATE … U+2069 POP
+ * DIRECTIONAL ISOLATE is exactly what <bdi dir="ltr"> compiles down to in the bidi
+ * algorithm — invisible characters, so the string still compares and measures normally.
+ */
+export const ltrText = (value: string | number): string => '\u2066' + value + '\u2069';
+
 export function LangToggle() {
   const { lang, setLang } = useI18n();
   return (

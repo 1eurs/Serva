@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import type { OrderTracking, OrderStatus } from '../../lib/types';
 import { omr } from '../../lib/format';
-import { useI18n, useT, type Dict } from '../../lib/i18n';
+import { useI18n, useT, Ltr, type Dict } from '../../lib/i18n';
 import { useOrderStream } from '../../lib/sse';
 import { useAudioArm, playChime, vibrate } from '../../lib/alerts';
 import { menuPathOf, useVenue } from './venue';
@@ -88,7 +88,7 @@ export default function TrackPage() {
 
       <div className="c-vbody">
         <div className="c-track">
-          <div className="no"><span className="lbl">{t('orderNo')}</span><span className="num">#{o.dailyNumber}</span></div>
+          <div className="no"><span className="lbl">{t('orderNo')}</span><span className="num"><Ltr>#{o.dailyNumber}</Ltr></span></div>
           <div className="state">{!bad && <span className="c-pulse" />}{t('head_' + o.status)}</div>
           {!bad && (
             <div className="sub">
@@ -126,7 +126,7 @@ export default function TrackPage() {
         <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {o.items.map((it, i) => (
             <div className="c-totals" style={{ marginBottom: 0, padding: '11px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} key={i}>
-              <span><span className="num">{it.quantity}×</span> {lang === 'ar' ? (it.nameAr || it.nameEn) : (it.nameEn || it.nameAr)}</span>
+              <span><span className="num"><Ltr>{it.quantity}×</Ltr></span> {lang === 'ar' ? (it.nameAr || it.nameEn) : (it.nameEn || it.nameAr)}</span>
               <span className="num">{omr(it.lineTotal)} {t('cur')}</span>
             </div>
           ))}

@@ -34,9 +34,6 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
     @Query("SELECT i.restaurantId, COUNT(i) FROM MenuItem i GROUP BY i.restaurantId")
     List<Object[]> countPerRestaurant();
 
-    /** SIMPLE-mode items backed by one of these countable goods — half of the auto-86 lookup. */
-    List<MenuItem> findByRestaurantIdAndStockItemIdIn(Long restaurantId, List<Long> stockItemIds);
-
     /** Every item opted into any kind of stock tracking; the rest can be skipped entirely. */
     List<MenuItem> findByRestaurantIdAndStockModeNot(Long restaurantId, StockMode stockMode);
 }

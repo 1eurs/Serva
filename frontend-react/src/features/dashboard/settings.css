@@ -243,6 +243,68 @@ html[data-input="touch"] .order-status-toggle{min-height:var(--tap)}
 .order-status-toggle.paused .status-dot{background:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 18%,transparent)}
 .order-status-toggle.paused .ost-label{color:var(--bad)}
 
+/* ---- Branch pane: whose setting is this? ----
+   The printing rows mix two scopes — the branch (saved in the database, true for every
+   tablet) and this device (localStorage, true only here). They looked identical, so an
+   owner flipping a switch could not tell whether they had changed the café or the tablet
+   in their hand. The eyebrow answers that before the label is read. */
+.stg-scope{display:inline-block;margin-bottom:5px;padding:2px 7px;border-radius:999px;
+  border:var(--bw-hair) solid var(--line-2);background:var(--surface-2);color:var(--muted);
+  font-family:var(--font-mono);font-style:normal;font-size:8.5px;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase}
+.stg-scope.device{border-color:color-mix(in srgb,var(--accent) 40%,transparent);
+  background:color-mix(in srgb,var(--lime) 16%,var(--paper));color:var(--accent-text)}
+
+/* ---- Branch pane: the printer setup guide ----
+   Serva cannot see any of the chain it depends on: RawBT is a separate Android app reached
+   through a fire-and-forget URL scheme, and the printer is behind that. So the guide states
+   the whole path in order and marks only what is genuinely observable — the platform, the
+   branch toggle, and the owner's own answer to "did paper come out?". */
+.stg-guide{display:flex;flex-direction:column;gap:9px;margin:0;padding:0;list-style:none}
+.stg-step{display:flex;align-items:flex-start;gap:11px;padding:12px;
+  border:var(--bw-hair) solid var(--line-2);border-radius:7px;background:var(--paper)}
+.stg-step.ok{border-color:color-mix(in srgb,var(--ready) 32%,var(--line-2));
+  background:color-mix(in srgb,var(--lime) 10%,var(--paper))}
+.stg-step.bad{border-color:color-mix(in srgb,var(--bad) 38%,var(--line-2));
+  background:color-mix(in srgb,var(--bad) 6%,var(--paper))}
+/* Round, so a step marker never reads as the square section chip beside it. */
+.stg-step-no{display:grid;place-items:center;width:23px;height:23px;flex:0 0 auto;
+  border:var(--bw-hair) solid var(--keyline);border-radius:50%;background:var(--faint);
+  color:var(--ink);font-family:var(--font-mono);font-size:11px;font-weight:900;line-height:1}
+.stg-step.ok .stg-step-no{background:var(--lime);color:var(--fill-ink)}
+.stg-step.bad .stg-step-no{background:var(--bad);border-color:var(--bad);color:#fff}
+.stg-step-body{min-width:0;flex:1}
+.stg-step-body b{display:block;color:var(--ink);font-size:12.5px;font-weight:900}
+.stg-step-body p{max-width:64ch;margin-top:4px;color:var(--muted);font-size:11.5px;line-height:1.55}
+.stg-step-note{margin-top:7px!important;padding:7px 9px;border:1.5px dashed var(--line-2);
+  border-radius:6px;background:var(--bg-2)}
+.stg-step-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+/* Store link on a device that cannot install the app: hand the code to one that can. */
+.stg-step-scan{display:flex;align-items:center;gap:11px;margin-top:9px}
+.stg-step-qr{display:block;width:78px;height:78px;flex:0 0 auto;
+  border:var(--bw-hair) solid var(--keyline);border-radius:5px}
+.stg-step-scan>span{min-width:0;color:var(--muted);font-size:11px;line-height:1.45}
+.stg-step-ask{margin-top:9px;padding:9px 11px;border:var(--bw-hair) solid var(--keyline);
+  border-radius:6px;background:var(--bg-2)}
+.stg-step-ask>b{display:block;color:var(--ink);font-size:12px;font-weight:900}
+.stg-step-ask .stg-step-actions{margin-top:8px}
+.stg-fix{margin-top:10px;padding:10px 12px;border-radius:6px;
+  border:var(--bw-hair) solid color-mix(in srgb,var(--bad) 35%,var(--line-2));
+  background:color-mix(in srgb,var(--bad) 5%,var(--bg-2))}
+.stg-fix>b{display:block;margin-bottom:6px;color:var(--ink);font-size:11.5px;font-weight:900}
+.stg-fix ul{margin:0;padding-inline-start:16px;display:flex;flex-direction:column;gap:5px}
+.stg-fix li{color:var(--muted);font-size:11px;line-height:1.5}
+
+/* ---- Branch pane: which app carries the receipt off this tablet ----
+   A two-way segmented pick sits where the other device-scope rows put their switch, so
+   RawBT / Cleanter and 80 / 58 mm read as the same kind of fact about this device. */
+.stg-app-seg button{padding-inline:12px;font-size:12px;white-space:nowrap}
+/* Cleanter's live answer under the Connect step. Version and printer name are Latin
+   identifiers, so they sit in mono and stay isolated whatever the page direction. */
+.stg-status{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px!important}
+.stg-status code{padding:2px 7px;border:var(--bw-hair) solid var(--line-2);border-radius:5px;
+  background:var(--surface-2);color:var(--ink);font-family:var(--font-mono);font-size:10.5px;font-weight:700}
+
 /* ---- responsive: 639 / 900 only — the ladder in theme.css. The three panes that
    share this shell (settings, loyalty, profile) all reflow at the same two places
    so they stay in step; see the TOUCH LAYER block for why there are only three
@@ -252,6 +314,8 @@ html[data-input="touch"] .order-status-toggle{min-height:var(--tap)}
   .stg-aside{position:static}
 }
 @media (max-width:639px){
+  .stg-step-scan{flex-direction:column;align-items:flex-start}
+  .stg-step-actions .btn{flex:1}
   .order-status-toggle .ost-label{display:none}
   .order-status-toggle{padding:8px}
   .stg-hero{flex-direction:column;align-items:flex-start;padding:14px}
@@ -259,3 +323,16 @@ html[data-input="touch"] .order-status-toggle{min-height:var(--tap)}
   .stg-mark{width:64px;height:64px;font-size:25px}
   .stg-mark.type{font-size:23px}
 }
+
+/* The one-line nudge under the printing-app picker when the recommended app is not the one
+   selected. It is advice, not a warning: accent text, no red, no border. */
+.stg-recommend{display:block;margin-top:5px;color:var(--accent-text);font-size:10.5px;font-weight:700}
+
+/* ---- the Serva Station offer, above the RawBT and Cleanter guides ----
+   Accent-tinted rather than red: what the café has still prints, so this is a better option
+   on the table, not a fault to fix. */
+.stg-offer{margin-bottom:14px;padding:15px 17px;border-radius:7px;
+  border:var(--bw-hair) solid color-mix(in srgb,var(--accent) 38%,transparent);
+  background:var(--accent-tint)}
+.stg-offer>b{display:block;color:var(--ink);font-size:13px;font-weight:900}
+.stg-offer>p{max-width:62ch;margin-top:5px;color:var(--muted);font-size:11.5px;line-height:1.55}

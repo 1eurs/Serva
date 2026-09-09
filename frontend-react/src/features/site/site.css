@@ -102,3 +102,63 @@
     animation: none !important;
   }
 }
+
+/* ---- form controls ------------------------------------------------ */
+/* Preflight is off, so inputs arrive with full UA styling — their own font,
+   rounded corners, and on iOS an inner shadow. Utilities can restyle the box
+   but not the font inheritance, so the reset lives here.
+   16px is deliberate and load-bearing: iOS Safari zooms the page on focus for
+   anything smaller, which on a phone reads as the form "jumping". */
+#neo input,
+#neo textarea {
+  font: inherit;
+  font-size: 16px;
+  color: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 0;
+  background-clip: padding-box;
+}
+/* ---- border-style ------------------------------------------------- */
+/* Tailwind's border-* utilities set width and colour but never style — preflight is what
+   normally declares `border-style: solid` on every element, and it is off here. So the
+   initial value wins: `none` on most elements, which also forces the computed width to 0,
+   and the UA's bevel on form controls (inset on inputs, outset on buttons) painted grey
+   whatever colour was asked for. On a page whose entire look is 4px black borders, that
+   silently dropped most of them.
+
+   border-width:0 must ride along: once the style is no longer `none`, the initial width
+   (`medium`, ~3px in currentColor) would apply to every element that never asked for a
+   border. The border-* utilities outrank this rule (#neo .border-4 beats #neo *), so the
+   ones that do ask still win. */
+#neo *,
+#neo *::before,
+#neo *::after {
+  border-width: 0;
+  border-style: solid;
+}
+
+#neo input::placeholder,
+#neo textarea::placeholder {
+  color: #15181c;
+  opacity: 0.35;
+  font-weight: 700;
+}
+/* The border already carries focus, but a hard ring keeps keyboard users
+   oriented where the shadow alone is too subtle against the accent band. */
+#neo input:focus-visible,
+#neo textarea:focus-visible {
+  outline: 3px solid #15181c;
+  outline-offset: 2px;
+}
+
+/* ---- honeypot ------------------------------------------------------ */
+/* Off-screen rather than display:none — some bots skip hidden inputs, and the
+   ones that don't will happily fill this and mark themselves. */
+.neo-hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}

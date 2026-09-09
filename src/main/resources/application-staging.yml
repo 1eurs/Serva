@@ -1,0 +1,31 @@
+# Staging profile — https://staging.serva.om on the Pi. Activate with
+# SPRING_PROFILES_ACTIVE=staging.
+#
+# Staging exists to catch what would otherwise be caught in production, which only works
+# if it behaves like production. So this is the prod profile, not the dev one: no SQL
+# echo, no DEBUG logging. The dev profile would be the obvious pick because it seeds an
+# admin, but it also logs every statement Hibernate makes — on a Pi with 3GB of disk
+# shared with another project, that fills the card, and it makes staging slow in a way
+# production is not, which then hides the timing problems staging is there to find.
+#
+# The one deliberate difference from prod: the bootstrap admin is seeded. Staging starts
+# from an empty database on purpose, and the production route in — registering the first
+# platform admin over HTTP — is a one-shot endpoint that would have to be re-run by hand
+# every time the volume is reset. Known credentials on a box that holds nothing but junk
+# data, and is reachable only through its own tunnel, is the right trade.
+spring:
+  jpa:
+    show-sql: false
+
+app:
+  bootstrap:
+    enabled: true
+    admin-email: admin@cafeqr.local
+    admin-password: Admin123!
+    admin-full-name: Platform Admin
+
+logging:
+  level:
+    com.cafeqr: INFO
+    org.hibernate.SQL: WARN
+    org.springframework.security: WARN

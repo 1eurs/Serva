@@ -252,7 +252,14 @@ button,a,label,summary,[role="button"],[role="tab"],input,select,textarea{
    behind it, and kills pull-to-refresh mid-service. */
 html,body{overscroll-behavior-y:none}
 a{color:inherit;text-decoration:none}
-.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+/* .num marks machine data. `unicode-bidi:isolate` keeps such a value from merging with
+   the neutral characters around it (a separator, a bullet, a bracket) when the page is in
+   Arabic, so a number can't be dragged out of position by its neighbours.
+   NOTE: deliberately no `direction:ltr` here. .num is a FONT class and is also applied to
+   mixed Arabic lines — ReceiptSheet's "الرقم الضريبي / VAT No: …" is a .num element — so
+   forcing LTR would break those. A value whose own internal order matters ("7:00-23:00",
+   "2×", "#128") must be wrapped in <Ltr> from lib/i18n; isolation alone cannot reorder it. */
+.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em;unicode-bidi:isolate}
 .mono-lbl{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.2em;font-size:11px}
 
 /* ---- buttons ---- */

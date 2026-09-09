@@ -8,11 +8,12 @@ import { deviceToken } from '../../lib/customerProfile';
 import { track } from '../../lib/analytics';
 import { discountPercent } from '../../lib/format';
 import { Money } from '../../lib/Money';
-import { useI18n, useT, pick, LangToggle, type Dict } from '../../lib/i18n';
+import { useI18n, useT, pick, nameOf, LangToggle, Ltr, type Dict } from '../../lib/i18n';
 import { useCartStore, useCart, qtyForItem, lineUnitPrice } from '../../lib/cart';
 import { useToast } from '../../lib/toast';
 import { useVenue, cartKeyOf, menuUrlOf, orderTypeFromPath } from './venue';
 import { readMenuCache, writeMenuCache } from './menuCache';
+import { parseMenuInfo, houseFacts } from './menuInfo';
 import { usePresence } from './usePresence';
 import { CustomerFrame } from './CustomerFrame';
 import { ItemDetailModal } from './ItemDetailModal';
@@ -106,6 +107,14 @@ export default function MenuPage() {
     enabled: !!slug && !!devTok,
     staleTime: 5 * 60_000,
   });
+
+  // The house card: the cafe in its own words, above the categories, in every layout.
+  // The note is strictly per-language — unlike a name, an absent note costs nothing, so a
+  // blank Arabic note shows no card to Arabic readers rather than an English paragraph.
+  const house = useMemo(() => parseMenuInfo(data?.restaurant?.menuInfoJson), [data?.restaurant?.menuInfoJson]);
+  const houseNote = lang === 'ar' ? house.noteAr : house.noteEn;
+  const facts = useMemo(() => houseFacts(data?.branch, data?.restaurant), [data?.branch, data?.restaurant]);
+  const showHouse = house.show && (!!houseNote || facts.length > 0);
 
   const itemsById = useMemo(() => {
     const m = new Map<number, PublicItem>();
@@ -207,9 +216,9 @@ export default function MenuPage() {
   }
 
   const r = data.restaurant;
-  const pickedRestaurantName = pick(r, 'name', lang);
-  const restaurantName = pickedRestaurantName || r.name;
-  const secondaryRestaurantName = pickedRestaurantName && r.name !== pickedRestaurantName ? r.name : null;
+  // One language per page: the café's name in the language the customer is reading, not the
+  // café's name in Arabic with an English subtitle underneath.
+  const restaurantName = nameOf(r, lang);
   return (
     <Frame restaurantTheme={data.restaurant.theme} restaurantThemeCustomJson={data.restaurant.themeCustomJson}>
       <header className="c-hdr">
@@ -220,7 +229,6 @@ export default function MenuPage() {
             </div>
             <div>
               <h1>{restaurantName}</h1>
-              {secondaryRestaurantName && <div className="en">{secondaryRestaurantName}</div>}
             </div>
           </div>
           <LangToggle />
@@ -231,7 +239,7 @@ export default function MenuPage() {
             : orderType === 'CAR'
               ? <span className="c-table">🚗 {t('car')}</span>
               : <span className="c-table">📋 {t('menuOnly')}</span>}
-          {data.branch && <span>{pick(data.branch, 'name', lang)}</span>}
+          {data.branch && <span>{nameOf(data.branch, lang)}</span>}
         </div>
       </header>
 
@@ -258,6 +266,22 @@ export default function MenuPage() {
       </nav>
 
       <main className="c-scroll" ref={scrollRef}>
+        {showHouse && (
+          <section className="c-house">
+            {houseNote && <p className="c-house-note">{houseNote}</p>}
+            {facts.length > 0 && (
+              <div className="c-house-facts">
+                {facts.map((f) => (f.href
+                  ? <a className="c-fact" key={f.key} href={f.href} target="_blank" rel="noreferrer">
+                      <span aria-hidden="true">{f.icon}</span>{f.ltr ? <Ltr>{f.text}</Ltr> : <bdi>{f.text}</bdi>}
+                    </a>
+                  : <span className="c-fact" key={f.key}>
+                      <span aria-hidden="true">{f.icon}</span>{f.ltr ? <Ltr>{f.text}</Ltr> : <bdi>{f.text}</bdi>}
+                    </span>))}
+              </div>
+            )}
+          </section>
+        )}
         {returning?.loyalty?.enabled && (() => {
           const loy = returning.loyalty!;
           const ready = loy.availableRewards > 0;
@@ -290,7 +314,7 @@ export default function MenuPage() {
                 <div className="c-last-items">
                   {lastItems.map((i) => (
                     <span className="c-last-chip" key={i.menuItemId}>
-                      <span className="num">{i.quantity}×</span> {lang === 'ar' ? (i.nameAr || i.nameEn) : (i.nameEn || i.nameAr)}
+                      <span className="num"><Ltr>{i.quantity}×</Ltr></span> {lang === 'ar' ? (i.nameAr || i.nameEn) : (i.nameEn || i.nameAr)}
                     </span>
                   ))}
                 </div>
@@ -347,7 +371,7 @@ export default function MenuPage() {
                             <Money value={it.price} className="c-was num" />
                           )}
                           <Money value={it.salePrice ?? it.price} className={'num' + (it.salePrice != null ? ' c-sale' : '')} />
-                          {it.salePrice != null && <span className="c-off">−{discountPercent(it.price, it.salePrice)}%</span>}
+                          {it.salePrice != null && <span className="c-off"><Ltr>−{discountPercent(it.price, it.salePrice)}%</Ltr></span>}
                           {hasOptions && <span className="c-from"> · {t('from')}</span>}
                         </div>
                         {it.preparationTimeMinutes ? <div className="c-prep">⏱ <span className="num">{it.preparationTimeMinutes}</span> {t('min')}</div> : null}

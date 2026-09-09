@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, ApiError } from '../../lib/api';
-import { useI18n, useT, pick, type Dict } from '../../lib/i18n';
-import { useToast } from '../../lib/toast';
-import { omr } from '../../lib/format';
+import { api, ApiError } from '../../../lib/api';
+import { useI18n, useT, pick, type Dict } from '../../../lib/i18n';
+import { useToast } from '../../../lib/toast';
+import { omr } from '../../../lib/format';
 import type {
   MenuItemResponse, RecipeLineRow, RecipeResponse, RecipeSavePayload,
   StockItemRow, StockMode,
-} from '../../lib/types';
+} from '../../../lib/types';
 import './stock.css';
-import NumField from './NumField';
+import NumField from '../NumField';
 
 const fill = (s: string, vars: Record<string, string | number>) =>
   Object.entries(vars).reduce((acc, [k, v]) => acc.replace(`{${k}}`, String(v)), s);
@@ -19,7 +19,7 @@ const qtyText = (n: number) => (Math.round(n * 10) / 10).toString();
 
 const DICT: Dict = {
   ar: {
-    title: 'المخزون والوصفة', close: 'إغلاق', save: 'حفظ',
+    title: 'وش تاخذ البيعة', close: 'إغلاق', save: 'حفظ',
     modeNone: 'بدون تتبع', modeNoneHint: 'لا يتأثر هذا الصنف بالمخزون.',
     modeLimit: 'حد يومي', modeLimitHint: '«١٢ قطعة فقط اليوم» — يُصفَّر تلقائياً كل صباح. بلا عدّ ولا وصفة.',
     modeSimple: 'يُشترى جاهزاً',
@@ -40,11 +40,12 @@ const DICT: Dict = {
     ALL: 'الكل', DINE_IN: 'داخلي', CAR: 'سيارة',
     optionExtras: 'إضافات الخيارات', optionHint: 'الخيارات تعمل على المخزون تماماً كما تعمل على السعر: فرق يُضاف للأساس. يمكن أن تكون الكمية سالبة.',
     cost: 'التكلفة', packagingCost: 'التغليف', price: 'السعر', foodCost: 'نسبة التكلفة', margin: 'الربح',
+    needCost: 'ما في سعر بعد لـ {n} من هذي — اكتب كم تدفع فيها في صفحة المخزون وتطلع لك التكلفة.',
     allergens: 'مسببات الحساسية', noStockItems: 'أضف أصنافاً في صفحة المخزون أولاً.',
     saved: 'تم الحفظ', saveFirst: 'احفظ الصنف أولاً ثم افتح الوصفة.',
   },
   en: {
-    title: 'Stock & recipe', close: 'Close', save: 'Save',
+    title: 'What a sale takes', close: 'Close', save: 'Save',
     modeNone: "Don't track", modeNoneHint: 'This item ignores stock entirely.',
     modeLimit: 'Daily limit', modeLimitHint: '"Only 12 today" — resets itself every morning. No counting, no recipe.',
     /* "Count these" pointed at nothing — you are editing one item, and the reader was
@@ -69,6 +70,7 @@ const DICT: Dict = {
     optionExtras: 'Option extras',
     optionHint: 'Options work on stock exactly the way they work on price: a delta on top of the base. Quantities may be negative — a Large that swaps the small cup out is −1 of it.',
     cost: 'Cost', packagingCost: 'Packaging', price: 'Price', foodCost: 'Food cost', margin: 'Margin',
+    needCost: 'No price yet for {n} of these — say what you pay on the Stock page and this fills in.',
     allergens: 'Allergens', noStockItems: 'Add some items on the Stock page first.',
     saved: 'Saved', saveFirst: 'Save the item first, then open its recipe.',
   },
@@ -200,7 +202,14 @@ export default function RecipeEditor({ item, branchId, onClose }: {
     return duplicate || scoped || untickable ? 'exact' : 'tick';
   };
   const [authorMode, setAuthorMode] = useState<'tick' | 'exact' | null>(null);
-  const author = authorMode ?? seedAuthor();
+  /* Seeded once, when both halves of the answer are in. Deciding on every render made the
+     view flip under the reader: the recipe arrives before the items do, and against an
+     empty item list every line looks untickable — so a perfectly ordinary recipe opened in
+     the exact editor for a moment and then jumped to the tick list. */
+  useEffect(() => {
+    if (authorMode == null && recipeQ.isSuccess && stockQ.isSuccess) setAuthorMode(seedAuthor());
+  }, [recipeQ.isSuccess, stockQ.isSuccess]);
+  const author = authorMode ?? 'tick';
   const setAuthor = (a: 'tick' | 'exact') => setAuthorMode(a);
 
   /* Two lists, not one: what is in the dish, and what could be. Chosen keeps the order the
@@ -260,7 +269,27 @@ export default function RecipeEditor({ item, branchId, onClose }: {
   const packCost = recipe?.packagingCost ?? 0;
   const price = recipe?.price ?? item.price;
   const shownCost = m === 'RECIPE' ? liveCost : (recipe?.plateCost ?? 0);
-  const foodCostPct = price > 0 && shownCost > 0 ? (shownCost / price) * 100 : null;
+
+  /**
+   * A price nobody has entered is not a price of zero.
+   *
+   * <p>An ingredient with no cost makes the whole plate cost unknowable, and every figure
+   * below it inherits that: the footer was reporting "Cost 0.000" and a full-price margin
+   * in green, which tells an owner their pour-over costs nothing to make and earns 100%.
+   * That is not a rounding problem, it is a confident false statement about their money —
+   * and it is worse than saying nothing, because it is the one number this panel exists to
+   * show. So an incomplete cost is shown as unknown, and the missing prices are named.
+   */
+  const unpriced = m === 'RECIPE'
+    ? recipeLines.filter((l) => {
+      const s = stockItems.find((x) => x.id === l.stockItemId);
+      return !s || !(s.costPerBaseUnit > 0);
+    })
+    : [];
+  const costKnown = m === 'RECIPE'
+    ? recipeLines.length > 0 && unpriced.length === 0
+    : shownCost > 0;
+  const foodCostPct = costKnown && price > 0 && shownCost > 0 ? (shownCost / price) * 100 : null;
   const margin = price - shownCost - packCost;
 
   const save = useMutation({
@@ -416,7 +445,7 @@ export default function RecipeEditor({ item, branchId, onClose }: {
                               <button key={s.id} type="button" className="stk-tick stk-tick-opt"
                                 onClick={() => toggleTick(s)}>
                                 <span className="stk-tick-box" aria-hidden>+</span>
-                                <span className="stk-tick-name">{pick(s, 'name', lang)}</span>
+                                <span className="stk-tick-name" dir="auto">{pick(s, 'name', lang)}</span>
                                 <span className="stk-tick-ghost num">{qtyText(servingQty(s))} {unit}</span>
                                 <span className="stk-tick-cost num">
                                   {s.servingCost ? omr(s.servingCost) : '—'}
@@ -475,7 +504,7 @@ export default function RecipeEditor({ item, branchId, onClose }: {
 
           {m !== 'NONE' && allOptions.length > 0 && (
             <div className="stk-optgroup">
-              <h4>{t('optionExtras')}</h4>
+              <h4 className="stk-sec-h">{t('optionExtras')}</h4>
               <p className="stk-hint">{t('optionHint')}</p>
               {allOptions.map(({ option }) => {
                 const id = option.id!;
@@ -522,16 +551,26 @@ export default function RecipeEditor({ item, branchId, onClose }: {
 
           {/* The payoff: cost, food-cost % and margin, live as you type. */}
           {m !== 'NONE' && (
-            <div className="stk-cost">
-              <div><span>{t('cost')}</span><b>{omr(shownCost)}</b></div>
-              {packCost > 0 && <div><span>{t('packagingCost')}</span><b>{omr(packCost)}</b></div>}
-              <div><span>{t('price')}</span><b>{omr(price)}</b></div>
-              <div><span>{t('foodCost')}</span>
-                <b className={foodCostPct == null ? '' : foodCostPct <= 25 ? 'good' : foodCostPct <= 40 ? 'warn' : 'bad'}>
-                  {foodCostPct == null ? '—' : `${foodCostPct.toFixed(1)}%`}
-                </b></div>
-              <div><span>{t('margin')}</span><b className={margin > 0 ? 'good' : 'bad'}>{omr(margin)}</b></div>
-            </div>
+            <>
+              {unpriced.length > 0 && (
+                <p className="stk-hint">{fill(t('needCost'), { n: unpriced.length })}</p>
+              )}
+              <div className="stk-cost">
+                <div><span>{t('cost')}</span><b>{costKnown ? omr(shownCost) : '—'}</b></div>
+                {packCost > 0 && <div><span>{t('packagingCost')}</span><b>{omr(packCost)}</b></div>}
+                <div><span>{t('price')}</span><b>{omr(price)}</b></div>
+                <div><span>{t('foodCost')}</span>
+                  <b className={foodCostPct == null ? '' : foodCostPct <= 25 ? 'good' : foodCostPct <= 40 ? 'warn' : 'bad'}>
+                    {foodCostPct == null ? '—' : `${foodCostPct.toFixed(1)}%`}
+                  </b></div>
+                {/* Margin is price minus cost, so an unknown cost makes it unknown too —
+                    printing the whole price here was the same false 100% by another name. */}
+                <div><span>{t('margin')}</span>
+                  <b className={!costKnown ? '' : margin > 0 ? 'good' : 'bad'}>
+                    {costKnown ? omr(margin) : '—'}
+                  </b></div>
+              </div>
+            </>
           )}
         </div>
 
@@ -562,7 +601,7 @@ function IngredientRow({ s, lang, t, amount, onAmount, onRemove }: {
     <div className="stk-tick on">
       <span className="stk-tick-hit as-label">
         <span className="stk-tick-box" aria-hidden>✓</span>
-        <span className="stk-tick-name">{name}</span>
+        <span className="stk-tick-name" dir="auto">{name}</span>
       </span>
       <span className="stk-tick-amt">
         <NumField step="0.1" value={amount} aria-label={`${name} — ${unit}`} onValue={onAmount} />

@@ -30,3 +30,7 @@ dist/
 .vite/
 *.tsbuildinfo
 .DS_Store
+
+# Built by deploy.sh and rsynced to the hosts — never committed.
+deploy/dist/
+deploy/.env.staging

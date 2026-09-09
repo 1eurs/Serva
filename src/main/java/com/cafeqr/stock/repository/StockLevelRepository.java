@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,6 +19,14 @@ public interface StockLevelRepository extends JpaRepository<StockLevel, StockLev
     List<StockLevel> findByBranchIdAndStockItemIdIn(Long branchId, List<Long> stockItemIds);
 
     Optional<StockLevel> findByStockItemIdAndBranchId(Long stockItemId, Long branchId);
+
+    /**
+     * On-hand for one item summed over every branch holding it. A level row is only ever
+     * created for a branch of the item's own restaurant, so this is the restaurant-wide
+     * figure without needing to join branches.
+     */
+    @Query("select coalesce(sum(l.quantityBase), 0) from StockLevel l where l.stockItemId = :stockItemId")
+    BigDecimal totalOnHand(@Param("stockItemId") Long stockItemId);
 
     /**
      * Locking read used on every consumption path. Two orders drawing the same ingredient

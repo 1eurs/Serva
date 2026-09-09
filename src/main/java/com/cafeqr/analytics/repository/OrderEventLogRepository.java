@@ -12,13 +12,17 @@ public interface OrderEventLogRepository extends JpaRepository<OrderEventLog, Lo
 
     /**
      * Per-staff transition stats for the leaderboard. Rows:
-     * {@code [actorUserId, actorName, accepted, declined, completed, avgAcceptSeconds]}.
+     * {@code [actorUserId, actorName, actorNameEn, actorNameAr, accepted, declined, completed,
+     * avgAcceptSeconds]}. The two bilingual names come from {@code users}, not the event snapshot,
+     * so a staff member who has since been given their other-script name shows it here too.
      * Latency is seconds from order creation to the staff member's ACCEPTED event.
      * When {@code branchId} is null, stats span every branch in the restaurant.
      */
     @Query(value = """
             SELECT oe.actor_user_id,
                    MAX(oe.actor_name) AS actor_name,
+                   MAX(u.full_name_en) AS actor_name_en,
+                   MAX(u.full_name_ar) AS actor_name_ar,
                    COUNT(*) FILTER (WHERE oe.event_type = 'ACCEPTED')  AS accepted,
                    COUNT(*) FILTER (WHERE oe.event_type IN ('DECLINED', 'CANCELLED')) AS declined,
                    COUNT(*) FILTER (WHERE oe.event_type = 'COMPLETED') AS completed,
@@ -26,6 +30,7 @@ public interface OrderEventLogRepository extends JpaRepository<OrderEventLog, Lo
                        FILTER (WHERE oe.event_type = 'ACCEPTED')       AS avg_accept_seconds
             FROM order_events oe
             JOIN orders o ON o.id = oe.order_id
+            LEFT JOIN users u ON u.id = oe.actor_user_id
             WHERE oe.restaurant_id = :restaurantId
               AND (:branchId IS NULL OR o.branch_id = :branchId)
               AND oe.actor_user_id IS NOT NULL

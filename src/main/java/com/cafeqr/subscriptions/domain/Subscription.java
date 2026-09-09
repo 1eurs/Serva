@@ -1,6 +1,7 @@
 package com.cafeqr.subscriptions.domain;
 
 import com.cafeqr.common.domain.BaseEntity;
+import com.cafeqr.restaurants.domain.Plan;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -18,8 +19,18 @@ public class Subscription extends BaseEntity {
     @Column(name = "restaurant_id", nullable = false)
     private Long restaurantId;
 
-    @Column(name = "plan_name", nullable = false)
-    private String planName;
+    /**
+     * The tier this subscription buys — the single source of truth for what the café can open.
+     * {@code restaurants.plan} mirrors it and {@link com.cafeqr.analytics.Entitlements} reads
+     * that mirror, so this field is the only place a tier is decided.
+     *
+     * <p>Orthogonal to {@link #billingCycle}: "Pro" is a tier, "Annual" and "Lifetime" are
+     * cycles. The free-text {@code plan_name} it replaces held both at once, which is how a
+     * café came to be gated as PRO while its subscription said "Standard".
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tier", nullable = false, length = 20)
+    private Plan tier;
 
     /** Price per billing cycle (or the one-off amount when {@code billingCycle = ONE_TIME}). */
     @Column(name = "price", nullable = false)
@@ -68,12 +79,12 @@ public class Subscription extends BaseEntity {
         this.restaurantId = restaurantId;
     }
 
-    public String getPlanName() {
-        return planName;
+    public Plan getTier() {
+        return tier;
     }
 
-    public void setPlanName(String planName) {
-        this.planName = planName;
+    public void setTier(Plan tier) {
+        this.tier = tier;
     }
 
     public BigDecimal getPrice() {

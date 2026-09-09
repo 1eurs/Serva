@@ -1,0 +1,11 @@
+-- Counter mode: the quick-service posture for small, fast cafés.
+--
+-- In this posture the order is taken at the counter (usually paid on the spot), a ticket
+-- prints the moment it is placed and the kitchen works off that paper. The board is then
+-- just the "waiting to be handed over" list, and payment is what moves an order along it:
+-- a staff order paid at the counter opens straight in READY and leaves by itself after a
+-- while; one not paid yet waits in ACCEPTED as an open tab until a Collect tap pays it.
+--
+-- Branch-level, next to printer_enabled: the same café can run one counter and one
+-- sit-down branch.
+ALTER TABLE branches ADD COLUMN counter_mode BOOLEAN NOT NULL DEFAULT FALSE;

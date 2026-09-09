@@ -1,6 +1,7 @@
 package com.cafeqr.restaurants.domain;
 
 import com.cafeqr.common.domain.BaseEntity;
+import com.cafeqr.common.domain.BilingualNamed;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -11,10 +12,21 @@ import java.math.BigDecimal;
 
 @Entity
 @Table(name = "restaurants")
-public class Restaurant extends BaseEntity {
+public class Restaurant extends BaseEntity implements BilingualNamed {
 
     @Column(name = "name", nullable = false)
     private String name;
+
+    /**
+     * The café's name in each language, mirroring how every menu item is named. Either may be
+     * null — plenty of cafés have only ever written their name one way — and the reader falls
+     * back to the other rather than showing an empty header.
+     */
+    @Column(name = "name_en", length = 150)
+    private String nameEn;
+
+    @Column(name = "name_ar", length = 150)
+    private String nameAr;
 
     @Column(name = "slug", nullable = false)
     private String slug;
@@ -72,9 +84,13 @@ public class Restaurant extends BaseEntity {
     @Column(name = "receipt_settings_json")
     private String receiptSettingsJson;
 
-    /** Premium "Pro look" entitlement — unlocks the advanced theme editor for this café. */
-    @Column(name = "premium_look", nullable = false)
-    private boolean premiumLook = false;
+    /**
+     * The house card shown at the top of the public menu (show flag + bilingual note),
+     * as a frontend-owned JSON document. NULL = no card. Kept out of the theme document
+     * on purpose: this is the café's content, not its paint.
+     */
+    @Column(name = "menu_info_json")
+    private String menuInfoJson;
 
     /** Pricing tier — gates Pro analytics features. Defaults to PRO on rollout. */
     @Enumerated(EnumType.STRING)
@@ -90,6 +106,53 @@ public class Restaurant extends BaseEntity {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    @Override
+    public String getNameEn() {
+        return nameEn;
+    }
+
+    @Override
+    public void setNameEn(String nameEn) {
+        this.nameEn = blankToNull(nameEn);
+        syncLegacyName();
+    }
+
+    @Override
+    public String getNameAr() {
+        return nameAr;
+    }
+
+    @Override
+    public void setNameAr(String nameAr) {
+        this.nameAr = blankToNull(nameAr);
+        syncLegacyName();
+    }
+
+    /** The name to print where only one will fit — a receipt, a loyalty card, an email subject. */
+    public String displayName() {
+        return nameAr != null ? nameAr : (nameEn != null ? nameEn : name);
+    }
+
+    /**
+     * Keeps the legacy single {@code name} column in step with the bilingual pair, so the
+     * callers still reading it (receipts, loyalty portal, onboarding emails) never see a name
+     * the owner has since changed. Arabic wins because that is what a café here prints.
+     */
+    private void syncLegacyName() {
+        String primary = nameAr != null ? nameAr : nameEn;
+        if (primary != null) {
+            this.name = primary;
+        }
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     public String getSlug() {
@@ -204,12 +267,12 @@ public class Restaurant extends BaseEntity {
         this.receiptSettingsJson = receiptSettingsJson;
     }
 
-    public boolean isPremiumLook() {
-        return premiumLook;
+    public String getMenuInfoJson() {
+        return menuInfoJson;
     }
 
-    public void setPremiumLook(boolean premiumLook) {
-        this.premiumLook = premiumLook;
+    public void setMenuInfoJson(String menuInfoJson) {
+        this.menuInfoJson = menuInfoJson;
     }
 
     public Plan getPlan() {

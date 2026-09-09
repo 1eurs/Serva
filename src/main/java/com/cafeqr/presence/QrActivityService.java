@@ -8,6 +8,7 @@ import com.cafeqr.orders.domain.OrderStatus;
 import com.cafeqr.orders.domain.OrderType;
 import com.cafeqr.menus.domain.MenuItem;
 import com.cafeqr.menus.repository.MenuItemRepository;
+import com.cafeqr.auth.security.SecurityUtils;
 import com.cafeqr.orders.realtime.OrderStreamService;
 import com.cafeqr.orders.repository.OrderRepository;
 import com.cafeqr.presence.dto.LiveCount;
@@ -68,7 +69,9 @@ public class QrActivityService {
     /** Live SSE stream — pushes a fresh snapshot whenever the branch's activity changes. */
     public SseEmitter streamForDashboard(Long requestedBranchId) {
         Long branchId = resolveAccessibleBranch(requestedBranchId);
-        SseEmitter emitter = streamService.subscribe(OrderStreamService.qaChannel(branchId == null ? 0L : branchId));
+        SseEmitter emitter = streamService.subscribe(
+                OrderStreamService.qaChannel(branchId == null ? 0L : branchId),
+                SecurityUtils.currentUserIdOrNull());
         try {
             emitter.send(SseEmitter.event().name("qr-activity").data(branchId == null ? empty() : snapshot(branchId)));
         } catch (IOException ignored) {

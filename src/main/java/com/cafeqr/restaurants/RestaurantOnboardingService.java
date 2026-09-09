@@ -8,6 +8,8 @@ import com.cafeqr.common.exception.BadRequestException;
 import com.cafeqr.common.exception.ConflictException;
 import com.cafeqr.common.exception.ErrorCode;
 import com.cafeqr.common.exception.ResourceNotFoundException;
+import com.cafeqr.common.util.Names;
+import com.cafeqr.common.util.Pasted;
 import com.cafeqr.notifications.email.EmailMessage;
 import com.cafeqr.notifications.email.EmailSender;
 import com.cafeqr.notifications.email.EmailTemplate;
@@ -15,6 +17,7 @@ import com.cafeqr.restaurants.domain.Plan;
 import com.cafeqr.restaurants.domain.Restaurant;
 import com.cafeqr.restaurants.dto.CreateRestaurantRequest;
 import com.cafeqr.restaurants.dto.RestaurantResponse;
+import com.cafeqr.subscriptions.SubscriptionService;
 import com.cafeqr.subscriptions.domain.BillingCycle;
 import com.cafeqr.subscriptions.domain.PaymentMethod;
 import com.cafeqr.subscriptions.domain.Subscription;
@@ -51,6 +54,7 @@ public class RestaurantOnboardingService {
     private final BranchRepository branchRepository;
     private final UserRepository userRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final SubscriptionService subscriptionService;
     private final PasswordEncoder passwordEncoder;
     private final AppProperties props;
     private final EmailSender email;
@@ -60,6 +64,7 @@ public class RestaurantOnboardingService {
                                       BranchRepository branchRepository,
                                       UserRepository userRepository,
                                       SubscriptionRepository subscriptionRepository,
+                                      SubscriptionService subscriptionService,
                                       PasswordEncoder passwordEncoder,
                                       AppProperties props,
                                       EmailSender email) {
@@ -68,6 +73,7 @@ public class RestaurantOnboardingService {
         this.branchRepository = branchRepository;
         this.userRepository = userRepository;
         this.subscriptionRepository = subscriptionRepository;
+        this.subscriptionService = subscriptionService;
         this.passwordEncoder = passwordEncoder;
         this.props = props;
         this.email = email;
@@ -83,7 +89,7 @@ public class RestaurantOnboardingService {
         if (request.owner() != null
                 && request.owner().email() != null
                 && !request.owner().email().isBlank()
-                && userRepository.existsByEmailIgnoreCase(request.owner().email())) {
+                && userRepository.existsByEmailIgnoreCase(Pasted.identifier(request.owner().email()))) {
             throw new ConflictException(ErrorCode.EMAIL_ALREADY_EXISTS, "Email already registered");
         }
 
@@ -94,7 +100,7 @@ public class RestaurantOnboardingService {
         if (request.owner() != null) {
             CreateRestaurantRequest.Owner o = request.owner();
             User owner = new User();
-            owner.setFullName(o.fullName());
+            Names.applyOnCreate(owner, o.fullName(), o.fullNameEn(), o.fullNameAr());
             owner.setEmail(o.email());
             owner.setPhone(o.phone());
             owner.setUsername(o.email());
@@ -106,20 +112,27 @@ public class RestaurantOnboardingService {
             userRepository.save(owner);
         }
 
-        // First branch — defaults to the restaurant name. Let the owner rename it later.
-        String branchName = (request.defaultBranchName() == null || request.defaultBranchName().isBlank())
-                ? restaurant.name() : request.defaultBranchName();
-        branchService.create(restaurantId, new com.cafeqr.branches.dto.CreateBranchRequest(
-                branchName, null, null, null));
+        // First branch — defaults to the café's name in both languages, so a branch nobody has
+        // renamed yet reads correctly in either UI. An explicit name is filed by its own script.
+        boolean namedByAdmin = request.defaultBranchName() != null && !request.defaultBranchName().isBlank();
+        branchService.create(restaurantId, namedByAdmin
+                ? new com.cafeqr.branches.dto.CreateBranchRequest(
+                        request.defaultBranchName(), null, null, null, null, null)
+                : new com.cafeqr.branches.dto.CreateBranchRequest(
+                        null, restaurant.nameEn(), restaurant.nameAr(), null, null, null));
 
         // Create a TRIAL subscription so the drawer has something to renew/extend.
         // The admin edits the price/cycle/status in the drawer afterwards.
-        AppProperties.Billing billing = props.billing();
         Subscription subscription = new Subscription();
         subscription.setRestaurantId(restaurantId);
-        subscription.setPlanName(billing != null && billing.planName() != null ? billing.planName() : "Annual");
+        // The tier the café was created on. It used to be the config's billing.planName, which
+        // defaulted to "Annual" — a billing cycle written into the plan field, next to the
+        // billing_cycle column set on the very next line.
+        subscription.setTier(restaurant.plan() != null ? restaurant.plan() : Plan.STANDARD);
         subscription.setBillingCycle(BillingCycle.YEARLY);
-        subscription.setPrice(billing != null && billing.price() != null ? billing.price() : BigDecimal.ZERO);
+        // The tier's list price for this cycle — the same rule the subscription editor applies.
+        // This used to be app.billing.price (29.000), a number belonging to no tier at all.
+        subscription.setPrice(subscriptionService.listPrice(subscription.getTier(), BillingCycle.YEARLY));
         subscription.setStatus(SubscriptionStatus.TRIAL);
         subscription.setStartDate(LocalDate.now());
         subscription.setEndDate(LocalDate.now(ZoneId.systemDefault()).plusMonths(termMonths()));
@@ -128,21 +141,25 @@ public class RestaurantOnboardingService {
 
         // Best-effort "you're live" email — failures skip silently (the café is still provisioned).
         if (request.owner() != null && request.owner().email() != null) {
+            String enName = Names.preferring(restaurant.nameEn(), restaurant.nameAr(), restaurant.name(), false);
+            String arName = Names.preferring(restaurant.nameEn(), restaurant.nameAr(), restaurant.name(), true);
+            String ownerEn = Names.preferring(request.owner().fullNameEn(), request.owner().fullNameAr(), request.owner().fullName(), false);
+            String ownerAr = Names.preferring(request.owner().fullNameEn(), request.owner().fullNameAr(), request.owner().fullName(), true);
             try {
                 email.send(new EmailMessage(request.owner().email(),
-                        "Welcome to Serva. — " + restaurant.name() + " is live",
+                        "Welcome to Serva. — " + enName + " is live",
                         EmailTemplate.build()
-                                .line("Hi <strong>" + request.owner().fullName() + "</strong>,")
-                                .line("Your café <strong>" + restaurant.name() + "</strong> is set up on Serva.")
+                                .line("Hi <strong>" + ownerEn + "</strong>,")
+                                .line("Your café <strong>" + enName + "</strong> is set up on Serva.")
                                 .line("Sign in with the email you gave the Serva team to start taking orders.")
                                 .button((props.publicBaseUrl() != null ? props.publicBaseUrl() : "") + "/login",
                                         "Sign in")
                                 .divider().rtl()
-                                .line("مرحباً <strong>" + request.owner().fullName() + "</strong>،")
-                                .line("مقهك <strong>" + restaurant.name() + "</strong> أصبح جاهزاً على Serva.")
+                                .line("مرحباً <strong>" + ownerAr + "</strong>،")
+                                .line("مقهاك <strong>" + arName + "</strong> أصبح جاهزاً على Serva.")
                                 .line("سجّل الدخول بالبريد الذي أعطيته لفريق Serva لبدء استقبال الطلبات.")
                                 .html(),
-                        "Welcome to Serva — " + restaurant.name() + " is live.\n— Serva"));
+                        "Welcome to Serva — " + enName + " is live.\n— Serva"));
             } catch (Exception ignored) { /* send is best-effort */ }
         }
 
@@ -172,18 +189,20 @@ public class RestaurantOnboardingService {
         activateOwners(restaurantId);
 
         // Best-effort "renewed" email to the owner.
+        String enName = Names.preferring(restaurant.nameEn(), restaurant.nameAr(), restaurant.name(), false);
+        String arName = Names.preferring(restaurant.nameEn(), restaurant.nameAr(), restaurant.name(), true);
         ownerOf(restaurantId).ifPresent(owner -> {
             if (owner.getEmail() == null || owner.getEmail().isBlank()) return;
             try {
                 email.send(new EmailMessage(owner.getEmail(),
-                        "Your Serva subscription is renewed — " + restaurant.name(),
+                        "Your Serva subscription is renewed — " + enName,
                         EmailTemplate.build()
-                                .line("Hi <strong>" + owner.getFullName() + "</strong>,")
-                                .line("Your subscription for <strong>" + restaurant.name() + "</strong> is renewed.")
+                                .line("Hi <strong>" + Names.preferring(owner.getFullNameEn(), owner.getFullNameAr(), owner.getFullName(), false) + "</strong>,")
+                                .line("Your subscription for <strong>" + enName + "</strong> is renewed.")
                                 .line("You're live until <strong>" + newEnd + "</strong>.")
                                 .divider().rtl()
-                                .line("مرحباً <strong>" + owner.getFullName() + "</strong>،")
-                                .line("تم تجديد اشتراكك لمقهى <strong>" + restaurant.name() + "</strong>.")
+                                .line("مرحباً <strong>" + Names.preferring(owner.getFullNameEn(), owner.getFullNameAr(), owner.getFullName(), true) + "</strong>،")
+                                .line("تم تجديد اشتراكك لمقهى <strong>" + arName + "</strong>.")
                                 .line("أنت نشط حتى <strong>" + newEnd + "</strong>.")
                                 .html(),
                         "Your Serva subscription is renewed — live until " + newEnd + ".\n— Serva"));

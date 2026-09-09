@@ -1,7 +1,9 @@
 package com.cafeqr.orders.print;
 
 import com.cafeqr.common.api.ApiResponse;
+import com.cafeqr.orders.print.dto.EnqueueResponse;
 import com.cafeqr.orders.print.dto.PrintJobResponse;
+import com.cafeqr.orders.print.dto.StationStatusResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -26,10 +28,28 @@ public class PrintJobController {
         this.printJobService = printJobService;
     }
 
-    @Operation(summary = "Pending receipt print jobs for a branch (print-station pull)")
+    @Operation(summary = "Read-only view of what is waiting to print (changes nothing)")
     @GetMapping
     public ApiResponse<List<PrintJobResponse>> pending(@RequestParam Long branchId) {
         return ApiResponse.ok(printJobService.pendingForBranch(branchId));
+    }
+
+    @Operation(summary = "Print-station poll: claims and returns the jobs this device should print now")
+    @PostMapping("/pull")
+    public ApiResponse<List<PrintJobResponse>> pull(@RequestParam Long branchId, @RequestParam String stationId) {
+        return ApiResponse.ok(printJobService.pull(branchId, stationId));
+    }
+
+    @Operation(summary = "Hand an order to the branch's print station (device that cannot print itself)")
+    @PostMapping
+    public ApiResponse<EnqueueResponse> enqueue(@RequestParam Long orderId) {
+        return ApiResponse.ok(printJobService.enqueueOnDemand(orderId));
+    }
+
+    @Operation(summary = "Whether any device is collecting this branch's print jobs, and how many wait")
+    @GetMapping("/station")
+    public ApiResponse<StationStatusResponse> station(@RequestParam Long branchId) {
+        return ApiResponse.ok(printJobService.stationStatus(branchId));
     }
 
     @Operation(summary = "Acknowledge a print job after the receipt was handed to the printer")

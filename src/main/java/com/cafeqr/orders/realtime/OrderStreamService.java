@@ -3,6 +3,8 @@ package com.cafeqr.orders.realtime;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.cafeqr.users.event.StaffAccessChangedEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -34,7 +36,15 @@ public class OrderStreamService {
     // dead connections are reaped by the 20s heartbeat the moment a send fails.
     private static final long TIMEOUT_MS = 6 * 60 * 60 * 1000L; // 6 hours
 
-    private final Map<String, List<SseEmitter>> channels = new ConcurrentHashMap<>();
+    private final Map<String, List<Subscriber>> channels = new ConcurrentHashMap<>();
+
+    /**
+     * One open connection, and the staff account it was opened for.
+     *
+     * <p>Null for a customer's order-tracking stream: that one is opened with a tracking token
+     * rather than a login, so there is no account to revoke.
+     */
+    private record Subscriber(SseEmitter emitter, Long userId) {}
 
     public static String restaurantChannel(Long restaurantId) {
         return "restaurant:" + restaurantId;
@@ -54,13 +64,23 @@ public class OrderStreamService {
     }
 
     public boolean hasSubscribers(String channel) {
-        List<SseEmitter> emitters = channels.get(channel);
-        return emitters != null && !emitters.isEmpty();
+        List<Subscriber> subscribers = channels.get(channel);
+        return subscribers != null && !subscribers.isEmpty();
     }
 
+    /** A stream nobody signs in for — a customer watching their own order. */
     public SseEmitter subscribe(String channel) {
+        return subscribe(channel, null);
+    }
+
+    /**
+     * @param userId the staff account this stream belongs to, so it can be cut when that
+     *               account's access changes; null for an anonymous customer stream.
+     */
+    public SseEmitter subscribe(String channel, Long userId) {
         SseEmitter emitter = new SseEmitter(TIMEOUT_MS);
-        channels.computeIfAbsent(channel, key -> new CopyOnWriteArrayList<>()).add(emitter);
+        channels.computeIfAbsent(channel, key -> new CopyOnWriteArrayList<>())
+                .add(new Subscriber(emitter, userId));
 
         emitter.onCompletion(() -> remove(channel, emitter));
         emitter.onTimeout(() -> remove(channel, emitter));
@@ -74,17 +94,51 @@ public class OrderStreamService {
         return emitter;
     }
 
-    public void publish(String channel, OrderEvent event) {
-        List<SseEmitter> emitters = channels.get(channel);
-        if (emitters == null || emitters.isEmpty()) {
+    /**
+     * Closes every stream held open for one staff account.
+     *
+     * <p>A request is re-checked against the account row every time; a stream is checked once,
+     * when it opens, and then talks for up to six hours. So deactivating someone mid-shift left
+     * the tablet in their hand still filling with live orders — read-only, since every action
+     * they took was refused, but the board was still theirs to watch. Cutting the connection
+     * hands it back to the ordinary rules: the browser reconnects, needs a fresh ticket, and the
+     * ticket needs an account that still exists.
+     */
+    public void disconnectStaff(Long userId) {
+        if (userId == null) {
             return;
         }
-        for (SseEmitter emitter : emitters) {
+        channels.forEach((channel, subscribers) -> {
+            for (Subscriber subscriber : subscribers) {
+                if (userId.equals(subscriber.userId())) {
+                    subscribers.remove(subscriber);
+                    try {
+                        subscriber.emitter().complete();
+                    } catch (Exception e) {
+                        log.debug("Closing stream on {} for user {}: {}", channel, userId, e.getMessage());
+                    }
+                }
+            }
+        });
+    }
+
+    /** Access changed for a member: let go of anything still open in their name. */
+    @EventListener
+    public void onStaffAccessChanged(StaffAccessChangedEvent event) {
+        disconnectStaff(event.userId());
+    }
+
+    public void publish(String channel, OrderEvent event) {
+        List<Subscriber> subscribers = channels.get(channel);
+        if (subscribers == null || subscribers.isEmpty()) {
+            return;
+        }
+        for (Subscriber subscriber : subscribers) {
             try {
-                emitter.send(SseEmitter.event().name(event.type()).data(event.data()));
+                subscriber.emitter().send(SseEmitter.event().name(event.type()).data(event.data()));
             } catch (Exception e) {
                 log.debug("Dropping dead SSE emitter on {}: {}", channel, e.getMessage());
-                remove(channel, emitter);
+                remove(channel, subscriber.emitter());
             }
         }
     }
@@ -103,12 +157,12 @@ public class OrderStreamService {
      */
     @Scheduled(fixedDelay = 20_000L)
     public void heartbeat() {
-        channels.forEach((channel, emitters) -> {
-            for (SseEmitter emitter : emitters) {
+        channels.forEach((channel, subscribers) -> {
+            for (Subscriber subscriber : subscribers) {
                 try {
-                    emitter.send(SseEmitter.event().comment("ping"));
+                    subscriber.emitter().send(SseEmitter.event().comment("ping"));
                 } catch (Exception e) {
-                    remove(channel, emitter);
+                    remove(channel, subscriber.emitter());
                 }
             }
         });
@@ -126,9 +180,9 @@ public class OrderStreamService {
     }
 
     private void remove(String channel, SseEmitter emitter) {
-        List<SseEmitter> emitters = channels.get(channel);
-        if (emitters != null) {
-            emitters.remove(emitter);
+        List<Subscriber> subscribers = channels.get(channel);
+        if (subscribers != null) {
+            subscribers.removeIf(subscriber -> subscriber.emitter().equals(emitter));
         }
     }
 }

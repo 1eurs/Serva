@@ -1,0 +1,107 @@
+/* Menu layouts — the customer menu's information architecture.
+   A different axis from menu-themes.css: that file decides what the menu looks like,
+   this one decides what it *is*. Selected by data-menu-layout on the .cust-bg shell
+   (menuStructuralAttrs), so it composes with every palette, card style and skin.
+
+   Rules here read ONLY palette tokens (--surface, --line, --accent, --r-*), never a
+   literal colour, which is what lets all sixteen looks inherit a layout for free.
+
+   "list" is the original layout and has no rules here at all — it IS customer.css.
+   A theme document without the field parses to 'list', so nothing saved before this
+   file existed can change appearance. */
+
+
+/* ============================================================ gallery
+   Full-bleed photography, one item per card. The item photo stops being a 82px
+   thumbnail beside the text and becomes the thing the card is built around.
+
+   Note this needs no markup change: the row is already <thumb> + <body>, so the
+   layout is entirely a matter of which direction that stacks and how big the photo
+   is allowed to get. (A no-photo layout would be the opposite — it has to branch in
+   TSX, because display:none still downloads every image.) */
+
+[data-menu-layout="gallery"] .c-cat {
+  padding-inline: 14px;
+}
+
+[data-menu-layout="gallery"] .c-item {
+  display: block;
+  padding: 0;
+  margin-bottom: 16px;
+  /* deliberately NOT overflow:hidden — .c-item::after is the decor sticker, which
+     hangs 8px above the card and must not be clipped. The photo rounds its own
+     top corners instead. */
+}
+
+/* Scoped to .c-item, not to .c-thumb alone. The basket reuses .c-thumb for the little
+   square beside each cart line (.c-line > .c-thumb), and an unscoped rule handed that
+   square `width:100%` + a 16/10 ratio inside a flex row — which pushed the line wider
+   than the phone and left the checkout page scrolling sideways. .c-item is what makes a
+   thumbnail a menu photo; the basket's is a different thing wearing the same class. */
+[data-menu-layout="gallery"] .c-item .c-thumb {
+  flex: none;
+  display: block;
+  width: 100%;
+  /* Ratio, not a height: the frame then scales with the card on every posture and in
+     the dashboard's preview phone, and can never squash. A viewport unit would be
+     wrong here — .phone is a max-width:440px component, so vw measures the wrong box
+     and a container query would mean giving .phone a container-type it doesn't need. */
+  height: auto;
+  aspect-ratio: 16 / 10;
+  /* -1px so the photo sits inside the card's 1px border instead of overhanging it */
+  border-radius: calc(var(--r-card, var(--r-md)) - 1px) calc(var(--r-card, var(--r-md)) - 1px) 0 0;
+  box-shadow: none;
+}
+
+/* the thumbnail img is square-locked for the list; let it fill the wider frame */
+[data-menu-layout="gallery"] .c-item .c-thumb img {
+  aspect-ratio: auto;
+}
+
+/* no-photo items fall back to the generated gradient + initial: scale the initial up
+   with the frame so it reads as a deliberate placeholder rather than a lost image */
+[data-menu-layout="gallery"] .c-item .c-thumb .glyph {
+  font-size: 64px;
+}
+
+[data-menu-layout="gallery"] .c-item .c-thumb-more {
+  inset-block-end: 10px;
+  inset-inline-end: 10px;
+}
+
+[data-menu-layout="gallery"] .c-body {
+  padding: 12px 14px 13px;
+}
+
+[data-menu-layout="gallery"] .c-body h3 {
+  font-size: 19px;
+  line-height: 1.2;
+}
+
+/* the card is wide now, so the description gets a third line before it clamps */
+[data-menu-layout="gallery"] .c-body p {
+  font-size: 13px;
+  -webkit-line-clamp: 3;
+}
+
+[data-menu-layout="gallery"] .c-foot {
+  padding-top: 11px;
+}
+
+[data-menu-layout="gallery"] .c-price {
+  font-size: 19px;
+}
+
+[data-menu-layout="gallery"] .c-add {
+  width: 46px;
+  height: 46px;
+  font-size: 27px;
+}
+
+/* Sold out now sits on top of a photo rather than on the card's flat surface, so it
+   needs its own opaque backing to stay legible over whatever the image is. */
+[data-menu-layout="gallery"] .c-badge {
+  background: var(--glass, rgba(0, 0, 0, .62));
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 10px -2px rgba(0, 0, 0, .5);
+}

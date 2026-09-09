@@ -5,6 +5,7 @@ import { menuFontSpecsOf, resolveMenuSkin } from './menuThemes';
 import { useVenue } from './venue';
 import './customer.css';
 import './menu-themes.css';
+import './menu-layouts.css';
 
 interface CustomerFrameProps {
   children: ReactNode;

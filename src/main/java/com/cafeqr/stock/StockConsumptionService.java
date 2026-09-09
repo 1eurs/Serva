@@ -31,7 +31,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -65,6 +64,7 @@ public class StockConsumptionService {
     private final RecipeLineRepository recipeLineRepository;
     private final MenuItemRepository menuItemRepository;
     private final RestaurantRepository restaurantRepository;
+    private final DailyLimitService dailyLimitService;
     private final ObjectMapper objectMapper;
 
     public StockConsumptionService(StockService stockService,
@@ -74,6 +74,7 @@ public class StockConsumptionService {
                                    RecipeLineRepository recipeLineRepository,
                                    MenuItemRepository menuItemRepository,
                                    RestaurantRepository restaurantRepository,
+                                   DailyLimitService dailyLimitService,
                                    ObjectMapper objectMapper) {
         this.stockService = stockService;
         this.recipeService = recipeService;
@@ -82,6 +83,7 @@ public class StockConsumptionService {
         this.recipeLineRepository = recipeLineRepository;
         this.menuItemRepository = menuItemRepository;
         this.restaurantRepository = restaurantRepository;
+        this.dailyLimitService = dailyLimitService;
         this.objectMapper = objectMapper;
     }
 
@@ -121,8 +123,7 @@ public class StockConsumptionService {
                     continue; // item deleted since the order was placed
                 }
                 if (menuItem.getStockMode() == StockMode.DAILY_LIMIT) {
-                    menuItem.consumeDailyLimit(today, line.getQuantity());
-                    menuItemRepository.save(menuItem);
+                    dailyLimitService.consume(menuItem, order.getBranchId(), line.getQuantity(), today);
                     continue;
                 }
                 accumulate(draws, menuItem, line, order.getOrderType(), restaurant.isDisposablesForDineIn());
@@ -133,7 +134,6 @@ public class StockConsumptionService {
                         MovementReason.SALE, order.getId(), null,
                         unitCostOf(entry.getKey()), null, true);
             }
-            refreshAvailability(order.getRestaurantId(), order.getBranchId(), draws.keySet());
         } catch (RuntimeException e) {
             // Inventory must never cost a café an order it has already taken.
             log.error("Stock consumption failed for order {} — the order stands, stock is unchanged",
@@ -156,21 +156,17 @@ public class StockConsumptionService {
             for (OrderItem line : order.getItems()) {
                 MenuItem menuItem = loadMenuItem(line.getMenuItemId());
                 if (menuItem != null && menuItem.getStockMode() == StockMode.DAILY_LIMIT) {
-                    menuItem.releaseDailyLimit(today, line.getQuantity());
-                    menuItemRepository.save(menuItem);
+                    dailyLimitService.release(menuItem, order.getBranchId(), line.getQuantity(), today);
                 }
             }
 
             List<StockMovement> sales = movementRepository.findByOrderIdAndReason(
                     order.getId(), MovementReason.SALE);
-            Set<Long> touched = new LinkedHashSet<>();
             for (StockMovement sale : sales) {
                 stockService.post(sale.getStockItemId(), sale.getBranchId(), sale.getDeltaBase().negate(),
                         MovementReason.ORDER_RESTORE, order.getId(), null, sale.getUnitCost(),
                         "Order cancelled", true);
-                touched.add(sale.getStockItemId());
             }
-            refreshAvailability(order.getRestaurantId(), order.getBranchId(), touched);
         } catch (RuntimeException e) {
             log.error("Stock restore failed for cancelled order {}", order.getId(), e);
         }
@@ -225,61 +221,22 @@ public class StockConsumptionService {
 
     // ============================================================ availability (86ing)
 
-    /**
-     * Turns menu items off when their ingredients run out, and back on when they return.
+    /*
+     * Stock does not write availability down.
      *
-     * <p>Only the item's <em>own</em> recipe (or its counted good) can 86 it. Running out of oat
-     * milk hides nothing — you can still make the latte with dairy — and running out of lids
-     * must not wipe the drinks menu. Modifiers and packaging are checked at order time instead,
-     * where the customer's actual choice is known.
+     * <p>There used to be a refreshAvailability pass here: every delivery, sale, waste entry,
+     * transfer and stocktake recomputed "can we make it" for one branch and then wrote the
+     * answer to MenuItem.available. That flag is shared by the whole restaurant — a menu item
+     * with a null branch_id belongs to every branch — so one branch running out of milk took
+     * the latte off sale everywhere, and a delivery at the other branch put it back. Nothing
+     * about the arithmetic was wrong; there was simply no per-branch place to put the result.
      *
-     * <p>Re-enabling is guarded by {@code autoUnavailable}, so restocking never resurrects an
-     * item the owner deliberately switched off.
+     * <p>So the result is not stored at all. {@link #soldOutItemIds} answers it per branch when
+     * the customer menu is built, and {@link #requireSellable} answers it per branch again at
+     * order time, both honouring the café's auto-hide setting. MenuItem.available now means
+     * only what an owner switched off by hand, which is the one thing that really is
+     * restaurant-wide.
      */
-    @Transactional
-    public void refreshAvailability(Long restaurantId, Long branchId, Set<Long> stockItemIds) {
-        if (stockItemIds == null || stockItemIds.isEmpty()) {
-            return;
-        }
-        List<Long> ids = new ArrayList<>(stockItemIds);
-        Set<Long> candidates = new LinkedHashSet<>(recipeLineRepository.menuItemIdsUsing(ids));
-        for (MenuItem simple : menuItemRepository.findByRestaurantIdAndStockItemIdIn(restaurantId, ids)) {
-            candidates.add(simple.getId());
-        }
-        if (candidates.isEmpty()) {
-            return;
-        }
-
-        Map<Long, BigDecimal> onHand = onHandFor(branchId, ids);
-        Map<Long, List<RecipeLine>> recipes = recipesFor(new ArrayList<>(candidates));
-        /* When the café has switched automatic hiding off, this pass still runs — because it
-           is also what puts back anything stock hid earlier. Restoring is guarded by
-           autoUnavailable, so an item the owner switched off by hand stays off. */
-        boolean autoHide = autoHides(restaurantId);
-        for (MenuItem item : menuItemRepository.findAllById(candidates)) {
-            if (!item.getRestaurantId().equals(restaurantId) || !item.getStockMode().consumesStock()) {
-                continue;
-            }
-            if (!autoHide) {
-                if (!item.isAvailable() && item.isAutoUnavailable()) {
-                    item.setAvailable(true);
-                    item.setAutoUnavailable(false);
-                    menuItemRepository.save(item);
-                }
-                continue;
-            }
-            boolean canMake = canMake(item, branchId, onHand, recipes);
-            if (!canMake && item.isAvailable()) {
-                item.setAvailable(false);
-                item.setAutoUnavailable(true);
-                menuItemRepository.save(item);
-            } else if (canMake && !item.isAvailable() && item.isAutoUnavailable()) {
-                item.setAvailable(true);
-                item.setAutoUnavailable(false);
-                menuItemRepository.save(item);
-            }
-        }
-    }
 
     /**
      * @param recipesByItem every candidate's recipe lines, pre-loaded in one query. This runs on
@@ -386,14 +343,14 @@ public class StockConsumptionService {
      *
      * <p>Runs at order placement (see {@code MenuService.getOrderableItem}) where the customer's
      * chosen options are known — so this is the check that catches "no oat milk left", which
-     * {@link #refreshAvailability} deliberately does not 86 the whole item for.
+     * {@link #soldOutItemIds} deliberately does not grey the whole item out for.
      */
     @Transactional(readOnly = true)
     public void requireSellable(MenuItem menuItem, Long branchId, int quantity,
                                 List<Long> selectedOptionIds, OrderType orderType,
                                 boolean disposablesForDineIn) {
         LocalDate today = LocalDate.now(com.cafeqr.common.util.TimeZones.CAFES);
-        Integer remaining = menuItem.remainingToday(today);
+        Integer remaining = dailyLimitService.remainingAt(menuItem, branchId, today);
         if (remaining != null && remaining < quantity) {
             throw new BadRequestException(ErrorCode.MENU_ITEM_UNAVAILABLE, remaining == 0
                     ? "\"" + menuItem.getNameEn() + "\" is sold out for today."
@@ -451,9 +408,11 @@ public class StockConsumptionService {
         }
         Map<Long, List<RecipeLine>> recipes = recipesFor(
                 tracked.stream().map(MenuItem::getId).toList());
+        Map<Long, Integer> soldByItem = dailyLimitService.soldByItem(branchId,
+                tracked.stream().map(MenuItem::getId).toList(), today);
         for (MenuItem item : tracked) {
             if (item.getStockMode() == StockMode.DAILY_LIMIT) {
-                Integer remaining = item.remainingToday(today);
+                Integer remaining = dailyLimitService.remainingFrom(item, soldByItem);
                 if (remaining != null && remaining <= 0) {
                     soldOut.add(item.getId());
                 }
@@ -473,10 +432,21 @@ public class StockConsumptionService {
      * ingredient did it. Without that, an item added to a recipe by accident silently takes
      * a drink off sale and the first anyone hears of it is a customer asking.
      *
-     * @param blockerName the ingredient that ran out, or null when a daily limit is the cause
+     * <p>The blocking ingredient carries both of its names, not one. This row is read on a
+     * screen that is entirely Arabic or entirely English, and a single name guarantees the
+     * other one renders a Latin ingredient inside an Arabic sentence ("نفد Fresh milk").
+     *
+     * @param blockerNameEn the ingredient that ran out, or null when a daily limit is the cause
+     * @param blockerNameAr the same ingredient's other name
      */
     public record SoldOut(Long menuItemId, String nameEn, String nameAr,
-                          String reason, Long blockerId, String blockerName) {}
+                          String reason, Long blockerId,
+                          String blockerNameEn, String blockerNameAr) {}
+
+    /** An ingredient the branch hasn't got enough of. */
+    public static final String OUT_OF_STOCK = "OUT_OF_STOCK";
+    /** Today's cap, a number the owner typed, already used up. */
+    public static final String DAILY_LIMIT_REACHED = "DAILY_LIMIT_REACHED";
 
     @Transactional(readOnly = true)
     public List<SoldOut> soldOutDetail(Long restaurantId, Long branchId) {
@@ -493,15 +463,17 @@ public class StockConsumptionService {
         }
         Map<Long, List<RecipeLine>> recipes = recipesFor(
                 tracked.stream().map(MenuItem::getId).toList());
+        Map<Long, Integer> soldByItem = dailyLimitService.soldByItem(branchId,
+                tracked.stream().map(MenuItem::getId).toList(), today);
         /* Two passes so the blocking ingredients are named in one query rather than one each —
            this hangs off the stock overview, which the dashboard polls. */
         Map<Long, Long> blockers = new LinkedHashMap<>();
         for (MenuItem item : tracked) {
             if (item.getStockMode() == StockMode.DAILY_LIMIT) {
-                Integer remaining = item.remainingToday(today);
+                Integer remaining = dailyLimitService.remainingFrom(item, soldByItem);
                 if (remaining != null && remaining <= 0) {
                     out.add(new SoldOut(item.getId(), item.getNameEn(), item.getNameAr(),
-                            "DAILY_LIMIT_REACHED", null, null));
+                            DAILY_LIMIT_REACHED, null, null, null));
                 }
             } else if (item.getStockMode().consumesStock()) {
                 Long blocker = firstMissing(item, branchId, onHand, recipes);
@@ -518,9 +490,36 @@ public class StockConsumptionService {
             }
             StockItem s = named.get(blocker);
             out.add(new SoldOut(item.getId(), item.getNameEn(), item.getNameAr(),
-                    "OUT_OF_STOCK", blocker, s == null ? null : s.getNameEn()));
+                    OUT_OF_STOCK, blocker,
+                    s == null ? null : s.getNameEn(), s == null ? null : s.getNameAr()));
         }
         return out;
+    }
+
+    /**
+     * The same answer {@link #soldOutItemIds} gives the customer's menu, with the reason kept.
+     *
+     * <p>The dashboard's own menu list needs both halves. The availability switch has to read
+     * off — an owner looking at a switch that says "Available now" while customers are being
+     * refused has been told a lie by their own screen — and an item that went off through no
+     * decision of theirs has to name the ingredient that did it, or the switch is just broken.
+     *
+     * <p>{@link #soldOutDetail} deliberately reports shortfalls even when the cafe has switched
+     * automatic hiding off, because the stock page shows those as a warning about sales it is
+     * still taking. That is the wrong answer for a switch, which must say what the customer
+     * actually gets, so the auto-hide rule is applied here rather than there.
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, SoldOut> soldOutByItem(Long restaurantId, Long branchId) {
+        boolean autoHide = autoHides(restaurantId);
+        Map<Long, SoldOut> byItem = new LinkedHashMap<>();
+        for (SoldOut row : soldOutDetail(restaurantId, branchId)) {
+            // A daily limit is enforced whatever the auto-hide rule says; see requireSellable.
+            if (autoHide || DAILY_LIMIT_REACHED.equals(row.reason())) {
+                byItem.put(row.menuItemId(), row);
+            }
+        }
+        return byItem;
     }
 
     /** The first ingredient this item hasn't got enough of, or null when it can be made. */

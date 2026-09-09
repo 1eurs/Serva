@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
-import { sanitizePhone } from '../../lib/format';
+import { cleanOtp, syncInput, syncPhoneInput } from '../../lib/format';
 import type { LoyaltyPortalEntry } from '../../lib/types';
-import { useI18n, useT, type Dict } from '../../lib/i18n';
+import { useI18n, useT, nameOf, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { CustomerFrame } from './CustomerFrame';
 import { StampCard } from './StampCard';
@@ -163,7 +163,7 @@ export default function LoyaltyPortal() {
             <div className="loy-field">
               <label htmlFor="loy-phone">{t('phone')}</label>
               <input id="loy-phone" className="num" inputMode="tel" value={phone} placeholder={t('phonePh')}
-                onChange={(e) => setPhone(sanitizePhone(e.target.value))} />
+                onChange={(e) => setPhone(syncPhoneInput(e.target))} />
             </div>
             <button className="loy-btn" disabled={!phone.trim() || sendCode.isPending}
               onClick={() => sendCode.mutate()}>
@@ -180,8 +180,8 @@ export default function LoyaltyPortal() {
             <div className="loy-field">
               <label htmlFor="loy-code">{t('code')}</label>
               <input id="loy-code" className="loy-code num" inputMode="numeric" maxLength={6} value={code}
-                autoFocus placeholder="······"
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+                autoFocus placeholder="······" autoComplete="one-time-code"
+                onChange={(e) => setCode(syncInput(e.target, cleanOtp))} />
             </div>
             <button className="loy-btn" disabled={code.trim().length !== 6 || verify.isPending}
               onClick={() => verify.mutate({ otpCode: code.trim() })}>
@@ -215,7 +215,9 @@ export default function LoyaltyPortal() {
                   </div>
                 )}
                 {entries.map((e) => (
-                  <StampCard key={e.restaurantSlug} name={e.restaurantName} logoUrl={e.logoUrl}
+                  <StampCard key={e.restaurantSlug}
+                    name={nameOf({ name: e.restaurantName, nameEn: e.restaurantNameEn, nameAr: e.restaurantNameAr }, lang)}
+                    logoUrl={e.logoUrl}
                     rewardLabel={e.rewardLabel} stamps={e.stamps} stampsRequired={e.stampsRequired}
                     availableRewards={e.availableRewards} footer={cardFooter(e)}
                     cardColor={e.cardColor} cardBg={e.cardBg} stampIcon={e.stampIcon} cardMotif={e.cardMotif}

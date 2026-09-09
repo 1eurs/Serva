@@ -1,0 +1,91 @@
+# Serva staging — https://staging.serva.om, on the Pi.
+#
+# The Pi is not a spare server: it is already running the mizan-demo stack in about 2.5GB
+# of its 3.7GB. So every service here carries a hard memory limit. The limits are not
+# tuning, they are a fence — if staging asks for more than its share the kernel kills a
+# staging container, which is an inconvenience, instead of picking the biggest process on
+# the box, which would be Keycloak or OpenSearch and would take somebody else's project
+# down with it.
+#
+# Names are prefixed `serva-staging-` throughout so nothing here can collide with the
+# production compose project or with mizan-demo.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: serva-staging-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cafeqr
+      POSTGRES_USER: cafeqr
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in deploy/.env.staging}
+    volumes:
+      - staging-db-data:/var/lib/postgresql/data
+    # Not published to the host at all. Staging holds junk data, but a Postgres reachable
+    # from the LAN is still a Postgres reachable from the LAN.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cafeqr -d cafeqr"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    mem_limit: 256m
+    networks: [serva-staging]
+
+  backend:
+    image: serva-staging-backend:latest
+    container_name: serva-staging-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env.staging
+    environment:
+      SPRING_PROFILES_ACTIVE: staging
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/cafeqr
+      SPRING_DATASOURCE_USERNAME: cafeqr
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in deploy/.env.staging}
+      APP_PUBLIC_BASE_URL: "https://staging.serva.om"
+      APP_CORS_ORIGINS: "https://staging.serva.om,http://localhost:5173"
+      # 512m heap inside a 768m container: the gap is the JVM's own off-heap cost
+      # (metaspace, code cache, thread stacks, direct buffers), which is real and which a
+      # limit set at the heap size would run straight into.
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx512m -XX:MaxMetaspaceSize=192m"
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      # A cold JVM on a Pi with a 512m heap takes its time; prod's 60s start_period is
+      # not a number that transfers to this hardware.
+      retries: 3
+      start_period: 180s
+    volumes:
+      - staging-uploads:/app/uploads
+    networks: [serva-staging]
+
+  web:
+    image: nginx:alpine
+    container_name: serva-staging-web
+    restart: unless-stopped
+    depends_on: [backend]
+    volumes:
+      - ./nginx.staging.conf:/etc/nginx/conf.d/default.conf:ro
+      # Same snippet production uses, so a header cannot drift between the two.
+      - ./nginx.security-headers.conf:/etc/nginx/security-headers.conf:ro
+      - ./dist:/usr/share/nginx/html:ro
+    ports:
+      # Localhost only. The tunnel is the way in; nothing here should be reachable from
+      # the LAN, and a published 0.0.0.0 port on a Pi behind a home router is exactly the
+      # kind of thing that quietly becomes reachable one port-forward later.
+      - "127.0.0.1:8090:80"
+    mem_limit: 64m
+    networks: [serva-staging]
+
+networks:
+  serva-staging:
+    name: serva-staging
+
+volumes:
+  staging-db-data:
+  staging-uploads:

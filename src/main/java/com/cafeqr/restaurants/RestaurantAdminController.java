@@ -1,10 +1,14 @@
 package com.cafeqr.restaurants;
 
+import com.cafeqr.audit.AuditService;
+import com.cafeqr.audit.domain.AuditAction;
 import com.cafeqr.common.api.ApiResponse;
 import com.cafeqr.common.api.PageResponse;
 import com.cafeqr.restaurants.dto.CreateRestaurantRequest;
 import com.cafeqr.restaurants.dto.RestaurantResponse;
 import com.cafeqr.restaurants.dto.UpdateRestaurantRequest;
+import com.cafeqr.common.util.Names;
+import com.cafeqr.restaurants.domain.Plan;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -27,23 +31,32 @@ public class RestaurantAdminController {
 
     private final RestaurantService restaurantService;
     private final RestaurantOnboardingService onboardingService;
+    private final AuditService audit;
 
     public RestaurantAdminController(RestaurantService restaurantService,
-                                    RestaurantOnboardingService onboardingService) {
+                                    RestaurantOnboardingService onboardingService,
+                                    AuditService audit) {
         this.restaurantService = restaurantService;
         this.onboardingService = onboardingService;
+        this.audit = audit;
     }
 
     @Operation(summary = "Onboard a restaurant (restaurant + optional owner + first branch + subscription)")
     @PostMapping
     public ApiResponse<RestaurantResponse> create(@Valid @RequestBody CreateRestaurantRequest request) {
-        return ApiResponse.ok("Restaurant created", onboardingService.onboard(request));
+        RestaurantResponse created = onboardingService.onboard(request);
+        audit.recordCafe(AuditAction.CAFE_CREATED, created.id(), label(created),
+                "Tier " + created.plan() + (request.owner() != null
+                        ? ", owner " + request.owner().email() : ", no owner account yet"));
+        return ApiResponse.ok("Restaurant created", created);
     }
 
     @Operation(summary = "Renew a café's subscription for another term")
     @PostMapping("/{id}/renew")
     public ApiResponse<RestaurantResponse> renew(@PathVariable Long id) {
-        return ApiResponse.ok("Subscription renewed", onboardingService.renew(id));
+        RestaurantResponse renewed = onboardingService.renew(id);
+        audit.recordCafe(AuditAction.CAFE_RENEWED, id, label(renewed), "Term extended");
+        return ApiResponse.ok("Subscription renewed", renewed);
     }
 
     @Operation(summary = "List restaurants")
@@ -70,26 +83,30 @@ public class RestaurantAdminController {
     @Operation(summary = "Activate a restaurant")
     @PatchMapping("/{id}/activate")
     public ApiResponse<RestaurantResponse> activate(@PathVariable Long id) {
-        return ApiResponse.ok("Restaurant activated", restaurantService.setActive(id, true));
+        RestaurantResponse updated = restaurantService.setActive(id, true);
+        audit.recordCafe(AuditAction.CAFE_ACTIVATED, id, label(updated), null);
+        return ApiResponse.ok("Restaurant activated", updated);
     }
 
     @Operation(summary = "Deactivate a restaurant")
     @PatchMapping("/{id}/deactivate")
     public ApiResponse<RestaurantResponse> deactivate(@PathVariable Long id) {
-        return ApiResponse.ok("Restaurant deactivated", restaurantService.setActive(id, false));
+        RestaurantResponse updated = restaurantService.setActive(id, false);
+        audit.recordCafe(AuditAction.CAFE_DEACTIVATED, id, label(updated),
+                "Café taken offline — its QR menus stop serving");
+        return ApiResponse.ok("Restaurant deactivated", updated);
     }
 
-    @Operation(summary = "Toggle the premium menu-look entitlement")
-    @PatchMapping("/{id}/premium-look")
-    public ApiResponse<RestaurantResponse> setPremiumLook(@PathVariable Long id, @RequestParam boolean enabled) {
-        return ApiResponse.ok(enabled ? "Premium look enabled" : "Premium look disabled",
-                restaurantService.setPremiumLook(id, enabled));
-    }
+    // A café's tier is no longer settable here.
+    //
+    // This endpoint moved the gate (restaurants.plan) without moving the bill
+    // (subscriptions), and nothing reconciled the two — which is how a café ended up gated
+    // PRO while its subscription said "Standard" and it paid the Standard price. The tier is
+    // now bought, not assigned: PATCH /api/admin/subscriptions/{id} with a tier changes what
+    // the café can open and what it is charged in one transaction, and audits it there.
 
-    @Operation(summary = "Set a restaurant's pricing plan (STANDARD or PRO)")
-    @PatchMapping("/{id}/plan")
-    public ApiResponse<RestaurantResponse> setPlan(@PathVariable Long id,
-                                                    @RequestParam com.cafeqr.restaurants.domain.Plan plan) {
-        return ApiResponse.ok("Plan set to " + plan, restaurantService.setPlan(id, plan));
+    /** The café's English name where it has one — the audit log is read in one language. */
+    private static String label(RestaurantResponse r) {
+        return Names.preferring(r.nameEn(), r.nameAr(), r.name(), false);
     }
 }

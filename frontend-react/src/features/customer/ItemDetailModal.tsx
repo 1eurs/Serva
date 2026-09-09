@@ -3,7 +3,7 @@ import { track } from '../../lib/analytics';
 import { discountPercent } from '../../lib/format';
 import { Money } from '../../lib/Money';
 import { effectiveBasePrice } from '../../lib/cart';
-import { useI18n, useT, pick, type Dict } from '../../lib/i18n';
+import { useI18n, useT, pick, Ltr, type Dict } from '../../lib/i18n';
 import { sellable } from '../../lib/types';
 import type { PublicItem, SelectedOption } from '../../lib/types';
 
@@ -165,7 +165,7 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
               <span className="c-modal-unit">
                 {item.salePrice != null && <Money value={item.price} className="c-was num" />}
                 <Money value={unitPrice} className={'num' + (item.salePrice != null ? ' c-sale' : '')} />
-                {item.salePrice != null && <span className="c-off">−{discountPercent(item.price, item.salePrice)}%</span>}
+                {item.salePrice != null && <span className="c-off"><Ltr>−{discountPercent(item.price, item.salePrice)}%</Ltr></span>}
               </span>
               {item.preparationTimeMinutes ? <span className="c-modal-prep">⏱ {item.preparationTimeMinutes} {t('min')}</span> : null}
             </div>

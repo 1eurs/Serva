@@ -1,0 +1,1653 @@
+/* =====================================================================
+   Stock — "the shelf drains".
+
+   One idea carries the whole surface: an item is a LEVEL, not a number.
+   Every place an item appears it is drawn as the same ink-keylined gauge —
+   a fill, a notched reorder mark, a par ceiling — so "how bad is it" reads
+   without reading. Everything around the gauge stays quiet: hairlines,
+   mono figures, no second accent.
+
+   Composes with .dash (BOLD GREEN tokens) and flattens automatically under
+   [data-skin="pro"], which rewrites --hard-* / --bw-* beneath us.
+
+   Mobile-first: staff do this standing in a stockroom on a phone, one-handed,
+   so every control is a real touch target and desktop is the enhancement.
+   Logical properties throughout — the dashboard runs RTL in Arabic.
+   ===================================================================== */
+
+.stock-page {
+  --stk-gap: clamp(12px, 2.4vw, 18px);
+  /* Status, not brand: "in stock" must stay green even on a skin whose primary
+     fill (--lime) is a neutral, or a healthy shelf reads as a black bar. */
+  --stk-ok: var(--green, #10b981);
+  --stk-low: var(--sun, #F5B83D);
+  --stk-out: var(--bad, #FF6B5A);
+  /* Each status needs TWO grades, because the same state has to work as a 20px
+     bar and as 10px type. The plain token is the fill; --stk-*-ink is the text,
+     dark enough to clear 4.5:1 on white in either skin.
+     Without the split the page contradicted itself: the low text fell back to
+     --accent-text, so "order now" rendered in the brand's SUCCESS GREEN beside
+     an amber bar, and the out text used the coral fill, which is unreadable as
+     small type. These two are local to stock because the theme has no
+     fill/text split for status — if one lands upstream, delete these. */
+  --stk-low-ink: #B45309;   /* amber-700 · 5.02:1 on white */
+  --stk-out-ink: #C62828;   /* red-700   · 5.63:1 on white */
+  --stk-track: color-mix(in srgb, var(--ink) 7%, transparent);
+  /* The order line's own ink. --keyline is the right weight under the default and bold
+     skins, where it IS --ink; under pro it resolves to zinc-200 and the single rule the
+     whole shelf is read against faded to nothing. Mixed from --ink there instead, so the
+     line stays a line on every skin. */
+  --stk-rule-ink: var(--keyline);
+  /* The scroll pane's own padding, restated here because the pinned rail has to bleed over
+     it exactly — inline, so rows don't scroll past in the gutters beside the rail, and in
+     the block direction, where the page hands the space to its first card instead so the
+     rail can pin flush to the top. .tables-wrap narrows to 14px under 640px and this has to
+     follow it: left at 22 the rail hung 8px off both edges of a phone and gave the whole
+     page a sideways scroll. */
+  --stk-edge: 22px;
+  --stk-edge-block: 18px;
+  /* Width of the state column. It holds a CLOSED vocabulary — five words, not user data —
+     so it is sized to fit the longest of them rather than left to truncate: an item name
+     that ellipsises is one tap from being read in full, but "Not counted" clipped to "Not
+     coun…" is a word this list can simply never say. English needs 78px for it; the Arabic
+     set tops out at 47px ("ما انعدّ"), and holding the English width there would spend a
+     quarter of the name column on empty space in the language whose names are longer. */
+  --stk-state-w: 5rem;
+  /* On the page root this drives the responsive rules below; on .stk-sheet (which also
+     carries .stock-page) it makes the dialog its own query container, so a sheet lays
+     out against its own width rather than the page behind it. */
+  container-type: inline-size;
+}
+
+/* The pro skin sets --sun to amber-700 because its status tokens double as text and
+   have to clear 4.5:1 on white. That is the right call for type and the wrong one for
+   a 20px bar, where it reads as brown mud rather than a warning — so the FILL grade
+   gets amber-500 back. The text grade above already is amber-700. */
+[data-skin="pro"] .stock-page {
+  --stk-low: #F59E0B;
+  --stk-rule-ink: color-mix(in srgb, var(--ink) 45%, transparent);
+}
+
+html[dir="rtl"] .stock-page { --stk-state-w: 4.2rem; }
+
+@media (max-width: 639px) {
+  .stock-page { --stk-edge: 14px; --stk-edge-block: 14px; }
+}
+
+/* The page root only — never the sheet, whose body has to flex and scroll on its own. */
+.tables-wrap.stock-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--stk-gap);
+  padding-inline: var(--stk-edge);
+  /* No padding at the top: the filter rail pins to the top of this pane's content box, so
+     any padding here is a strip the shelf scrolls through ABOVE the pinned rail — half a
+     row of bars and hairlines floating over the page. The first card carries the space. */
+  padding-block-start: 0;
+  padding-block-end: 32px;
+}
+.tables-wrap.stock-page > :first-child { margin-block-start: var(--stk-edge-block); }
+/* Phones put the nav in a fixed bar across the bottom; .tables-wrap clears it with 92px and
+   this selector is the more specific one, so it has to say so too or the end of the shelf
+   sits under the bar. */
+@media (max-width: 639px) {
+  .tables-wrap.stock-page { padding-block-end: 92px; }
+}
+/* .tables-wrap is a height-constrained scroll pane, so its children are flex items that
+   may shrink. Anything with overflow:hidden gets min-block-size:0 and would collapse
+   instead of letting the pane scroll — the headline and the setup card both did. */
+.tables-wrap.stock-page > * { flex: 0 0 auto; }
+
+
+/* =====================================================================
+   Item panel — one item, everything about it, and every action on it.
+   Tapping a row used to open an edit form; there was nowhere that simply
+   told you about a thing.
+   ===================================================================== */
+
+.stk-panel-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 18px;
+}
+/* The figure is the button. A dashed rule under the number says "this is the one thing on
+   the panel you can type over" without spending another box on it. */
+.stk-panel-qty {
+  display: flex; align-items: baseline; gap: 7px;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums; direction: ltr;
+  border: 0; background: none; padding: 0 0 4px; cursor: pointer; text-align: start;
+  border-block-end: var(--bw) dashed var(--line-2);
+}
+.stk-panel-qty:hover { border-block-end-color: var(--ink); }
+.stk-panel-qty:focus-visible { outline: none; box-shadow: var(--focus-shadow); border-radius: 5px; }
+.stk-panel-qty b { font-size: clamp(32px, 9vw, 44px); font-weight: 800; line-height: .9; letter-spacing: -.03em; color: var(--ink); }
+.stk-panel-qty i { font-style: normal; font-size: 14px; font-weight: 700; color: var(--muted); }
+.stk-panel-qty em {
+  font-style: normal; font-size: 9.5px; font-weight: 800;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--accent-text);
+  margin-inline-start: 4px;
+}
+.stk-panel[data-state="out"] .stk-panel-qty b { color: var(--stk-out-ink); }
+.stk-panel-state {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 800;
+  letter-spacing: .07em; text-transform: uppercase;
+  color: var(--muted); text-align: end; line-height: 1.5; max-inline-size: 26ch;
+}
+.stk-panel-state[data-tone="out"] { color: var(--stk-out-ink); }
+.stk-panel-state[data-tone="order"] { color: var(--stk-low-ink); }
+.stk-panel-state[data-tone="new"] { font-family: var(--font-ar); font-weight: 700; text-transform: none; letter-spacing: 0; font-size: 12.5px; }
+html[dir="rtl"] .stk-panel-state { text-align: start; }
+.stk-panel-state b { color: var(--ink); font-family: var(--font-mono); font-weight: 800; }
+
+.stk-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr)); gap: 8px; }
+.stk-fact {
+  display: flex; flex-direction: column; gap: 3px; min-inline-size: 0;
+  background: var(--paper);
+  border: var(--bw-hair) solid var(--line-2);
+  border-radius: 6px;
+  padding: 9px 11px;
+}
+.stk-fact span { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+.stk-fact b { font-family: var(--font-mono); font-size: 14px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.stk-fact b.soft { font-family: var(--font-ar); font-size: 12.5px; font-weight: 700; }
+/* A fact that is still forming: the state, then the thing it is waiting on, under it. */
+.stk-fact b.soft { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.stk-fact b.soft em {
+  font-style: normal; font-family: var(--font-ar);
+  font-size: 10.5px; font-weight: 600; color: var(--faint); line-height: 1.3;
+}
+
+/* Row of verbs on the panel — receive / waste / correct / edit. */
+.stk-panel-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.stk-panel-acts button {
+  flex: 1 1 auto;
+  min-block-size: 44px;
+  padding: 0 14px;
+  border: var(--bw) solid var(--keyline);
+  border-radius: 7px;
+  background: var(--bg-2);
+  color: var(--ink);
+  font-family: var(--bold);
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: var(--hard-sm);
+}
+.stk-panel-acts button.key { background: var(--lime); color: var(--fill-ink); }
+.stk-panel-acts button:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+
+/* =====================================================================
+   Ledger lines — shared by the panel's recent activity and History.
+   ===================================================================== */
+
+.stk-moves { display: flex; flex-direction: column; }
+.stk-move {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 3px 12px;
+  padding: 9px 0;
+  border-block-end: var(--bw-hair) solid var(--line-2);
+}
+.stk-move:last-child { border-block-end: 0; }
+.stk-move-what { min-inline-size: 0; font-size: 13px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.stk-move-tag {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: var(--bw-hair) solid var(--line-2);
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin-inline-end: 7px;
+  vertical-align: 1px;
+}
+.stk-move-tag[data-r="WASTE"] { background: color-mix(in srgb, var(--bad) 20%, var(--paper)); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+.stk-move-tag[data-r="RECEIVE"] { background: color-mix(in srgb, var(--lime) 26%, var(--paper)); border-color: color-mix(in srgb, var(--lime) 50%, transparent); }
+.stk-move-when { grid-column: 1; font-family: var(--font-mono); font-size: 10.5px; color: var(--faint); }
+.stk-move-delta {
+  grid-column: 2; grid-row: 1 / span 2;
+  justify-self: end;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap;
+  direction: ltr;
+}
+.stk-move-delta b { font-size: 14px; font-weight: 800; color: var(--accent-text); }
+.stk-move-delta.down b { color: var(--stk-out-ink); }
+.stk-move-delta small { font-size: 10px; color: var(--faint); }
+
+.stk-mini {
+  min-block-size: 40px; padding: 0 13px;
+  border: var(--bw) solid var(--keyline); border-radius: 6px;
+  background: var(--bg-2); color: var(--ink);
+  font-family: var(--bold); font-weight: 800; font-size: 12.5px;
+  cursor: pointer; box-shadow: var(--hard-sm); white-space: nowrap;
+}
+.stk-mini.key { background: var(--lime); color: var(--fill-ink); }
+.stk-mini:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+.stk-mini:disabled { opacity: .5; cursor: not-allowed; }
+
+
+/* =====================================================================
+   Sheets (shared with RecipeEditor — do not rename these classes).
+   ===================================================================== */
+
+/* .modal-bg centres with `place-items:center`, which leaves the dialog in an auto-sized
+   grid column — so its own `inline-size: …100%` resolves against a width that depends on
+   the dialog, and the whole thing collapses to a sliver. Flex centring gives the sheet a
+   definite containing block, so a percentage means what it says. */
+.stk-modal { display: flex; align-items: center; justify-content: center; overflow-y: auto; }
+
+.stk-sheet {
+  inline-size: min(580px, 100%);
+  /* .modal-card caps every dialog at 420px. A delivery line, the spec sentence and the
+     item panel's fact grid all need the extra room, so this wins it back explicitly. */
+  max-inline-size: min(580px, 100%);
+  max-block-size: min(90dvh, 940px);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border: var(--bw-thick) solid var(--keyline);
+  border-radius: 10px;
+  box-shadow: var(--hard-2xl);
+  overflow: hidden;
+}
+.stk-sheet-hd {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 15px 18px;
+  border-block-end: var(--bw) solid var(--keyline);
+  background: var(--paper);
+}
+.stk-sheet-hd h3 { font-family: var(--bold); font-size: 15px; font-weight: 900; margin: 0; overflow-wrap: anywhere; color: var(--ink); }
+.stk-sheet-hd .x,
+.stk-line .x {
+  min-inline-size: 40px; min-block-size: 40px;
+  border: 0; background: transparent; color: var(--muted);
+  font-size: 16px; cursor: pointer; border-radius: 7px; flex: 0 0 auto;
+}
+.stk-sheet-hd .x:focus-visible, .stk-line .x:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+/* `flex: 1 1 auto; min-block-size: 0` is what makes overflow-y actually work here.
+   A column flex item's automatic minimum size is its CONTENT, so without this the body
+   refused to shrink, grew past the sheet's 90dvh cap, and .stk-sheet's overflow:hidden
+   clipped the rest — 146px of the item editor (hint and Archive) was unreachable on a
+   laptop, with no scrollbar to say so. Same trap the .tables-wrap note above describes. */
+.stk-sheet-body {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  padding: 13px 18px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.stk-sheet-ft {
+  display: flex; gap: 9px; justify-content: flex-end;
+  padding: 13px 18px; border-block-start: var(--bw) solid var(--keyline); background: var(--paper);
+}
+/* Said beside the button it disables, so a form that will not submit says why rather than
+   leaving the owner to press a dead control. */
+.stk-sheet-why {
+  flex: 1 1 180px; align-self: center; min-inline-size: 0;
+  font-size: 12px; line-height: 1.45; color: var(--stk-low-ink);
+}
+.stk-sheet-ft .btn { min-block-size: 44px; border-radius: 7px; font-weight: 800; }
+.stk-sheet-ft .btn[disabled] { opacity: .5; cursor: not-allowed; box-shadow: none; }
+.stk-sheet-ft .btn.ghost { border: var(--bw) solid var(--keyline); box-shadow: var(--hard-sm); }
+
+.stk-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@container (min-width: 460px) { .stk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* At full sheet width the two names and the category fit one row, which removes a whole
+   66px band from the item editor — the single biggest saving in the form. */
+@container (min-width: 540px) { .stk-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.stk-f { display: flex; flex-direction: column; gap: 5px; min-inline-size: 0; }
+.stk-f > span { font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+/* The size scale, not a hardcoded 44. These sheets were written before posture.ts and
+   carried the TOUCH figures on every device, so a laptop paid 44px a field and a 16px
+   font for a pointer that needs neither — which is most of why the item editor did not
+   fit. Deliberately the bare token rather than `max(44px, …)`: here shrinking the desk
+   rendering is the point, so a later sweep should not "restore" the floor. Touch and
+   counter still resolve to 44/48 and 16px, so nothing on a phone or an iPad moves. */
+.stk-f input, .stk-f select, .stk-f textarea {
+  min-block-size: var(--tap); inline-size: 100%;
+  background: var(--paper);
+  border: var(--bw) solid var(--keyline);
+  border-radius: 7px;
+  color: var(--ink);
+  padding-inline: 12px;
+  font-family: var(--font-ar);
+  font-size: var(--fs-field);   /* 16px under touch — the iOS force-zoom guard lives in the token */
+}
+.stk-f input:focus-visible, .stk-f select:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+/* The correction sheet is a number pad in spirit — make the figure the screen. */
+.stk-f.big input {
+  min-block-size: 68px; font-family: var(--font-mono);
+  font-size: clamp(28px, 9vw, 36px); font-weight: 800; text-align: center;
+}
+
+.stk-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; align-items: end; }
+@container (min-width: 460px) { .stk-line { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto; } }
+/* An option line carries no scope select, so auto-placement dropped its ✕ into the third
+   track and stretched it across it. The remove control belongs at the end of the row it
+   removes, whether the row has three children or four. */
+@container (min-width: 460px) { .stk-line > .x { grid-column: -2 / -1; justify-self: end; } }
+.stk-line select, .stk-line input {
+  min-block-size: var(--tap); inline-size: 100%; min-inline-size: 0;
+  background: var(--paper); border: var(--bw) solid var(--keyline); border-radius: 7px;
+  color: var(--ink); padding-inline: 11px; font-family: var(--font-ar); font-size: var(--fs-field);
+}
+.stk-line label { display: flex; flex-direction: column; gap: 4px; min-inline-size: 0; }
+.stk-line label span { font-family: var(--font-mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.stk-line select:focus-visible, .stk-line input:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+/* One delivery line as its own card, so three of them don't read as one blob. */
+.stk-line.card {
+  display: block;
+  background: var(--paper);
+  border: var(--bw-hair) solid var(--line-2);
+  border-radius: 8px;
+  padding: 12px;
+  position: relative;
+}
+.stk-line.card > select { margin-block-end: 10px; }
+.stk-line.card .pair { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+@container (min-width: 460px) { .stk-line.card .pair { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stk-line.card .x { position: absolute; inset-block-start: 4px; inset-inline-end: 4px; }
+
+/* =====================================================================
+   The spec sentence — the risk, and the point of the whole item form.
+   Base unit vs purchase unit is the one thing nobody understood as four
+   separate labelled fields, so it is written out as a sentence you fill in.
+   ===================================================================== */
+
+.stk-spec {
+  background: var(--paper);
+  border: var(--bw) solid var(--keyline);
+  border-radius: 8px;
+  padding: 12px 14px 11px;
+  font-size: 14.5px;
+  /* 2.4 was set so inline 34px fields never collided. They don't at 2.0 either, and the
+     sentence is three lines long — the difference was ~24px of air per block, twice. */
+  line-height: 2.0;
+  color: var(--ink);
+  font-weight: 600;
+}
+.stk-spec .blank { display: inline-flex; align-items: baseline; }
+.stk-spec input, .stk-spec select {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+  text-align: center;
+  background: color-mix(in srgb, var(--lime) 16%, transparent);
+  border: 0;
+  border-block-end: var(--bw-thick) solid var(--keyline);
+  border-radius: 4px 4px 0 0;
+  padding: 3px 6px;
+  min-block-size: var(--tap-sm);
+  margin-inline: 3px;
+}
+/* No trailing margin, so the comma after the unit sits against the word rather than
+   floating away from it. */
+.stk-spec select { font-family: var(--font-ar); font-size: 14px; padding-inline: 4px; margin-inline: 3px 0; }
+.stk-spec input:focus-visible, .stk-spec select:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+.stk-spec input.w-num { inline-size: 8ch; }
+/* The amount and its unit are one phrase — "1 kg" — so they are set tight against each
+   other. Centred in its own box with a full margin, the number read as a second field. */
+.stk-spec input.w-amt { inline-size: 5ch; text-align: end; margin-inline-end: 0; }
+.stk-spec input.w-amt + select { margin-inline-start: 2px; }
+.stk-spec input.w-cost { inline-size: 9ch; }
+/* The one blank that can be left empty says so, rather than sitting there looking
+   like a question the owner is failing to answer. */
+.stk-spec-opt {
+  display: inline-block; margin-inline-end: 8px; vertical-align: 1px;
+  padding: 2px 7px; border-radius: 999px;
+  background: var(--bg-2); border: var(--bw-hair) solid var(--line-2);
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+}
+/* What the sentence adds up to. Live, so a wrong pack size is caught here
+   rather than discovered at the next stocktake. */
+.stk-spec-sum {
+  display: flex; flex-wrap: wrap; gap: 4px 14px;
+  margin-block-start: 8px; padding-block-start: 8px;
+  border-block-start: var(--bw-hair) solid var(--line-2);
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); line-height: 1.6;
+}
+.stk-spec-sum b { color: var(--ink); font-weight: 800; }
+
+/* =====================================================================
+   Chips, folds, toggles, hints, empties.
+   ===================================================================== */
+
+.stk-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.stk-chips button {
+  min-block-size: 40px; padding: 0 14px; border-radius: 6px;
+  border: var(--bw) solid var(--keyline); background: var(--bg-2); color: var(--muted);
+  font-family: var(--bold); font-size: 12.5px; font-weight: 800; cursor: pointer;
+  box-shadow: var(--hard-xs);
+}
+.stk-chips button.on { background: var(--lime); color:var(--fill-ink); box-shadow: var(--hard-sm); }
+.stk-chips button:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+
+/* The starter list. An opening stock list is a dozen things every café buys, so the first
+   items are a tap each — one sideways line, because the form's own question has to stay
+   above the fold on a phone. */
+.stk-presets { display: flex; flex-direction: column; gap: 5px; }
+.stk-presets > .stk-sec-h { display: block; }
+/* A menu to scan rather than a dozen equal decisions, and a scroll the thumb can find:
+   the last pill is cut rather than flush, which is what says the line continues. */
+.stk-presets .stk-rail { padding-block: 2px; margin-inline-end: -18px; padding-inline-end: 18px; }
+
+.stk-hint { display: block; font-size: 12px; color: var(--muted); line-height: 1.55; max-inline-size: 64ch; }
+/* A search that found nothing. Holds its own way out, so the dead end is one tap deep. */
+.stk-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  color: var(--muted); font-size: 13px; line-height: 1.6;
+  border: var(--bw-hair) dashed var(--line-2); border-radius: 8px;
+  padding: 22px 16px; text-align: center;
+}
+.stk-empty b { display: block; font-family: var(--bold); font-weight: 800; font-size: 14px; color: var(--ink); margin-block-end: 4px; }
+
+/* =====================================================================
+   Authoring a recipe by ticking.
+
+   A tick and a typed gram amount write the same recipe line — the amount
+   just comes from the item's yield instead of from the owner. So the two
+   views share the section header and swap with one link, and the ticks read
+   as a list of what is in the drink rather than as a form.
+   ===================================================================== */
+
+.stk-author { display: flex; align-items: baseline; gap: 12px; }
+.stk-author > :first-child { flex: 1 1 auto; min-inline-size: 0; }
+.stk-author-swap {
+  flex: 0 0 auto; border: 0; background: none; cursor: pointer; padding: 3px 2px;
+  font-family: var(--font-ar); font-size: 12px; font-weight: 700;
+  color: var(--accent-text); text-decoration: underline;
+}
+.stk-author-swap:focus-visible { outline: none; box-shadow: var(--focus-shadow); border-radius: 4px; }
+
+.stk-ticks { display: flex; flex-direction: column; gap: 6px; }
+.stk-tick {
+  display: flex; align-items: center; gap: 8px;
+  min-block-size: 46px; padding-inline-end: 13px; inline-size: 100%;
+  border: var(--bw-hair) solid var(--line-2); border-radius: 7px;
+  background: var(--bg-2); color: var(--ink);
+  font-size: 14px;
+  transition: border-color .14s, background-color .14s;
+}
+.stk-tick.on { border-color:var(--keyline); background: var(--surface-2); }
+/* The name and the box are the hit target; the amount beside them is its own control,
+   so tapping to change 200 ml to 120 ml never toggles the ingredient off. */
+.stk-tick-hit {
+  flex: 1 1 auto; min-inline-size: 0;
+  display: flex; align-items: center; gap: 11px;
+  min-block-size: 44px; padding-inline-start: 13px;
+  border: 0; background: none; color: inherit;
+  font-family: inherit; font-size: inherit; text-align: start; cursor: pointer;
+}
+.stk-tick-hit:focus-visible { outline: none; box-shadow: var(--focus-shadow); border-radius: 6px; }
+.stk-tick-box {
+  flex: 0 0 auto; inline-size: 20px; block-size: 20px;
+  display: grid; place-items: center;
+  border: var(--bw-hair) solid var(--keyline); border-radius: 4px;
+  background: var(--bg-2); font-size: 12px; font-weight: 800;
+}
+.stk-tick.on .stk-tick-box { background: var(--lime); color: var(--fill-ink); }
+.stk-tick-name { flex: 1 1 auto; min-inline-size: 0; overflow-wrap: anywhere; }
+
+/* The amount, once it is in the drink. Narrow on purpose — a recipe number is two or
+   three digits, and a full-width field would read as the row's main event. */
+.stk-tick-amt { flex: 0 0 auto; display: inline-flex; align-items: baseline; gap: 4px; }
+.stk-tick-amt input {
+  inline-size: 62px; min-block-size: 34px; padding: 0 7px;
+  border: var(--bw-hair) solid var(--keyline); border-radius: 5px;
+  background: var(--bg-2); color: var(--ink);
+  font-family: var(--font-mono); font-size: 13px; font-weight: 700;
+  text-align: end;
+}
+.stk-tick-amt input:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+.stk-tick-amt i { font-style: normal; font-size: 11px; color: var(--muted); }
+/* What it would be if you ticked it — shown, not hidden, so the list reads as a price
+   list of possibilities rather than a row of empty boxes. */
+.stk-tick-ghost { flex: 0 0 auto; font-size: 12px; color: var(--faint); }
+.stk-tick-cost { flex: 0 0 auto; min-inline-size: 58px; text-align: end; font-size: 12px; color: var(--muted); }
+.stk-tick.on .stk-tick-cost { color: var(--ink); font-weight: 700; }
+
+/* A chosen ingredient is not a toggle any more — the row is a label and the ✕ removes it. */
+.stk-tick-hit.as-label { cursor: default; }
+.stk-tick-x {
+  flex: 0 0 auto; inline-size: 30px; block-size: 30px;
+  border: var(--bw-hair) solid var(--line-2); border-radius: 5px;
+  background: transparent; color: var(--muted);
+  font-size: 11px; cursor: pointer;
+}
+.stk-tick-x:hover { border-color: var(--bad); color: var(--bad); }
+.stk-tick-x:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+
+/* Adding is a deliberate second step, so the catalogue only appears when asked for. */
+.stk-tick-add {
+  align-self: flex-start; min-block-size: 40px; padding: 0 14px;
+  border: var(--bw) dashed var(--line-2); border-radius: 7px;
+  background: transparent; color: var(--ink);
+  font-family: var(--bold); font-weight: 800; font-size: 13px; cursor: pointer;
+}
+.stk-tick-add:hover { border-color:var(--keyline); border-style: solid; }
+.stk-tick-add:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+
+.stk-pick {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 11px; border: var(--bw-hair) solid var(--line-2); border-radius: 8px;
+  background: var(--surface-2);
+}
+.stk-pick-q {
+  min-block-size: 40px; padding: 0 11px;
+  border: var(--bw-hair) solid var(--keyline); border-radius: 6px;
+  background: var(--bg-2); color: var(--ink); font-family: var(--font-ar); font-size: 14px;
+}
+.stk-pick-q:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+/* The option row has no inner hit target — the whole row is the button — so it carries the
+   leading padding and gap that .stk-tick-hit provides on a chosen row. */
+.stk-tick-opt {
+  padding-inline-start: 13px; gap: 11px;
+  cursor: pointer; text-align: start; font-family: inherit; color: inherit;
+}
+.stk-tick-opt:hover { border-color:var(--keyline); }
+.stk-tick-opt:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+.stk-tick-opt .stk-tick-box { color: var(--muted); }
+
+/* On a phone the row cannot hold everything, so it stops trying.
+   The 54px amount box here was written when a recipe number was "two or three digits" —
+   ticking now writes one decimal (a kilo bag over 55 drinks is 18.2 g), and 54px cut the
+   ".2" off the very number the feature had just filled in. So the box keeps its full width
+   and the per-row cost gives way instead: the costing footer below already carries the
+   total live, and the name — the one thing a row is actually read for — was down to about
+   60px, which stacked "8 oz paper cup with lid and sleeve" one word per line. */
+@container (max-width: 380px) {
+  .stk-tick-ghost { display: none; }
+  .stk-tick.on .stk-tick-cost { display: none; }
+}
+
+/* The yield's payoff, inline in the item form: what one serving costs. */
+.stk-yield-cost { font-weight: 800; color: var(--ink); }
+
+
+/* =====================================================================
+   Strip contents — the lists that live inside a strip once it is opened.
+   Kept plain: a strip is already framed, so its rows only need hairlines.
+   ===================================================================== */
+
+.stk-off-list,
+.stk-order { list-style: none; margin: 0; padding: 0; }
+.stk-off-list li,
+.stk-order li {
+  display: flex; align-items: baseline; gap: 10px 12px; flex-wrap: wrap;
+  padding: 9px 14px;
+  border-block-start: var(--bw-hair) solid var(--line);
+}
+.stk-off-list li:first-child,
+.stk-order li:first-child { border-block-start: 0; }
+.stk-off-name,
+.stk-order li > span { flex: 1 1 auto; min-inline-size: 0; font-size: 13.5px; font-weight: 700; overflow-wrap: anywhere; }
+.stk-order li > span { font-weight: 400; }
+/* "3 × 1 kg" is one LTR run. Without this the bidi algorithm reorders it under
+   Arabic into "kg 1 × 3", which is a different instruction to a supplier. */
+.stk-order li > b {
+  flex: 0 0 auto; font-size: 13px; font-weight: 800; color: var(--ink);
+  direction: ltr; unicode-bidi: isolate;
+}
+.stk-off-why { flex: 0 0 auto; font-size: 12px; color: var(--muted); }
+.stk-off-why.link {
+  border: 0; background: none; padding: 4px 2px; cursor: pointer;
+  font-family: var(--font-ar); font-weight: 700;
+  color: var(--accent-text); text-decoration: underline;
+}
+.stk-off-why.link:focus-visible { outline: none; box-shadow: var(--focus-shadow); border-radius: 4px; }
+
+
+/* =====================================================================
+   The standing rule — the one thing stock does without being asked.
+
+   It used to ride along with the sold-out banner, which meant a bordered
+   card sat above the shelf every day of the year to hold a checkbox nobody
+   was looking for. A rule about a page reads as a footnote to it, so it is
+   set as one: no card, no keyline, just the switch and what it does.
+   ===================================================================== */
+
+.stk-rule {
+  display: flex; align-items: flex-start; gap: 11px;
+  padding: 14px 2px 0; cursor: pointer;
+  border-block-start: var(--bw-hair) solid var(--line);
+  max-inline-size: 72ch;
+}
+.stk-rule input {
+  flex: 0 0 auto; inline-size: 18px; block-size: 18px; margin-block-start: 1px;
+  accent-color: var(--accent); cursor: pointer;
+}
+.stk-rule input:focus-visible { outline: none; box-shadow: var(--focus-shadow); border-radius: 4px; }
+/* Readable as a control, not a footnote. It reads as a footnote in the page's ORDER —
+   a standing rule below the thing it governs — but it decides whether stock refuses
+   sales on its own, and it was set in the same faint grey as a caption. */
+.stk-rule b { display: block; font-size: 13.5px; font-weight: 700; color: var(--ink); }
+.stk-rule em {
+  display: block; margin-block-start: 3px;
+  font-style: normal; font-size: 12px; line-height: 1.5; color: var(--muted);
+}
+/* What the rule is doing right now. A standing setting that never reports its own effect
+   is one nobody connects to the drink that vanished; this line is the connection. */
+.stk-rule-now {
+  display: block; margin-block-start: 6px;
+  font-style: normal; font-family: var(--font-mono); font-size: 11px;
+  font-weight: 700; letter-spacing: .04em; color: var(--faint);
+}
+.stk-rule-now[data-live] { color: var(--stk-out-ink); }
+html[dir="rtl"] .stk-rule-now { font-family: var(--font-ar); letter-spacing: 0; font-size: 12px; }
+/* Arriving from the sold-out strip: say which control was meant, then get out of the way. */
+.stk-rule[data-flash] { animation: stk-rule-flash 1.6s ease-out; border-radius: 8px; }
+@keyframes stk-rule-flash {
+  0%, 60% { background: color-mix(in srgb, var(--lime) 26%, transparent); }
+  100% { background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stk-rule[data-flash] { animation: none; outline: var(--bw) solid var(--keyline); }
+}/* =====================================================================
+   The sweep — one item at a time, walked in stockroom order.
+
+   Everywhere else the gauge REPORTS a level. Here it is the control: the
+   same track, the same fill, the same hard reorder notch, scaled up to a
+   thumb and made draggable. Setting a level and reading one become the
+   same gesture, so this screen teaches the rest of the feature rather
+   than adding a second vocabulary to learn.
+
+   Full-bleed on a phone — this is used standing up, one-handed, in a
+   stockroom — and a centred card from tablet up.
+   ===================================================================== */
+
+.stk-count-scrim { padding: 0; align-items: stretch; }
+
+.stk-count {
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  max-inline-size: 560px;
+  margin-inline: auto;
+  background: var(--bg-2);
+  border: var(--bw) solid var(--keyline);
+  color: var(--ink);
+  container-type: inline-size;
+}
+/* Already on the posture ladder: 640px is POCKET_MAX+1, the same cut point
+   src/lib/posture.ts uses for `data-posture="pocket"` — not a breakpoint of its own. */
+@media (min-width: 640px) {
+  .stk-count-scrim { padding: 24px; align-items: center; }
+  .stk-count { border-radius: 10px; box-shadow: var(--hard-2xl); max-block-size: min(760px, 92vh); }
+}
+
+/* ---- top: what this is, and how much shelf is left ---- */
+
+.stk-count-top {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 15px 15px;
+  border-block-end: var(--bw) solid var(--keyline);
+}
+.stk-count-ttl { display: flex; align-items: baseline; gap: 10px; flex: 1 1 auto; min-inline-size: 0; }
+.stk-count-ttl b { font-family: var(--bold); font-weight: 800; font-size: 15px; }
+.stk-count-ttl span { font-size: 11.5px; color: var(--muted); }
+.stk-count-x {
+  flex: 0 0 auto; inline-size: 34px; block-size: 34px;
+  border: var(--bw-hair) solid var(--keyline); border-radius: 6px;
+  background: var(--bg-2); color: var(--ink); cursor: pointer; font-size: 13px;
+}
+.stk-count-x:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+/* A sweep is a walk of known length, so the rail measures shelf left — not form left. */
+.stk-count-rail {
+  position: absolute; inset-block-end: -2px; inset-inline: 0;
+  block-size: 3px; background: var(--stk-track);
+}
+.stk-count-rail i { display: block; block-size: 100%; background: var(--lime); transition: inline-size .3s cubic-bezier(.2,.8,.2,1); }
+
+/* ---- body ---- */
+
+.stk-count-body {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px 18px 20px;
+}
+.stk-count-body.center { justify-content: center; align-items: center; min-block-size: 40vh; }
+/* On a phone the card is the whole screen, and the walk's controls were all pinned to the
+   top with roughly a third of the screen empty under them — measured at 248px of nothing
+   on a 390×844 handset. The reading half (what it is, what stock believes) stays at the
+   top where it is read; the answering half falls to the bottom, which is both where the
+   void was and where the thumb is on a stockroom walk taken one-handed. */
+@media (max-width: 639px) {
+  .stk-count-verdicts { margin-block-start: auto; }
+}
+.stk-count-saving { margin-block-start: 12px; font-size: 13px; color: var(--muted); }
+
+.stk-count-item { display: flex; flex-direction: column; gap: 5px; }
+.stk-count-item h3 {
+  font-family: var(--bold); font-weight: 800; font-size: clamp(22px, 6vw, 28px);
+  line-height: 1.1; color: var(--ink); overflow-wrap: anywhere;
+}
+.stk-count-item span {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+}
+
+/* ---- the gauge, as a control ---- */
+
+.stk-count-set { display: flex; flex-direction: column; gap: 12px; }
+
+.stk-count-gauge {
+  position: relative;
+  /* A readout, not a grip: half the height it needed as a drag target, so the three
+     verdict buttons below are unmistakably the thing you act on. */
+  block-size: 30px;
+  background: var(--stk-track);
+  border: var(--bw) solid var(--keyline);
+  border-radius: 7px;
+  overflow: visible;
+}
+.stk-count-fill {
+  block-size: 100%;
+  background: var(--stk-ok);
+  border-radius: 4px 0 0 4px;
+  transition: inline-size .18s cubic-bezier(.2,.8,.2,1), background-color .18s;
+}
+html[dir="rtl"] .stk-count-fill { border-radius: 0 4px 4px 0; }
+.stk-count-gauge[data-state="order"] .stk-count-fill { background: var(--stk-low); }
+.stk-count-gauge[data-state="out"] .stk-count-fill { background: var(--stk-out); }
+/* The one place the ink line breaks out of the box — the reorder point. Everything the
+   sweep does is decided against this mark, so it is the only thing allowed to shout. */
+.stk-count-notch {
+  position: absolute; inset-block: -6px; inline-size: var(--bw-thick);
+  background: var(--ink); transform: translateX(-50%); pointer-events: none;
+}
+html[dir="rtl"] .stk-count-notch { transform: translateX(50%); }
+.stk-count-read { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.stk-count-read b { font-size: 30px; font-weight: 800; line-height: 1; }
+.stk-count-read b[data-tone="order"] { color: var(--stk-low-ink); }
+.stk-count-read b[data-tone="out"] { color: var(--stk-out-ink); }
+.stk-count-read span { font-size: 12.5px; color: var(--muted); }
+/* The full-shelf figure: the one number here that is a guess rather than a record, so it
+   is a button — tapping it opens the correction in place instead of sending anyone to a
+   settings form. Sized like the label it replaced; a pencil, not a call to action. */
+.stk-count-parbtn {
+  margin-inline-start: auto;
+  /* Centred and nowrap: baseline alignment inside a tap-height pill let the text sit off
+     its own dashed edge, so the one correctable figure on the walk looked like a mistake. */
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+  min-block-size: var(--tap-sm); padding: 0 12px;
+  border: var(--bw-hair) dashed var(--line-2); border-radius: 999px;
+  background: none; color: var(--faint); font-family: inherit; font-size: 11px;
+  cursor: pointer;
+}
+.stk-count-parbtn i { font-style: normal; font-size: 10px; }
+.stk-count-parbtn:hover { color: var(--ink); border-color: var(--keyline); }
+.stk-count-parbtn:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+/* ---- the fast path: three positions on the same gauge ---- */
+
+.stk-count-verdicts { display: flex; flex-direction: column; gap: 8px; }
+.stk-count-v {
+  display: flex; align-items: center; gap: 12px;
+  min-block-size: 56px; padding: 0 15px;
+  border: var(--bw) solid var(--keyline); border-radius: 8px;
+  background: var(--bg-2); color: var(--ink);
+  font-family: var(--bold); font-weight: 800; font-size: 15px;
+  text-align: start; cursor: pointer;
+  box-shadow: var(--hard-sm);
+  transition: box-shadow .14s, transform .14s;
+}
+@media (hover: hover) {
+  .stk-count-v:hover { box-shadow: var(--hard); transform: translate(-2px, -2px); }
+}
+.stk-count-v:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+/* Each choice carries a miniature of the gauge at the level it means, so the words and
+   the bar teach each other and the tap is legibly the same act as the drag. */
+.stk-count-vbar {
+  flex: 0 0 auto; inline-size: 46px; block-size: 14px;
+  background: var(--stk-track); border: var(--bw-hair) solid var(--keyline); border-radius: 4px;
+}
+.stk-count-vbar i { display: block; block-size: 100%; border-radius: 3px; }
+.stk-count-vbar[data-tone="ok"] i { background: var(--stk-ok); }
+.stk-count-vbar[data-tone="order"] i { background: var(--stk-low); }
+
+/* The word takes the room; the figure it will write sits at the end, quiet and mono, so
+   the button reads as a sentence and not as a number picker. */
+.stk-count-vlabel { flex: 1 1 auto; min-inline-size: 0; }
+.stk-count-vnum {
+  flex: 0 0 auto;
+  font-family: var(--font-mono); font-size: 12.5px; font-weight: 700;
+  color: var(--faint); font-variant-numeric: tabular-nums;
+  unicode-bidi: isolate;
+}
+.stk-count-v[data-tone="out"] .stk-count-vnum { color: var(--stk-out-ink); }
+
+.stk-count-exactlink {
+  align-self: flex-start; border: 0; background: none; cursor: pointer; padding: 4px 2px;
+  font-family: var(--font-ar); font-size: 12.5px; font-weight: 700;
+  color: var(--accent-text); text-decoration: underline;
+}
+.stk-count-exactlink:focus-visible { outline: none; box-shadow: var(--focus-shadow); border-radius: 4px; }
+.stk-count-exact { display: flex; align-items: flex-end; gap: 9px; }
+.stk-count-exact label { flex: 1 1 auto; display: flex; flex-direction: column; gap: 6px; }
+.stk-count-exact label span { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.stk-count-exact input {
+  inline-size: 100%; min-block-size: 48px; padding: 0 12px;
+  border: var(--bw) solid var(--keyline); border-radius: 7px;
+  background: var(--bg-2); color: var(--ink); font-size: 18px; font-weight: 800;
+}
+.stk-count-exact input:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+
+.stk-count-set-btn {
+  flex: 0 0 auto; min-block-size: 48px; padding: 0 18px;
+  border: var(--bw) solid var(--keyline); border-radius: 7px;
+  background: var(--lime); color:var(--fill-ink);
+  font-family: var(--bold); font-weight: 800; font-size: 14px; cursor: pointer;
+  box-shadow: var(--hard-sm);
+}
+.stk-count-set-btn:disabled { background: var(--surface-2); color: var(--faint); box-shadow: none; cursor: not-allowed; }
+.stk-count-set-btn:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+.stk-count-hint { font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+
+/* ---- footer ---- */
+
+.stk-count-foot {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 15px; border-block-start: var(--bw) solid var(--keyline);
+}
+.stk-count-lead {
+  flex: 1 1 auto; text-align: center; font-size: 11.5px; line-height: 1.45; color: var(--faint);
+}
+.stk-count-nav {
+  flex: 0 0 auto; min-block-size: 40px; padding: 0 13px;
+  border: var(--bw-hair) solid var(--keyline); border-radius: 6px;
+  background: var(--bg-2); color: var(--ink);
+  font-family: var(--bold); font-weight: 800; font-size: 12.5px; cursor: pointer;
+}
+.stk-count-nav:disabled { opacity: .35; cursor: not-allowed; }
+.stk-count-nav:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+
+/* ---- the payoff: the walk becomes the shopping ---- */
+
+.stk-count-done { justify-content: center; align-items: flex-start; gap: 16px; min-block-size: 40vh; }
+.stk-count-donettl { font-family: var(--bold); font-weight: 800; font-size: clamp(24px, 7vw, 32px); line-height: 1.1; }
+.stk-count-tally { display: flex; gap: 28px; flex-wrap: wrap; }
+.stk-count-tally > div { display: flex; flex-direction: column; gap: 3px; }
+.stk-count-tally b { font-size: 34px; font-weight: 800; line-height: 1; }
+.stk-count-tally > div[data-tone="order"] b { color: var(--stk-low-ink); }
+.stk-count-tally span { font-size: 11.5px; color: var(--muted); }
+.stk-count-go {
+  min-block-size: 50px; padding: 0 20px; align-self: stretch;
+  border: var(--bw) solid var(--keyline); border-radius: 8px;
+  background: var(--lime); color:var(--fill-ink);
+  font-family: var(--bold); font-weight: 800; font-size: 15px; cursor: pointer;
+  box-shadow: var(--hard-sm);
+}
+.stk-count-go:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+
+@container (max-width: 420px) {
+  .stk-count-read em { margin-inline-start: 0; inline-size: 100%; }
+  .stk-count-lead { display: none; }
+  .stk-count-foot { justify-content: space-between; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Every bar still ends up the right width — only the growing into it stops. */
+  .stk-row, .stk-row:hover, .stk-add:hover, .stk-now-do .key:hover,
+  .stk-count-v, .stk-count-v:hover { transition: none; transform: none; }
+  .stk-gauge-fill, .stk-chip, .stk-count-fill, .stk-count-rail i { transition: none; }
+}
+
+/* =====================================================================
+   THE ONE JOB — the card that answers "what do I do now?".
+
+   The screen this replaces opened on eight instruments and no answer.
+   Exactly one of these is ever on screen, chosen from where the café
+   actually is, and whichever it is, the whole of it is on screen: the
+   order list — the payoff of the entire feature — used to be one line
+   high behind a "Show" button, which is why owners stopped reading.
+
+   Quiet by default. It takes an ink keyline and the page's only filled
+   button; the colour budget belongs to the shelf below it.
+   ===================================================================== */
+
+.stk-eyebrow {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10.5px; font-weight: 700;
+  letter-spacing: .16em; text-transform: uppercase;
+  color: var(--faint);
+}
+html[dir="rtl"] .stk-eyebrow {
+  font-family: var(--font-ar); font-size: 12px;
+  letter-spacing: 0; text-transform: none;
+}
+
+.stk-now {
+  display: flex; flex-direction: column; gap: 9px;
+  padding: clamp(16px, 3vw, 22px);
+  background: var(--bg-2);
+  border: var(--bw-thick) solid var(--keyline);
+  border-radius: 12px;
+  box-shadow: var(--hard);
+}
+.stk-now h2 {
+  margin: 0;
+  font-family: var(--bold);
+  font-size: clamp(21px, 4.6vw, 28px);
+  font-weight: var(--fw-display, 800);
+  line-height: 1.15;
+  letter-spacing: -.015em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.stk-now-sub {
+  margin: 0; max-inline-size: 62ch;
+  font-size: 13.5px; line-height: 1.6; color: var(--muted);
+}
+/* The one job that is not work, and the only one that gets to be brief. */
+.stk-now-clear h2 { color: var(--accent-text); }
+/* Ordering is the one state that is costing the café money while it sits there, so it
+   is the one card that takes a colour — on the keyline, never as a fill behind text. */
+.stk-now-order { border-color: var(--stk-low); box-shadow: var(--hard); }
+
+.stk-now-do {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  margin-block-start: 3px;
+}
+.stk-now-do .key {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-block-size: max(46px, var(--tap)); padding: 0 20px;
+  border: var(--bw) solid var(--keyline); border-radius: 8px;
+  background: var(--lime); color: var(--fill-ink);
+  font-family: var(--bold); font-weight: 800; font-size: 15px;
+  cursor: pointer; box-shadow: var(--hard-sm);
+  transition: box-shadow .14s, transform .14s;
+}
+@media (hover: hover) {
+  .stk-now-do .key:hover { box-shadow: var(--hard); transform: translate(-2px, -2px); }
+}
+.stk-now-do .key:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+.stk-now-do .key:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; transform: none; }
+.stk-now-est { font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
+
+/* The order list itself. Not a preview of a list — the list, in the packs it will be
+   ordered in, ready to be read down the phone or copied into a message. */
+.stk-order {
+  list-style: none; margin: 4px 0 0; padding: 0;
+  border-block-start: var(--bw-hair) solid var(--line-2);
+}
+
+/* =====================================================================
+   THE RECEIPTS — where the numbers came from.
+
+   Owners reported not believing the figures. A figure printed with no
+   date beside it is one nobody can check, so the page carries its
+   evidence in one quiet line under the job: when the shelf was last
+   walked, what is on it, and what has already been ordered. Two of the
+   three are also the two ways the figures go wrong, and both open the
+   thing that fixes it.
+   ===================================================================== */
+
+.stk-receipts { display: flex; flex-direction: column; gap: 8px; }
+.stk-receipt-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.stk-receipt {
+  flex: 1 1 auto; min-inline-size: 0;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  padding: 9px 13px;
+  border: var(--bw-hair) solid var(--line-2); border-radius: 8px;
+  background: var(--bg-2); text-align: start;
+  font-family: inherit; cursor: pointer;
+}
+.stk-receipt.as-fact { cursor: default; }
+.stk-receipt b {
+  font-size: 14px; font-weight: 800; color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.stk-receipt span {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--faint);
+}
+.stk-receipt i { font-style: normal; }
+.stk-receipt:not(.as-fact):hover { border-color: var(--keyline); }
+.stk-receipt:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+/* Nobody has ever counted here: the sentence the whole page rests on is missing, and
+   saying so plainly beats printing a confident dash. */
+.stk-receipt:first-child b:only-child { color: var(--stk-low-ink); }
+
+.stk-way {
+  padding: 11px 0 3px;
+  border: var(--bw-hair) solid var(--line-2); border-radius: 8px;
+  background: var(--bg-2);
+}
+.stk-way > .stk-hint { padding-inline: 14px; margin-block-end: 8px; }
+.stk-way > .stk-mini { margin: 9px 14px 11px; }
+
+/* =====================================================================
+   THE BROKEN LOOP — said as a consequence, not an instruction.
+
+   "Selling takes nothing off the shelf" is the sentence the product owed
+   an owner and never said: they entered twenty ingredients, watched every
+   figure sit still, and concluded stock was broken. It disappears the
+   moment one menu item is connected, because by then they have seen it work.
+   ===================================================================== */
+
+.stk-loop {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  inline-size: 100%; padding: 13px 15px; text-align: start;
+  border: var(--bw) dashed var(--line-2); border-radius: 10px;
+  background: var(--bg-2); cursor: pointer; font-family: inherit;
+}
+.stk-loop b { font-size: 14px; font-weight: 800; color: var(--ink); }
+.stk-loop span { font-size: 12.5px; line-height: 1.55; color: var(--muted); }
+.stk-loop em {
+  font-style: normal; margin-block-start: 4px;
+  font-size: 12.5px; font-weight: 800; color: var(--accent-text);
+}
+.stk-loop:hover { border-style: solid; border-color: var(--keyline); }
+.stk-loop:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+
+/* =====================================================================
+   OFF THE MENU — money not being taken, right now.
+
+   The costliest thing stock does to a café, so it sits above the shelf
+   and is never collapsed. Not the job card: the fix for it is buying
+   something, which the job card is already about.
+   ===================================================================== */
+
+.stk-off {
+  border: var(--bw) solid var(--stk-out); border-radius: 10px;
+  background: var(--bg-2); overflow: hidden;
+}
+.stk-off h3 {
+  margin: 0; padding: 12px 15px 0;
+  font-family: var(--bold); font-size: 15px; font-weight: 800; color: var(--stk-out-ink);
+}
+.stk-off-sub {
+  margin: 0; padding: 4px 15px 11px;
+  font-size: 12.5px; line-height: 1.55; color: var(--muted);
+}
+.stk-off-why-link {
+  display: inline; margin-inline-start: 6px; padding: 0;
+  border: 0; background: none; cursor: pointer;
+  font-family: inherit; font-size: 12.5px; font-weight: 700;
+  color: var(--accent-text); text-decoration: underline;
+}
+.stk-off-why-link:focus-visible { outline: none; box-shadow: var(--focus-shadow); border-radius: 4px; }
+
+/* =====================================================================
+   The rail — the shelf's only control surface.
+
+   One vocabulary: "show me the dairy" and "show me what needs buying" are
+   the same act, so status and aisle are the same object on the same line.
+   It scrolls sideways rather than wrapping, because a rail that wraps is a
+   wall and because a constant height is what lets the aisle headers stick
+   to its underside.
+   ===================================================================== */
+
+.stk-rail {
+  flex: 1 1 auto; min-inline-size: 0;
+  display: flex; align-items: center; gap: 7px;
+  overflow-x: auto; overflow-y: hidden;
+  padding-block: 4px;
+  scrollbar-width: none;
+  /* A scroller with a hidden scrollbar and a hard edge reads as a finished row — twelve
+     presets showed four and looked like four. The fade at the inline end is the only thing
+     left to say "there is more this way"; scroll-padding keeps a focused chip clear of it. */
+  -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 28px), transparent 100%);
+  scroll-padding-inline: 28px;
+}
+.stk-rail::-webkit-scrollbar { display: none; }
+html[dir="rtl"] .stk-rail {
+  -webkit-mask-image: linear-gradient(to left, #000 0, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to left, #000 0, #000 calc(100% - 28px), transparent 100%);
+}
+.stk-rail-split {
+  flex: 0 0 auto; inline-size: var(--bw-hair); align-self: stretch;
+  background: var(--line-2); margin-inline: 3px;
+}
+
+.stk-chip {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: baseline; gap: 6px;
+  min-block-size: max(34px, var(--tap-sm, 34px)); padding: 0 12px;
+  border: var(--bw-hair) solid var(--line-2); border-radius: 999px;
+  background: var(--bg-2); color: var(--muted);
+  font-family: var(--bold); font-weight: 800; font-size: 12.5px;
+  white-space: nowrap; cursor: pointer;
+  transition: border-color .14s, color .14s;
+}
+.stk-chip b { font-family: var(--font-mono); font-weight: 800; font-size: 12.5px; color: var(--ink); }
+/* One tone, because there is one decision. The rail used to carry three — out, low and
+   ending tonight — which is three chips to choose between for one act of buying. */
+.stk-chip[data-tone="below"] b { color: var(--stk-low-ink); }
+.stk-chip:hover { border-color: var(--keyline); color: var(--ink); }
+.stk-chip.on { background: var(--lime); border-color: var(--keyline); color: var(--fill-ink); }
+.stk-chip.on b { color: var(--fill-ink); }
+.stk-chip:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+
+.stk-add {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 7px;
+  min-block-size: max(42px, var(--tap)); padding: 0 15px;
+  border: var(--bw) solid var(--keyline); border-radius: 7px;
+  background: var(--lime); color: var(--fill-ink);
+  font-family: var(--bold); font-weight: 800; font-size: 13.5px;
+  cursor: pointer; box-shadow: var(--hard-sm); white-space: nowrap;
+  transition: box-shadow .14s, transform .14s;
+}
+.stk-add em { font-style: normal; }
+@media (hover: hover) { .stk-add:hover { box-shadow: var(--hard); transform: translate(-2px, -2px); } }
+.stk-add:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+
+/* =====================================================================
+   THE SHELF — and the one idea the feature is built on.
+
+   Every bar is measured against that item's OWN order line, in multiples
+   of it, so the line falls in the same column on every row whatever the
+   item is counted in. That is what lets it be drawn as one continuous
+   vertical rule running the length of the list — through the aisle
+   headers, past forty items — and everything left of the rule is
+   something to buy. No colour key to memorise, no three shades of
+   warning to tell apart, no counts to cross-reference against a rail.
+
+   It also collapsed the vocabulary: "run out", "to order" and "gone
+   tonight" were three words and three chips for one decision. There is
+   one word now, and it names the picture — below the line.
+   ===================================================================== */
+
+/* Height of the pinned filter rail. The aisle headers stick directly beneath it, so the
+   two have to agree — and the rail is a chip plus its padding, which grows with the tap
+   scale: 50px at a desk, 52px on a counter iPad. Hard-coding 50 left a sliver of the
+   scrolled row showing above each header there. The rail never wraps, which is what keeps
+   this a number at all. */
+.stock-page { --stk-rail-h: max(50px, calc(var(--tap-sm, 34px) + 8px)); }
+
+.stk-shelf { display: flex; flex-direction: column; gap: 10px; }
+.stk-shelf-hd {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+}
+.stk-shelf-hd h3 {
+  flex: 0 0 auto; margin: 0;
+  font-family: var(--bold); font-size: 16px; font-weight: 800; color: var(--ink);
+}
+.stk-q {
+  flex: 1 1 150px; max-inline-size: 280px; min-inline-size: 0;
+  min-block-size: max(42px, var(--tap));
+  background: var(--bg-2); border: var(--bw) solid var(--keyline); border-radius: 7px;
+  color: var(--ink); padding-inline: 13px;
+  font-family: var(--font-ar); font-size: var(--fs-field);
+  box-shadow: var(--hard-sm);
+}
+.stk-q:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+
+/* The filters stay reachable down a long shelf; the heading above them does not need to. */
+.stk-shelf > .stk-rail {
+  position: sticky; inset-block-start: 0; z-index: 5;
+  min-block-size: var(--stk-rail-h);
+  margin-inline: calc(var(--stk-edge) * -1);
+  padding-inline: var(--stk-edge);
+  background: var(--canvas);
+}
+
+.stk-list {
+  position: relative;
+  background: var(--bg-2);
+  border: var(--bw) solid var(--keyline);
+  border-radius: 10px;
+  box-shadow: var(--hard-sm);
+  /* CLIP, never HIDDEN. Both round the corners off the rows, but `hidden` also makes this
+     box a scroll container, and the aisle headers below are sticky against the PAGE. Under
+     `hidden` they took their offset from a list that never scrolls, so the first header in
+     the list — the one whose natural position is nearer the top than --stk-rail-h — was
+     shoved down by the difference and, sticky taking no space, parked on top of the first
+     row: a blank strip where the header belonged and a half-hidden item underneath it. */
+  overflow: clip;
+}
+
+/*  One grid for the legend, the aisle headers and every row, so the rule inside each
+    track cell lands on the same x and the segments join into one line down the page.
+
+    The quantity column is the one thing that goes on a phone. At 390px a four-column
+    row leaves the track too short to mean anything, and the track plus the state word
+    is the whole decision — the figure itself is one tap away on the item. */
+.stk-row, .stk-sec-hd, .stk-axis {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(76px, 104px) var(--stk-state-w);
+  grid-template-areas: "name track state";
+  align-items: center;
+  column-gap: 10px;
+}
+@container (min-width: 560px) {
+  .stk-row, .stk-sec-hd, .stk-axis {
+    grid-template-columns: minmax(0, 1.3fr) 5rem minmax(130px, 1.5fr) var(--stk-state-w);
+    grid-template-areas: "name qty track state";
+  }
+}
+
+.stk-row-name, .stk-band-label { grid-area: name; }
+.stk-row-qty   { grid-area: qty; display: none; }
+.stk-row-track { grid-area: track; }
+.stk-row-state { grid-area: state; }
+@container (min-width: 560px) { .stk-row-qty { display: block; } }
+
+/* The rule. Stretched to the full height of the row so consecutive segments touch —
+   which is the whole trick, and why rows are separated by a hairline rather than a gap. */
+.stk-row-track {
+  position: relative; align-self: stretch;
+  display: flex; align-items: center;
+  min-inline-size: 0;
+}
+.stk-row-rule {
+  position: absolute; inset-block: 0;
+  inline-size: var(--bw-hair);
+  background: var(--stk-rule-ink);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+html[dir="rtl"] .stk-row-rule { transform: translateX(50%); }
+
+/* The legend: one tick, naming the rule that runs down everything beneath it. */
+.stk-axis {
+  block-size: 26px;
+  /* Same inline padding as a row and an aisle header, or this grid is 28px wider than
+     theirs and every column starts somewhere else — which put the legend's tick, the one
+     that NAMES the order line, 14px to the right of the line it was naming. The three
+     share a grid so the rule is one continuous vertical; they have to share the box too. */
+  padding-inline: 14px;
+  border-block-end: var(--bw-hair) solid var(--line-2);
+  background: color-mix(in srgb, var(--ink) 3%, var(--bg-2));
+}
+.stk-axis-cap {
+  position: absolute; inset-block-start: 4px;
+  margin-inline-start: 6px;
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--faint); font-style: normal; white-space: nowrap;
+}
+html[dir="rtl"] .stk-axis-cap {
+  font-family: var(--font-ar); font-size: 11px; letter-spacing: 0; text-transform: none;
+}
+.stk-axis-note {
+  margin: 0; padding: 9px 14px;
+  border-block-start: var(--bw-hair) solid var(--line);
+  font-size: 11.5px; line-height: 1.5; color: var(--faint);
+}
+
+.stk-sec-hd {
+  position: sticky; inset-block-start: var(--stk-rail-h); z-index: 3;
+  margin: 0; padding-inline: 14px; min-block-size: 34px;
+  background: color-mix(in srgb, var(--ink) 4%, var(--bg-2));
+  border-block: var(--bw-hair) solid var(--line-2);
+}
+.stk-sec-hd .stk-band-label {
+  display: flex; align-items: center; gap: 9px;
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.stk-sec-hd i { font-style: normal; font-size: 11px; font-weight: 800; color: var(--faint); }
+html[dir="rtl"] .stk-sec-hd .stk-band-label {
+  font-family: var(--font-ar); font-size: 12px; letter-spacing: 0; text-transform: none;
+}
+/* The one group that is not a place in the stockroom but a verdict about it. */
+.stk-sec-hd.alert { background: var(--surface-2); }
+.stk-sec-hd.alert .stk-band-label, .stk-sec-hd.alert i { color: var(--ink); }
+
+.stk-row {
+  inline-size: 100%;
+  min-block-size: max(52px, var(--tap));
+  padding-inline: 14px;
+  border: 0; border-block-start: var(--bw-hair) solid var(--line);
+  background: none; text-align: start; font-family: inherit; cursor: pointer;
+}
+.stk-band > .stk-row:first-child, .stk-sec-hd + .stk-row { border-block-start: 0; }
+.stk-row:hover { background: color-mix(in srgb, var(--ink) 3%, transparent); }
+.stk-row:focus-visible { outline: none; box-shadow: inset var(--focus-shadow); }
+
+.stk-row-name { display: flex; flex-direction: column; gap: 1px; min-inline-size: 0; }
+.stk-row-name b {
+  font-size: 14px; font-weight: 700; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.stk-row-name em {
+  font-style: normal; font-family: var(--font-mono);
+  font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--faint);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html[dir="rtl"] .stk-row-name em {
+  font-family: var(--font-ar); font-size: 11.5px; letter-spacing: 0; text-transform: none;
+}
+
+.stk-row-qty {
+  font-size: 14px; font-weight: 800; color: var(--ink);
+  text-align: end; white-space: nowrap;
+  direction: ltr; unicode-bidi: isolate;
+}
+.stk-row-qty i { font-style: normal; font-size: 10.5px; font-weight: 600; color: var(--faint); margin-inline-start: 2px; }
+
+.stk-row-state {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 800;
+  letter-spacing: .04em; text-align: end; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.stk-row-state[data-tone="out"]   { color: var(--stk-out-ink); }
+.stk-row-state[data-tone="order"] { color: var(--stk-low-ink); }
+.stk-row-state[data-tone="ok"]    { color: var(--muted); }
+.stk-row-state[data-tone="new"]   { color: var(--faint); }
+html[dir="rtl"] .stk-row-state {
+  font-family: var(--font-ar); font-size: 12px; letter-spacing: 0;
+}
+
+/* =====================================================================
+   THE GAUGE — one item, placed on that axis. Drawn identically wherever
+   an item appears, so the shelf, the item sheet and the walk are all
+   showing the same object at the same scale.
+   ===================================================================== */
+
+.stk-gauge {
+  position: relative;
+  flex: 1 1 auto;
+  block-size: 10px;
+  background: var(--stk-track);
+  border: var(--bw-hair) solid var(--keyline);
+  border-radius: 3px;
+  min-inline-size: 0;
+}
+.stk-gauge.tall { block-size: 16px; border-radius: 4px; margin-block: 18px 4px; }
+.stk-gauge-fill {
+  block-size: 100%;
+  border-radius: 2px;
+  background: var(--stk-ok);
+  transition: inline-size .35s cubic-bezier(.2,.8,.2,1);
+}
+.stk-gauge[data-state="order"] .stk-gauge-fill { background: var(--stk-low); }
+.stk-gauge[data-state="out"]   .stk-gauge-fill { background: var(--stk-out); }
+/* Nothing left is a full empty track, which on its own looks the same as a track nobody
+   has measured. The tint is what tells the two apart at arm's length. */
+.stk-gauge[data-state="out"] { background: var(--tint-bad); border-color: var(--stk-out); }
+/* Standing alone, a gauge carries its own line: a hard tick straddling the track, the
+   one place the ink breaks out of the box. In the shelf this is off and the list's own
+   continuous rule does the job. */
+.stk-gauge-rule {
+  position: absolute; inset-block: -4px;
+  inline-size: var(--bw);
+  background: var(--stk-rule-ink);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+html[dir="rtl"] .stk-gauge-rule { transform: translateX(50%); }
+/* No line set — nothing to measure against, so say so rather than drawing a bar that
+   would be a lie about a number nobody has given. */
+.stk-gauge.blank {
+  block-size: 10px; flex: 1 1 auto;
+  background: transparent; border: var(--bw-hair) dashed var(--line-2); border-radius: 3px;
+}
+
+/* =====================================================================
+   FIRST RUN — the only screen an owner sees before deciding stock is
+   worth their evening, and for a new café the common state rather than
+   the edge case. One button, and the promise that earns it.
+   ===================================================================== */
+
+.stk-first { display: flex; flex-direction: column; gap: clamp(16px, 3vw, 24px); }
+.stk-first-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.stk-first-copy h2 {
+  margin: 0;
+  font-family: var(--bold);
+  font-size: clamp(26px, 6vw, 38px);
+  font-weight: var(--fw-display, 800);
+  line-height: 1.08; letter-spacing: -.02em; color: var(--ink);
+}
+.stk-first-copy p { margin: 0; max-inline-size: 58ch; font-size: 14.5px; line-height: 1.65; color: var(--muted); }
+.stk-first-copy .key {
+  display: inline-flex; align-items: center; gap: 9px;
+  margin-block-start: 4px;
+  min-block-size: max(48px, var(--tap)); padding: 0 22px;
+  border: var(--bw) solid var(--keyline); border-radius: 8px;
+  background: var(--lime); color: var(--fill-ink);
+  font-family: var(--bold); font-weight: 800; font-size: 15.5px;
+  cursor: pointer; box-shadow: var(--hard);
+}
+.stk-first-copy .key .ic { font-size: 18px; line-height: 1; }
+.stk-first-copy .key:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+
+.stk-sample { margin: 0; display: flex; flex-direction: column; gap: 7px; }
+.stk-sample .stk-list { box-shadow: none; }
+.stk-sample .stk-row { cursor: default; }
+.stk-sample .stk-row:hover { background: none; }
+
+.stk-loop-how { display: flex; flex-direction: column; gap: 8px; }
+.stk-loop-how ol {
+  margin: 0; padding: 0; list-style: none;
+  display: flex; flex-direction: column; gap: 0;
+  counter-reset: step;
+}
+.stk-loop-how li {
+  counter-increment: step;
+  display: flex; align-items: baseline; gap: 12px;
+  padding: 11px 0;
+  border-block-start: var(--bw-hair) solid var(--line-2);
+  font-size: 13.5px; line-height: 1.55; color: var(--muted);
+}
+.stk-loop-how li:first-child { border-block-start: 0; }
+.stk-loop-how li::before {
+  content: counter(step);
+  flex: 0 0 auto;
+  inline-size: 22px; block-size: 22px;
+  display: grid; place-items: center;
+  border: var(--bw-hair) solid var(--line-2); border-radius: 999px;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 800; color: var(--faint);
+}
+
+/* =====================================================================
+   WHAT YOUR DRINKS USE — the other half, no longer a tab nobody opened.
+
+   The take strip under each name carries the whole state in its STROKE:
+   solid, with mono amounts, when a sale draws something; a dashed empty
+   rule when it draws nothing. Stroke rather than a fourth status colour,
+   because a connection is not a status and the page's colour budget is
+   already spent on the shelf.
+   ===================================================================== */
+
+.stk-uses-head {
+  margin: 0; font-size: 14px; line-height: 1.55; font-weight: 700; color: var(--ink);
+}
+.stk-uses-list { display: flex; flex-direction: column; gap: 14px; }
+.stk-uses-list section { display: flex; flex-direction: column; }
+.stk-uses-list .stk-sec-hd {
+  position: static; display: block; padding: 7px 12px; border-radius: 6px 6px 0 0;
+}
+
+.stk-use {
+  display: flex; flex-direction: column; gap: 6px;
+  inline-size: 100%; padding: 11px 12px; text-align: start;
+  border: 0; border-block-start: var(--bw-hair) solid var(--line);
+  background: none; font-family: inherit; cursor: pointer;
+}
+.stk-use:hover { background: color-mix(in srgb, var(--ink) 3%, transparent); }
+.stk-use:focus-visible { outline: none; box-shadow: inset var(--focus-shadow); }
+.stk-use-top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.stk-use-top b { font-size: 14px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.stk-use-top em { font-style: normal; font-size: 11px; color: var(--faint); }
+
+.stk-use-takes { display: flex; flex-wrap: wrap; gap: 5px 8px; }
+.stk-ing {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  padding: 3px 8px; border-radius: 5px;
+  border: var(--bw-hair) solid var(--line-2); background: var(--bg-2);
+  font-size: 11.5px; color: var(--muted);
+}
+.stk-ing b { color: var(--ink); font-weight: 800; direction: ltr; unicode-bidi: isolate; }
+.stk-ing[data-uncounted] { border-style: dashed; border-color: var(--stk-low); }
+
+.stk-use-nil { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.stk-use-nil i {
+  flex: 1 1 60px; min-inline-size: 40px;
+  block-size: 0; border-block-start: var(--bw) dashed var(--line-2);
+}
+.stk-use-nil em { font-style: normal; font-size: 12px; color: var(--muted); }
+.stk-use-set { font-size: 12px; font-weight: 800; color: var(--accent-text); }
+
+.stk-use-money { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.stk-use-money b { font-size: 12px; font-weight: 800; color: var(--ink); }
+.stk-use-money i { font-style: normal; font-size: 11.5px; color: var(--muted); }
+.stk-use-warn { color: var(--stk-low-ink) !important; }
+
+/* Choosing what uses an item, from inside the item form. */
+.stk-uses-pick { display: flex; flex-direction: column; gap: 7px; }
+/* A wrapped block rather than a rail: the menu is open-ended, and a one-line scroller both
+   hid most of it and — with the scrollbar hidden the way every rail here hides it — gave a
+   plain mouse no way to reach past the first three chips. Wrapping also makes the answer
+   scannable, which is the actual question being asked. */
+.stk-uses-pick .stk-chiplist { display: flex; flex-wrap: wrap; gap: 7px; padding-block: 2px; }
+
+/* =====================================================================
+   The item sheet's own two lines: what the figure means, and whether
+   anything on the menu is drawing on it at all.
+   ===================================================================== */
+
+.stk-used {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  inline-size: 100%; padding: 10px 12px; text-align: start;
+  border: var(--bw-hair) solid var(--line-2); border-radius: 8px;
+  background: var(--bg-2); font-family: inherit;
+  font-size: 12.5px; color: var(--muted);
+}
+.stk-used.dead { border-style: dashed; cursor: pointer; }
+.stk-used.dead em { font-style: normal; font-weight: 800; color: var(--accent-text); }
+.stk-used.dead:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+
+/* =====================================================================
+   Narrow screens and the counter iPad.
+   Width is only ever asked about the page's own container; anything to do
+   with the hand holding it goes through the posture attributes.
+   ===================================================================== */
+
+@container (max-width: 520px) {
+  .stk-now { padding: 15px; border-radius: 10px; }
+  .stk-receipt-row { gap: 6px; }
+  .stk-receipt { flex: 1 1 130px; padding: 8px 11px; }
+  .stk-shelf-hd h3 { flex: 1 1 100%; }
+  .stk-q { max-inline-size: none; }
+}
+
+/* On a counter tablet the shelf is read at arm's length while somebody talks to you,
+   so the row grows to the touch scale and the name gets the extra size, not the chrome. */
+html[data-posture="counter"] .stk-row { min-block-size: max(58px, var(--tap-lg, 56px)); }
+html[data-posture="counter"] .stk-row-name b { font-size: 15px; }
+
+/* =====================================================================
+   Arabic in the mono-tracked slots.
+
+   Every small label here is set in IBM Plex Mono, uppercased and tracked
+   out — right for "ORDER LINE" and meaningless for "حدّ الطلب": Plex Mono
+   carries no Arabic, so the browser falls back to another face and then
+   applies .06–.14em of tracking to a joined script, pulling the letters
+   apart un-joined. The uppercase transform does nothing at all.
+
+   Slots holding only figures and units stay mono on purpose: tabular
+   digits are what make a column of them scannable, and digits join nothing.
+   ===================================================================== */
+html[dir="rtl"] :is(
+  .stk-receipt span,
+  .stk-fact span,
+  .stk-panel-qty em,
+  .stk-panel-state,
+  .stk-f > span,
+  .stk-line label span,
+  .stk-sec-h,
+  .stk-move-tag,
+  .stk-move-when,
+  .stk-cost span,
+  .stk-count-read span,
+  .stk-count-tally span,
+  .stk-order span
+) {
+  font-family: var(--font-ar);
+  letter-spacing: 0;
+  text-transform: none;
+}
+html[dir="rtl"] :is(.stk-fact span, .stk-f > span, .stk-line label span, .stk-cost span,
+                    .stk-receipt span) { font-size: 11.5px; }
+
+/* ---- recipe mode picker and the delivery line's unit switch ---------------
+   Both belong to sheets rather than to the page, and both survived the rebuild
+   untouched — the item form and the recipe editor were not the thing that was
+   confusing owners about stock. ---------------------------------------------- */
+
+.stk-modes { display: grid; grid-template-columns: minmax(0, 1fr); gap: 9px; }
+@container (min-width: 560px) { .stk-modes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stk-mode {
+  display: flex; gap: 11px; align-items: flex-start; text-align: start;
+  background: var(--bg-2); border: var(--bw) solid var(--keyline); border-radius: 8px;
+  box-shadow: var(--hard-sm); padding: 13px 14px; cursor: pointer;
+  font-family: var(--font-ar); color: var(--ink); min-block-size: 44px;
+}
+.stk-mode.on { background: var(--lime); color: var(--fill-ink); }
+.stk-mode:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+.stk-mode .ic { font-size: 19px; line-height: 1; flex: 0 0 auto; }
+.stk-mode span { display: flex; flex-direction: column; gap: 3px; min-inline-size: 0; }
+.stk-mode b { font-family: var(--bold); font-size: 13.5px; font-weight: 800; }
+.stk-mode em { font-style: normal; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+.stk-mode.on em { color: color-mix(in srgb, var(--fill-ink) 72%, transparent); }
+
+/* A section label, not a heading in the visual sense — the same mono eyebrow whether it
+   is written as a span, an h4 or an h5, because which element it is depends on what is
+   above it in the sheet and not on how it should look. Headings carry a UA font size,
+   weight and block margin, so both are reset rather than fought with `!important`. */
+.stk-sec-h {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+}
+:is(h4, h5).stk-sec-h, .stk-sec-h > :is(h4, h5) { margin: 0; }
+.stk-sec-h > :is(h4, h5) { font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; }
+
+/* The live costing footer — the payoff that makes entering a recipe worth it. Each figure
+   is a label stacked over a number; without the column the pair reads as one run of text
+   ("Cost0.000"), which is what the whole footer degrades to if this block goes missing. */
+.stk-cost {
+  position: sticky; inset-block-end: 0;
+  display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline;
+  background: var(--paper); border: var(--bw) solid var(--keyline);
+  border-radius: 8px; box-shadow: var(--hard-sm); padding: 12px 14px; margin-block-start: 4px;
+}
+.stk-cost div { display: flex; flex-direction: column; gap: 1px; min-inline-size: 0; }
+.stk-cost span { font-family: var(--font-mono); font-size: 9.5px; color: var(--faint); text-transform: uppercase; letter-spacing: .07em; }
+.stk-cost b { font-family: var(--font-mono); font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ink); }
+.stk-cost b.good { color: var(--accent-text); }
+.stk-cost b.warn { color: var(--sun); }
+.stk-cost b.bad { color: var(--bad); }
+
+.stk-optgroup { border-block-start: var(--bw-hair) solid var(--line-2); padding-block-start: 13px; display: flex; flex-direction: column; gap: 12px; }
+.stk-opt { display: flex; flex-direction: column; gap: 9px; }
+.stk-opt > .lbl { font-family: var(--bold); font-size: 13px; font-weight: 800; color: var(--ink); }
+/* Hugs its label like the tick list's own add button, rather than stretching to the
+   column width the way a stretch-aligned flex child otherwise would. */
+.stk-opt > .btn { align-self: start; }
+
+/* Inline "enter in grams instead" switch on a delivery line. */
+.stk-unit-swap {
+  margin-inline-start: 8px; border: 0; background: none; cursor: pointer;
+  font-family: var(--font-ar); font-size: 10.5px; font-weight: 800;
+  color: var(--accent-text); text-decoration: underline; padding: 2px;
+  text-transform: none; letter-spacing: 0;
+}
+.stk-unit-swap:focus-visible { outline: none; box-shadow: var(--focus-shadow); border-radius: 4px; }

@@ -87,7 +87,6 @@ app:
   # Annual subscription fee + the bank details shown to cafés on renewals.
   # >>> CHANGE_ME: replace the placeholders below with your real bank details + price. <<<
   billing:
-    plan-name: ${APP_BILLING_PLAN:Annual}
     price: ${APP_BILLING_PRICE:29.000}             # per-year fee
     currency: ${APP_BILLING_CURRENCY:OMR}
     bank-name: ${APP_BILLING_BANK_NAME:CHANGE_ME - Bank Muscat}
@@ -99,6 +98,10 @@ app:
     term-months: ${APP_SUB_TERM_MONTHS:12}
     grace-days: ${APP_SUB_GRACE_DAYS:7}
     reminder-days-before: ${APP_SUB_REMINDER_DAYS:14,7,1}
+  # Counter mode: how long a paid READY order lingers on the board before it completes itself.
+  orders:
+    counter-linger-minutes: ${APP_ORDERS_COUNTER_LINGER_MINUTES:10}
+    counter-sweep-ms: ${APP_ORDERS_COUNTER_SWEEP_MS:60000}
   # Per-IP request limits on sensitive public endpoints (uses X-Forwarded-For behind nginx).
   rate-limit:
     enabled: ${APP_RATE_LIMIT_ENABLED:true}

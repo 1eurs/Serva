@@ -3,6 +3,7 @@ package com.cafeqr.subscriptions;
 import com.cafeqr.common.config.AppProperties;
 import com.cafeqr.notifications.email.EmailMessage;
 import com.cafeqr.notifications.email.EmailSender;
+import com.cafeqr.common.util.Names;
 import com.cafeqr.notifications.email.EmailTemplate;
 import com.cafeqr.restaurants.RestaurantService;
 import com.cafeqr.subscriptions.domain.BillingCycle;
@@ -112,7 +113,7 @@ public class SubscriptionLifecycleJob {
                   + "جدّد الآن للإبقاء على مطعمك نشطاً دون انقطاع.";
 
             String html = EmailTemplate.build()
-                .line("Hi <strong>" + owner.getFullName() + "</strong>,")
+                .line("Hi <strong>" + Names.preferring(owner.getFullNameEn(), owner.getFullNameAr(), owner.getFullName(), false) + "</strong>,")
                 .line(urgencyEn)
                 .line("Transfer <strong>" + amount + "</strong> with your reference in the note:")
                 .code("Your reference", ref)
@@ -126,7 +127,7 @@ public class SubscriptionLifecycleJob {
                 .muted("We'll extend your subscription within 1 business day of receiving the transfer.")
                 .divider()
                 .rtl()
-                .line("مرحباً <strong>" + owner.getFullName() + "</strong>،")
+                .line("مرحباً <strong>" + Names.preferring(owner.getFullNameEn(), owner.getFullNameAr(), owner.getFullName(), true) + "</strong>،")
                 .line(urgencyAr)
                 .line("حوّل <strong>" + amount + "</strong> واكتب رمزك المرجعي في الملاحظة:")
                 .code("رمزك المرجعي", ref)
@@ -161,7 +162,7 @@ public class SubscriptionLifecycleJob {
             String ref = s.getPaymentReference() != null ? s.getPaymentReference() : "";
 
             String html = EmailTemplate.build()
-                .line("Hi <strong>" + owner.getFullName() + "</strong>,")
+                .line("Hi <strong>" + Names.preferring(owner.getFullNameEn(), owner.getFullNameAr(), owner.getFullName(), false) + "</strong>,")
                 .line("Your Serva subscription expired on <strong>" + endDate + "</strong> "
                     + "and your café's menu is now <strong>offline</strong>. "
                     + "Customers can't place orders until you renew.")
@@ -177,7 +178,7 @@ public class SubscriptionLifecycleJob {
                 .muted("Your menu will come back online within 1 business day of us confirming the transfer.")
                 .divider()
                 .rtl()
-                .line("مرحباً <strong>" + owner.getFullName() + "</strong>،")
+                .line("مرحباً <strong>" + Names.preferring(owner.getFullNameEn(), owner.getFullNameAr(), owner.getFullName(), true) + "</strong>،")
                 .line("انتهى اشتراكك في Serva بتاريخ <strong>" + endDate + "</strong> "
                     + "وقائمة مطعمك أصبحت <strong>غير متاحة</strong>. "
                     + "لا يستطيع العملاء الطلب حتى تجدّد اشتراكك.")

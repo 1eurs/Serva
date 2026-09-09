@@ -1,0 +1,6 @@
+scripts/.mock-prints/
+
+# The station app IS committed on purpose: the printer guide links to it, and a fresh clone
+# that deployed without it would hand cafés a broken download. Rebuild with
+# android-station/make-apk.sh, which writes it here.
+!public/downloads/serva-station.apk

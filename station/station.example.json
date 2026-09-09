@@ -1,0 +1,11 @@
+{
+  "apiBase": "https://serva.om",
+  "username": "counter@your-cafe.om",
+  "password": "…",
+  "branchId": 1,
+  "stationId": "pi-counter",
+  "printerHost": "192.168.1.50",
+  "printerPort": 9100,
+  "paperWidth": 80,
+  "pollMs": 5000
+}

@@ -1,6 +1,6 @@
 // Central API client. Unwraps the { success, message, data, errorCode } envelope,
 // attaches the JWT, and transparently refreshes the access token once on 401.
-import type { ApiEnvelope, AuthResponse, UserResponse } from './types';
+import type { ApiEnvelope, AuthResponse, Impersonation, UserResponse } from './types';
 
 export class ApiError extends Error {
   errorCode?: string;
@@ -16,6 +16,8 @@ export class ApiError extends Error {
 const ACCESS_KEY = 'cafeqr_access';
 const REFRESH_KEY = 'cafeqr_refresh';
 const USER_KEY = 'cafeqr_user';
+/** The platform admin's own session, parked while they are inside a café. */
+const ADMIN_SESSION_KEY = 'cafeqr_admin_session';
 
 let accessToken: string | null = localStorage.getItem(ACCESS_KEY);
 let refreshToken: string | null = localStorage.getItem(REFRESH_KEY);
@@ -48,12 +50,100 @@ function clearSession() {
   localStorage.removeItem(ACCESS_KEY);
   localStorage.removeItem(REFRESH_KEY);
   localStorage.removeItem(USER_KEY);
+  // A parked admin session is part of the session too — signing out must not leave a token
+  // for somebody else's café sitting in storage.
+  localStorage.removeItem(ADMIN_SESSION_KEY);
   emit();
 }
 function setUser(user: UserResponse) {
   currentUser = user;
   localStorage.setItem(USER_KEY, JSON.stringify(user));
   emit();
+}
+
+/* ---------------------------------------------------------------------------
+ * Support impersonation.
+ *
+ * Entering a café is not a second login: the admin's own session is parked in
+ * localStorage and the café session takes its place, with no refresh token, so
+ * it cannot renew itself and simply lapses. Leaving — or the token expiring,
+ * or a reload — puts the admin back where they were.
+ * ------------------------------------------------------------------------- */
+
+export interface ImpersonationState {
+  restaurantId: number;
+  restaurantName: string;
+  username: string;
+  /** Epoch millis. Past it, the café session is dead and the admin's is restored. */
+  expiresAt: number;
+}
+
+interface ParkedSession {
+  access: string;
+  refresh: string;
+  user: UserResponse;
+  impersonation: ImpersonationState;
+}
+
+function readParked(): ParkedSession | null {
+  const raw = localStorage.getItem(ADMIN_SESSION_KEY);
+  if (!raw) return null;
+  try { return JSON.parse(raw) as ParkedSession; } catch { return null; }
+}
+
+/** The café currently being viewed as, or null when the admin is themselves. */
+export function getImpersonation(): ImpersonationState | null {
+  const parked = readParked();
+  if (!parked) return null;
+  if (parked.impersonation.expiresAt <= Date.now()) {
+    endImpersonation();
+    return null;
+  }
+  return parked.impersonation;
+}
+
+/** Swaps the admin's session for a café one. Returns false if there was nothing to park. */
+export function startImpersonation(imp: Impersonation): boolean {
+  if (!accessToken || !refreshToken || !currentUser) return false;
+  // Already inside a café: keep the *original* admin session parked rather than parking the
+  // café session on top of it, or leaving would only get you back to another café.
+  const parked = readParked();
+  const parkedSession: ParkedSession = {
+    access: parked?.access ?? accessToken,
+    refresh: parked?.refresh ?? refreshToken,
+    user: parked?.user ?? currentUser,
+    impersonation: {
+      restaurantId: imp.restaurantId,
+      restaurantName: imp.restaurantName,
+      username: imp.user.username,
+      expiresAt: Date.now() + imp.expiresInSeconds * 1000,
+    },
+  };
+  localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(parkedSession));
+
+  accessToken = imp.accessToken;
+  refreshToken = null;
+  currentUser = imp.user;
+  localStorage.setItem(ACCESS_KEY, imp.accessToken);
+  localStorage.removeItem(REFRESH_KEY);
+  localStorage.setItem(USER_KEY, JSON.stringify(imp.user));
+  emit();
+  return true;
+}
+
+/** Puts the admin back in their own session. Safe to call when not impersonating. */
+export function endImpersonation(): boolean {
+  const parked = readParked();
+  localStorage.removeItem(ADMIN_SESSION_KEY);
+  if (!parked) return false;
+  accessToken = parked.access;
+  refreshToken = parked.refresh;
+  currentUser = parked.user;
+  localStorage.setItem(ACCESS_KEY, parked.access);
+  localStorage.setItem(REFRESH_KEY, parked.refresh);
+  localStorage.setItem(USER_KEY, JSON.stringify(parked.user));
+  emit();
+  return true;
 }
 
 interface Opts { method?: string; body?: unknown; auth?: boolean; signal?: AbortSignal; }
@@ -77,7 +167,10 @@ async function raw<T>(path: string, opts: Opts, retry = true): Promise<T> {
   // data ends a shift mid-service.
   if (res.status === 401 && auth && retry) {
     if (!refreshToken) {
-      clearSession();
+      // A café support session has no refresh token by design. Its 401 means the half hour is
+      // up — that must return the admin to their own console, not sign them out of everything.
+      if (!endImpersonation()) clearSession();
+      else return raw<T>(path, opts, false);
     } else {
       const outcome = await tryRefresh();
       if (outcome === 'ok') return raw<T>(path, opts, false);
@@ -278,10 +371,14 @@ export async function changeEmail(currentPassword: string, newEmail: string): Pr
   setSession(auth);
   return auth.user;
 }
-export async function updateProfile(fullName: string, phone?: string | null): Promise<UserResponse> {
+export async function updateProfile(
+  names: { fullNameEn: string; fullNameAr: string },
+  phone?: string | null,
+): Promise<UserResponse> {
   const user = await raw<UserResponse>('/api/auth/me', {
+    // "" clears one side of the pair; the server refuses to clear both.
     method: 'PATCH',
-    body: { fullName, phone },
+    body: { fullNameEn: names.fullNameEn, fullNameAr: names.fullNameAr, phone },
   });
   setUser(user);
   return user;

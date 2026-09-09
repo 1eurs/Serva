@@ -10,6 +10,9 @@ public interface BranchRepository extends JpaRepository<Branch, Long> {
 
     List<Branch> findByRestaurantIdOrderByNameAsc(Long restaurantId);
 
+    /** How many branches a café already has — the STANDARD tier's allowance is one. */
+    long countByRestaurantId(Long restaurantId);
+
     List<Branch> findByRestaurantIdAndActiveTrueOrderByNameAsc(Long restaurantId);
 
     /** {@code [restaurantId, branchCount]} for the platform admin console. */

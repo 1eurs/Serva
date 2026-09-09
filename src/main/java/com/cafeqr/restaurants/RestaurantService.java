@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.cafeqr.common.exception.ConflictException;
 import com.cafeqr.common.exception.ErrorCode;
 import com.cafeqr.common.exception.ResourceNotFoundException;
+import com.cafeqr.common.util.Names;
 import com.cafeqr.common.util.Slugs;
 import com.cafeqr.restaurants.domain.Restaurant;
 import com.cafeqr.restaurants.dto.CreateRestaurantRequest;
@@ -33,8 +34,8 @@ public class RestaurantService {
     @Transactional
     public RestaurantResponse create(CreateRestaurantRequest request) {
         Restaurant restaurant = new Restaurant();
-        restaurant.setName(request.name());
-        restaurant.setSlug(resolveSlug(request.slug(), request.name()));
+        Names.applyOnCreate(restaurant, request.name(), request.nameEn(), request.nameAr());
+        restaurant.setSlug(resolveSlug(request.slug(), restaurant));
         restaurant.setLogoUrl(request.logoUrl());
         restaurant.setPhone(request.phone());
         restaurant.setEmail(request.email());
@@ -66,9 +67,7 @@ public class RestaurantService {
     @Transactional
     public RestaurantResponse update(Long id, UpdateRestaurantRequest request) {
         Restaurant restaurant = getEntity(id);
-        if (request.name() != null) {
-            restaurant.setName(request.name());
-        }
+        Names.applyOnUpdate(restaurant, request.name(), request.nameEn(), request.nameAr());
         // Blank string clears the logo (PATCH null = "leave unchanged", so clients send "").
         if (request.logoUrl() != null) {
             restaurant.setLogoUrl(request.logoUrl().isBlank() ? null : request.logoUrl().trim());
@@ -126,6 +125,17 @@ public class RestaurantService {
         return RestaurantResponse.from(restaurant);
     }
 
+    @Transactional
+    public RestaurantResponse updateMenuInfo(Long id, String menuInfoJson) {
+        Restaurant restaurant = getEntity(id);
+        String json = (menuInfoJson == null || menuInfoJson.isBlank()) ? null : menuInfoJson.trim();
+        if (json != null && !isJsonObject(json)) {
+            throw new BadRequestException("menuInfoJson must be a valid JSON object");
+        }
+        restaurant.setMenuInfoJson(json);
+        return RestaurantResponse.from(restaurant);
+    }
+
     private boolean isJsonObject(String json) {
         try {
             return THEME_JSON.readTree(json).isObject();
@@ -141,19 +151,9 @@ public class RestaurantService {
         return RestaurantResponse.from(restaurant);
     }
 
-    @Transactional
-    public RestaurantResponse setPremiumLook(Long id, boolean premiumLook) {
-        Restaurant restaurant = getEntity(id);
-        restaurant.setPremiumLook(premiumLook);
-        return RestaurantResponse.from(restaurant);
-    }
-
-    @Transactional
-    public RestaurantResponse setPlan(Long id, com.cafeqr.restaurants.domain.Plan plan) {
-        Restaurant restaurant = getEntity(id);
-        restaurant.setPlan(plan);
-        return RestaurantResponse.from(restaurant);
-    }
+    // setPlan(..) removed: a café's tier is now bought through its subscription, not assigned
+    // to the café directly. See SubscriptionService#applyTier — one writer, so the gate and the
+    // bill cannot disagree.
 
     // ---- helpers shared with other modules ----
 
@@ -179,10 +179,15 @@ public class RestaurantService {
         }
     }
 
-    private String resolveSlug(String requestedSlug, String name) {
+    /**
+     * The slug comes from the English name when there is one: slugifying Arabic strips every
+     * letter and leaves nothing to derive a URL from, which used to make an Arabic-named café
+     * impossible to create without typing a slug by hand.
+     */
+    private String resolveSlug(String requestedSlug, Restaurant restaurant) {
         String base = (requestedSlug != null && !requestedSlug.isBlank())
                 ? Slugs.slugify(requestedSlug)
-                : Slugs.slugify(name);
+                : Slugs.slugify(restaurant.getNameEn() != null ? restaurant.getNameEn() : restaurant.getName());
         if (base.isBlank()) {
             throw new BadRequestException("Unable to derive a slug; please provide one explicitly");
         }

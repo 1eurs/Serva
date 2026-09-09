@@ -1,6 +1,7 @@
 package com.cafeqr.analytics;
 
 import com.cafeqr.analytics.dto.AnalyticsSummaryResponse;
+import com.cafeqr.plans.domain.Feature;
 import com.cafeqr.analytics.dto.BestSellingItem;
 import com.cafeqr.analytics.dto.DailyPoint;
 import com.cafeqr.analytics.dto.DaypartPoint;
@@ -18,19 +19,21 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Standard-tier analytics — available to every cafe on STANDARD or PRO. Pro-only extras
- * (funnel, staff leaderboard, forecast, benchmarking, …) live at {@link ProAnalyticsController}.
+ * The core analytics every café gets. The diagnostic layer (funnel, staff leaderboard,
+ * forecast, benchmarking, …) lives at {@link ProAnalyticsController}.
  *
- * <p>Standard is capped so there's a meaningful upsell to Pro:
+ * <p>What is capped here is the <em>window</em>, and the cap lifts with {@code FULL_HISTORY}
+ * rather than with a tier name — which tier includes it is a tick on the Plans page:
  * <ul>
  *   <li>{@code /today} — always available (counts, revenue, AOV, best-sellers, busiest hours).</li>
- *   <li>{@code /orders?from&to} — Pro may pick any range; Standard is limited to the last 7
- *       days (longer windows throw 402 PLAN_REQUIRED with an upgrade hint).</li>
- *   <li>{@code /best-selling-items?limit} — Pro is unrestricted; Standard is capped at 5.</li>
+ *   <li>{@code /orders?from&to}, {@code /daily}, {@code /daypart}, {@code /payment-methods} —
+ *       without the feature, the last 7 days; longer windows throw 402 PLAN_REQUIRED.</li>
+ *   <li>{@code /best-selling-items?limit} — without the feature, capped at 5 rows.</li>
  * </ul>
  * Platform admin bypasses every cap (preview).
  */
@@ -40,10 +43,10 @@ import java.util.List;
 @PreAuthorize("hasAuthority('ANALYTICS')")
 public class AnalyticsController {
 
-    /** Best-seller row cap for STANDARD — Pro may pass a larger limit. */
-    private static final int STANDARD_BEST_SELLING_LIMIT = 5;
-    /** Date range cap (days) for STANDARD on the /orders endpoint. */
-    private static final int STANDARD_RANGE_DAYS = 7;
+    /** Best-seller rows without FULL_HISTORY; with it, the caller's limit stands. */
+    private static final int CAPPED_BEST_SELLING_LIMIT = 5;
+    /** Days of history without FULL_HISTORY. */
+    private static final int CAPPED_RANGE_DAYS = 7;
 
     private final AnalyticsService analyticsService;
     private final Entitlements entitlements;
@@ -67,14 +70,7 @@ public class AnalyticsController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) Long branchId) {
-        if (!entitlements.isPro()) {
-            long days = java.time.temporal.ChronoUnit.DAYS.between(from, to) + 1;
-            if (days > STANDARD_RANGE_DAYS) {
-                throw new PlanRequiredException(
-                        "Your plan covers the last " + STANDARD_RANGE_DAYS + " days. "
-                                + "Upgrade to Pro to query any date range.");
-            }
-        }
+        requireWindow(from, to);
         return ApiResponse.ok(analyticsService.summary(startOfDay(from), startOfDay(to.plusDays(1)), branchId));
     }
 
@@ -86,8 +82,8 @@ public class AnalyticsController {
             @RequestParam(defaultValue = "10") int limit,
             @RequestParam(required = false) Long branchId) {
         int applied = limit;
-        if (!entitlements.isPro()) {
-            applied = Math.min(limit, STANDARD_BEST_SELLING_LIMIT);
+        if (!entitlements.has(Feature.FULL_HISTORY)) {
+            applied = Math.min(limit, CAPPED_BEST_SELLING_LIMIT);
         }
         return ApiResponse.ok(analyticsService.bestSelling(startOfDay(from), startOfDay(to.plusDays(1)), branchId, applied));
     }
@@ -98,14 +94,7 @@ public class AnalyticsController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) Long branchId) {
-        if (!entitlements.isPro()) {
-            long days = java.time.temporal.ChronoUnit.DAYS.between(from, to) + 1;
-            if (days > STANDARD_RANGE_DAYS) {
-                throw new PlanRequiredException(
-                        "Your plan covers the last " + STANDARD_RANGE_DAYS + " days. "
-                                + "Upgrade to Pro to query any date range.");
-            }
-        }
+        requireWindow(from, to);
         return ApiResponse.ok(analyticsService.dailyBreakdown(startOfDay(from), startOfDay(to.plusDays(1)), branchId));
     }
 
@@ -115,14 +104,7 @@ public class AnalyticsController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) Long branchId) {
-        if (!entitlements.isPro()) {
-            long days = java.time.temporal.ChronoUnit.DAYS.between(from, to) + 1;
-            if (days > STANDARD_RANGE_DAYS) {
-                throw new PlanRequiredException(
-                        "Your plan covers the last " + STANDARD_RANGE_DAYS + " days. "
-                                + "Upgrade to Pro to query any date range.");
-            }
-        }
+        requireWindow(from, to);
         return ApiResponse.ok(analyticsService.daypartBreakdown(startOfDay(from), startOfDay(to.plusDays(1)), branchId));
     }
 
@@ -132,16 +114,28 @@ public class AnalyticsController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) Long branchId) {
-        if (!entitlements.isPro()) {
-            long days = java.time.temporal.ChronoUnit.DAYS.between(from, to) + 1;
-            if (days > STANDARD_RANGE_DAYS) {
-                throw new PlanRequiredException(
-                        "Your plan covers the last " + STANDARD_RANGE_DAYS + " days. "
-                                + "Upgrade to Pro to query any date range.");
-            }
-        }
+        requireWindow(from, to);
         return ApiResponse.ok(analyticsService.paymentMethodRevenue(
                 startOfDay(from), startOfDay(to.plusDays(1)), branchId));
+    }
+
+    /**
+     * A capped plan may ask for a short window; asking for more is a 402.
+     *
+     * <p>This check was written out five times, once per range endpoint, and the wording named
+     * the tier that lifts the cap — a sentence that goes out of date the next time somebody
+     * edits the Plans grid. One copy now, and it names the limit rather than the tier.
+     */
+    private void requireWindow(LocalDate from, LocalDate to) {
+        if (entitlements.has(Feature.FULL_HISTORY)) {
+            return;
+        }
+        long days = ChronoUnit.DAYS.between(from, to) + 1;
+        if (days > CAPPED_RANGE_DAYS) {
+            throw new PlanRequiredException(
+                    "Your plan covers the last " + CAPPED_RANGE_DAYS + " days. "
+                            + "Upgrade to query any date range.");
+        }
     }
 
     private static Instant startOfDay(LocalDate date) {

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Serva's bold skin, straight from frontend-react/src/styles/theme.css. The look is
+     cream paper, near-black ink used for BOTH text and every border, an emerald fill with
+     dark text on it, and offset shadows with no blur at all. -->
+<resources>
+    <color name="paper">#FAFAF7</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="ink">#15181C</color>
+    <color name="muted">#5B6066</color>
+    <color name="faint">#8A9099</color>
+    <color name="lime">#10B981</color>
+    <color name="fill_ink">#15181C</color>
+    <color name="accent_text">#047857</color>
+    <color name="bad">#FF6B5A</color>
+    <color name="bad_tint">#FFF1EF</color>
+    <color name="lime_tint">#E7F8F1</color>
+    <color name="ready">#3DE0A0</color>
+</resources>

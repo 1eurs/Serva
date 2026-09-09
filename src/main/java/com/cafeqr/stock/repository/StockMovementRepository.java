@@ -38,6 +38,23 @@ public interface StockMovementRepository extends JpaRepository<StockMovement, Lo
             """)
     List<Object[]> usageSince(@Param("branchId") Long branchId, @Param("since") Instant since);
 
+    /**
+     * When this branch first drew stock through a sale, or null if it never has.
+     *
+     * <p>Days of cover used to divide by the width of the window rather than by the history
+     * that exists inside it, so a café three days into tracking had its usage averaged over
+     * fourteen — understating demand almost fivefold and promising a month of beans it did
+     * not have. The projection needs to know how long it has actually been watching.
+     */
+    @Query("""
+            select min(m.createdAt)
+            from StockMovement m
+            where m.branchId = :branchId
+              and m.reason in (com.cafeqr.stock.domain.MovementReason.SALE,
+                               com.cafeqr.stock.domain.MovementReason.PREP_CONSUME)
+            """)
+    Instant firstUsageAt(@Param("branchId") Long branchId);
+
     /** Waste totals per item over a window, valued at the recorded unit cost. */
     @Query("""
             select m.stockItemId, sum(-m.deltaBase), sum(-m.deltaBase * coalesce(m.unitCost, 0))
@@ -62,6 +79,23 @@ public interface StockMovementRepository extends JpaRepository<StockMovement, Lo
             group by m.stockItemId
             """)
     List<Object[]> lastCountedAt(@Param("branchId") Long branchId);
+
+    /**
+     * When this branch was last physically counted, whatever the count was called.
+     *
+     * <p>The rotation query above asks the same thing per item. This asks it once about the
+     * whole branch — "has anybody walked the shelf lately?" — which is what decides whether
+     * the page's headline is a count or an order, and what it quotes beside every figure it
+     * prints. Deliberately COUNT only: a one-item correction is not a walk, and letting one
+     * fixed milk reset the clock would put "counted 5 minutes ago" over thirty stale rows.
+     */
+    @Query("""
+            select max(m.createdAt)
+            from StockMovement m
+            where m.branchId = :branchId
+              and m.reason = com.cafeqr.stock.domain.MovementReason.COUNT
+            """)
+    Instant lastCountAt(@Param("branchId") Long branchId);
 
     /** Most recent RECEIVE unit cost per item — used to spot cost inflation against the average. */
     @Query("""

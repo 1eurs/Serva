@@ -1,0 +1,16 @@
+# Mock by subclassing rather than by bytecode-instrumenting loaded classes.
+#
+# Mockito 5's default inline mock maker attaches a Byte Buddy agent to the running JVM at the
+# first mock() call. That attach is racy and occasionally loses: when it does, every mock in the
+# class fails at once and the suite reports a wall of bare "Mockito" errors that look like a
+# code regression and disappear on a re-run. It is also on borrowed time — the JVM prints
+# "Dynamic loading of agents will be disallowed by default in a future release" on every run.
+#
+# The subclass maker needs no agent. Its only limitation is that it cannot mock final classes,
+# final methods or statics, and nothing here does: every mocked type is a repository interface
+# or a Spring service, both of which have to stay non-final anyway to be proxied.
+#
+# The alternative — declaring mockito-core as an explicit -javaagent in surefire — would mean
+# putting an <argLine> in the pom, which silently overrides the -DargLine used to work around
+# Docker 29 (see .github/workflows/ci.yml).
+mock-maker-subclass

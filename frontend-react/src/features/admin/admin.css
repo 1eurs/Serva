@@ -159,12 +159,15 @@
 .btn-chip{cursor:pointer;background:var(--paper);border: var(--bw-hair) solid var(--keyline);transition:transform .1s}
 .btn-chip:hover{transform:translateY(-1px)}
 .btn-chip.ok{background:var(--accent-tint)}
-.branch-add{display:flex;gap:8px;align-items:stretch}
-.branch-add input{flex:1;min-width:0;min-height:var(--tap);background:var(--paper);border:var(--bw) solid var(--keyline);border-radius:6px;
+.branch-add{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch}
+.branch-add input{flex:1 1 130px;min-width:0;min-height:var(--tap);background:var(--paper);border:var(--bw) solid var(--keyline);border-radius:6px;
   padding:10px 12px;font-family:var(--font-ar);font-size:var(--fs-field);color:var(--text);outline:none}
 .branch-add input:focus-visible{box-shadow:var(--focus-shadow)}
 .branch-add input::placeholder{color:var(--faint)}
-.branch-add .btn.sm{flex:0 0 auto;white-space:nowrap}
+/* The add button takes its own row: sharing one with both name fields squeezed them to
+   ~130px, which truncated the placeholder that says which language each one wants. */
+.branch-add .btn.sm{flex:1 1 100%;white-space:nowrap}
+.branch-add input{flex:1 1 calc(50% - 4px)}
 
 /* =====================================================================
    Plans page — inline-editable pricing-plan catalogue.
@@ -253,3 +256,375 @@ html[data-input="touch"] .adm .icon-btn{min-width:var(--tap);min-height:var(--ta
 /* Wide admin tables scroll inside their own box rather than dragging the page
    sideways under the fixed rail. */
 .adm .tbl-wrap{overflow-x:auto;overscroll-behavior-x:contain}
+
+/* =====================================================================
+   Console views added with the admin build-out: the lead pipeline, the
+   onboarding wizard, the billing board, people, the audit log and the
+   health radar. Everything here reuses the primitives already in
+   theme.css (.chip/.sect/.kv/.field/.modal-card) and only adds the
+   structures those files don't have.
+   ===================================================================== */
+
+/* An enterprise chip has no shared variant; the tier deserves to read as
+   distinct from "active", not as another green. */
+.chip.ent{color:var(--blue);border-color:color-mix(in srgb,var(--blue) 40%,transparent);
+  background:color-mix(in srgb,var(--blue) 12%,transparent)}
+.chip.ent .d{background:var(--blue)}
+
+/* A KPI can carry a second line — last month's figure, the split behind a total. */
+.kpi .khint{margin-top:6px;font-size:11.5px;color:var(--faint);font-family:var(--font-mono)}
+
+/* Rows that are lists, not links. Without this every table looks clickable. */
+.tbl tbody tr.norow{cursor:default}
+.tbl tbody tr.norow:hover{background:transparent}
+.tbl td.acts{white-space:nowrap;text-align:end}
+.tbl td.acts .btn{margin-inline-start:6px}
+.rslug.trend{font-weight:700}
+.rslug.trend.up{color:var(--green)}
+.rslug.trend.down{color:var(--bad)}
+
+/* ---- activation: five dots that say how far a café got ---- */
+.actdots{display:flex;align-items:center;gap:4px}
+.actdots i{width:9px;height:9px;border-radius:3px;background:var(--line-2);border:1px solid var(--line-2)}
+.actdots i.on{background:var(--green);border-color:var(--green)}
+.actdots .rslug{margin-inline-start:6px}
+
+.checklist{display:flex;flex-direction:column;gap:2px;margin-bottom:10px}
+.chk{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:13.5px;color:var(--muted)}
+.chk.on{color:var(--text)}
+.chk .box{width:18px;height:18px;flex:0 0 auto;border-radius:5px;border:1.5px solid var(--line-2);
+  display:grid;place-items:center;font-size:11px;font-weight:700}
+.chk.on .box{background:var(--green);border-color:var(--green);color:#fff}
+.chk .lbl{flex:1}
+.chk .cnt{font-family:var(--font-mono);font-size:12px;color:var(--faint)}
+
+/* ---- lead pipeline ---- */
+.pipe{display:grid;grid-template-columns:repeat(4,minmax(240px,1fr));gap:14px;align-items:start}
+.pipe-col{min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden}
+.pipe-hd{display:flex;align-items:center;gap:8px;padding:12px 14px;font-size:12px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--line)}
+.pipe-hd.new{color:var(--amber)}
+.pipe-hd.contacted{color:var(--blue)}
+.pipe-hd.converted{color:var(--green)}
+.pipe-list{display:flex;flex-direction:column;gap:10px;padding:12px}
+.pipe-empty{color:var(--faint);font-size:12.5px;padding:8px 2px}
+
+.lead{background:var(--bg-2);border:1px solid var(--line-2);border-radius:var(--r-sm);padding:12px;display:flex;flex-direction:column;gap:7px}
+.lead-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.lead-name{font-weight:700;font-size:14px;line-height:1.3}
+.lead-who{font-size:12.5px;color:var(--muted)}
+.lead-contact{display:flex;flex-direction:column;gap:2px}
+.lead-contact a{font-size:11.5px;color:var(--accent-text,var(--accent));text-decoration:none}
+.lead-contact a:hover{text-decoration:underline}
+.lead-note{font-size:12px;color:var(--muted);background:var(--surface);border-radius:6px;padding:8px 9px;line-height:1.5}
+.lead-note.mine{border-inline-start:3px solid var(--accent)}
+.lead-note-k{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);margin-bottom:3px}
+.lead-acts{display:flex;flex-wrap:wrap;gap:6px}
+.lead-noteedit textarea{width:100%;background:var(--paper,var(--surface));color:var(--text);border:1px solid var(--line-2);
+  border-radius:6px;padding:9px;font-family:var(--font-ar);font-size:13px;resize:vertical;margin-bottom:7px}
+.lead-foot{font-size:11px;color:var(--faint);font-family:var(--font-mono)}
+
+/* ---- onboarding wizard ---- */
+.modal-card.wiz{max-width:560px}
+.modal-card.wide{max-width:760px}
+.wiz-steps{display:flex;gap:6px;list-style:none;margin:0 0 18px;padding:0}
+.wiz-steps li{flex:1;display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;color:var(--faint);
+  padding:8px 6px;border-top:2px solid var(--line-2)}
+.wiz-steps li.on{color:var(--text);border-top-color:var(--accent)}
+.wiz-steps li.done{color:var(--green);border-top-color:var(--green)}
+.wiz-steps li .n{width:18px;height:18px;flex:0 0 auto;border-radius:50%;background:var(--surface-2);
+  display:grid;place-items:center;font-family:var(--font-mono);font-size:10px}
+.wiz-steps li.on .n{background:var(--accent);color:var(--accent-ink)}
+.wiz-steps li.done .n{background:var(--green);color:#fff}
+.wiz-body{min-height:230px}
+.wiz-toggle{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:600;cursor:pointer;margin-bottom:6px}
+.wiz-toggle input{width:16px;height:16px;accent-color:var(--accent)}
+.wiz-toggle.inline{margin:0;font-weight:500}
+.wiz-pw{display:flex;gap:8px;align-items:center}
+.wiz-pw input{flex:1}
+.modal-card .ph.bad{color:var(--bad)}
+
+/* ---- billing ---- */
+.paylist{display:flex;flex-direction:column;gap:1px}
+.payrow{display:grid;grid-template-columns:auto auto 1fr;gap:12px;align-items:baseline;
+  padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
+.payrow:last-child{border-bottom:0}
+.payrow .num{font-family:var(--font-mono)}
+/* A refund or a correction reads as money going the other way, not as another payment. */
+.payrow .num.neg{color:var(--bad)}
+
+/* ---- people ---- */
+.pw-reveal{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line-2);
+  border-radius:var(--r-sm);padding:12px 14px}
+.pw-reveal code{flex:1;font-family:var(--font-mono);font-size:17px;letter-spacing:.06em;user-select:all}
+
+/* ---- audit ---- */
+.minilog{display:flex;flex-direction:column;gap:1px}
+.logrow{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.logrow:last-child{border-bottom:0}
+.logrow .when{color:var(--faint);font-size:11.5px}
+.logrow .what{font-weight:600}
+.logrow .who{grid-column:2}
+.logrow .det{grid-column:2;color:var(--muted)}
+
+/* ---- health: one small chart, three series ---- */
+.chart-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px 18px}
+.chart-legend{display:flex;flex-wrap:wrap;gap:18px;margin-bottom:12px;font-size:12.5px;color:var(--muted)}
+.chart-legend b{font-family:var(--font-mono);color:var(--text);margin-inline-start:4px}
+.chart-legend .sw{display:inline-block;width:12px;height:12px;margin-inline-end:7px;vertical-align:-2px;border-radius:3px}
+.chart-legend .sw.bars{background:var(--accent)}
+.chart-legend .sw.line{background:var(--green);height:3px;border-radius:2px;vertical-align:2px}
+.chart-legend .sw.dot{background:var(--blue);border-radius:50%}
+.chart{width:100%;height:220px;display:block}
+.c-bar{fill:var(--accent);opacity:.55}
+.c-bar:hover{opacity:1}
+.c-line{stroke:var(--green);stroke-width:2;vector-effect:non-scaling-stroke}
+.c-dot{fill:var(--blue)}
+.chart-axis{display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:var(--faint);font-family:var(--font-mono)}
+
+/* The console's own skin: hard edges and ink keylines, same as its tables and cards. */
+.adm .pipe-col,.adm .lead,.adm .chart-card{border:var(--bw) solid var(--keyline);border-radius:7px;box-shadow:var(--hard-sm)}
+.adm .lead{box-shadow:none}
+.adm .pw-reveal{border:var(--bw) solid var(--keyline);border-radius:6px}
+.adm .wiz-steps li.on .n,.adm .chk.on .box{border-radius:4px}
+
+/* Pocket and counter postures: four pipeline columns don't fit, and neither does a
+   grid of KPIs. The board becomes one column at a time, scrolled. */
+@media(max-width:900px){
+  .pipe{grid-template-columns:1fr;gap:10px}
+  .payrow{grid-template-columns:auto 1fr}
+  .payrow .rslug{grid-column:1/-1}
+}
+
+/* The drawer footer carries one action and an overflow. It used to carry four buttons of
+   unrelated weight wrapped two per row, which pushed the activation checklist off screen —
+   the thing you open a café to read. */
+.adm .drawer-ft{display:flex;align-items:center;gap:var(--tap-gap)}
+.adm .drawer-ft > .btn{flex:1 1 auto}
+
+/* The expiry countdown belongs under the end date, not beside it: .chip is
+   inline-flex, so its wrapper has to be told to break the line. */
+.expiry{margin-top:5px}
+
+/* Before a single order exists there is nothing to plot; an empty grid with a flat
+   line reads as a broken chart, so the card says the platform is quiet instead. */
+.chart-empty{height:220px;display:grid;place-items:center;color:var(--faint);font-size:13px}
+
+/* =====================================================================
+   POSTURE — the console away from a desk.
+
+   The platform console is a desk tool by nature, but it gets opened on a
+   phone at a café table often enough that "unusable" is the wrong answer.
+   Two problems dominate at pocket width, and neither is about the content:
+
+   1. The rail is a fixed 74px. On a 390px screen that is a fifth of the
+      display spent on seven icons, and everything else is squeezed into
+      what's left — money values wrapping between the number and its
+      currency, headings breaking mid-name.
+   2. Controls sized for a mouse (the filter segments, the KPI type scale)
+      simply don't fit the remainder.
+
+   Scoped .adm throughout so these outrank the bold/pro skin rules, which
+   reach the same elements at the same specificity.
+   ===================================================================== */
+
+html[data-posture="pocket"] .adm .arail{
+  width:56px;padding:10px 0;
+  padding-inline-start:env(safe-area-inset-left);
+  padding-inline-end:env(safe-area-inset-right)}
+html[data-posture="pocket"] .adm .arail .logo{width:34px;height:34px;font-size:14px;border-radius:9px}
+html[data-posture="pocket"] .adm .arail .nav{gap:2px;margin-top:6px;overflow-y:auto;overscroll-behavior:contain}
+html[data-posture="pocket"] .adm .arail .nav button,
+html[data-posture="pocket"] .adm .arail .out{width:44px;height:44px;font-size:17px;border-radius:9px}
+
+/* The header carries a page name, a path and an account. At 390px minus the
+   rail it carries them stacked, and the path — which is orientation, not
+   information — steps out of the way entirely. */
+html[data-posture="pocket"] .adm .atop{padding:11px 13px;gap:9px}
+html[data-posture="pocket"] .adm .atop h2{font-size:16px}
+html[data-posture="pocket"] .adm .atop .crumb{display:none}
+html[data-posture="pocket"] .adm .who-txt{display:none}
+html[data-posture="pocket"] .adm .acontent{padding:15px 13px}
+
+/* A money figure must never break between the number and its currency: the
+   two halves on separate lines read as two different numbers. */
+html[data-posture="pocket"] .adm .kpis{grid-template-columns:repeat(2,1fr);gap:9px;margin-bottom:16px}
+html[data-posture="pocket"] .adm .kpi{padding:11px 12px}
+html[data-posture="pocket"] .adm .kpi .lab{font-size:11px}
+html[data-posture="pocket"] .adm .kpi .val{font-size:19px;margin-top:5px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+html[data-posture="pocket"] .adm .kpi .khint{font-size:10.5px}
+
+/* The filter segments are a row of five. Rather than clip the last two,
+   let the row scroll and keep every option reachable. */
+html[data-posture="pocket"] .adm .toolbar{flex-wrap:wrap;gap:8px}
+html[data-posture="pocket"] .adm .toolbar .search{max-width:none;flex:1 1 100%}
+html[data-posture="pocket"] .adm .toolbar .seg{max-width:100%;overflow-x:auto;
+  overscroll-behavior-x:contain;scrollbar-width:none}
+html[data-posture="pocket"] .adm .toolbar .seg::-webkit-scrollbar{display:none}
+html[data-posture="pocket"] .adm .toolbar .seg button{white-space:nowrap}
+
+/* One lead card at a time, full width — the board is already one column
+   here, so the column chrome is just a frame around a frame. */
+html[data-posture="pocket"] .adm .pipe{gap:12px}
+html[data-posture="pocket"] .adm .pipe-list{padding:10px}
+html[data-posture="pocket"] .adm .lead-acts .btn{flex:1 1 auto}
+
+/* The drawer is the whole screen on a phone, so its footer gets one action
+   per row rather than two half-width ones. */
+html[data-posture="pocket"] .adm .drawer-ft{padding:12px 14px calc(12px + env(safe-area-inset-bottom))}
+html[data-posture="pocket"] .adm .drawer-ft > .btn{flex:1 1 auto}
+
+/* Touch, at any width: the console's own small buttons sit below the floor
+   the shared touch layer sets for everything else. */
+html[data-input="touch"] .adm .btn.sm{min-height:var(--tap-sm)}
+html[data-input="touch"] .adm .arail .nav button,
+html[data-input="touch"] .adm .arail .out{min-width:var(--tap);min-height:var(--tap)}
+
+/* A counter iPad has room for the table but not for four pipeline columns
+   beside each other; two reads far better than four squeezed ones. */
+html[data-posture="counter"] .adm .pipe{grid-template-columns:repeat(2,minmax(240px,1fr))}
+
+/* A second column tier, below the existing `hide-sm`.
+   `hide-sm` drops the columns a 900px window can live without; at pocket
+   width even the trimmed table is wider than the screen, and the columns
+   that fall off the right are the ones carrying the verdict and the action.
+   `hide-xs` drops a further tier so what survives is: which café, what state
+   it's in, and the button that does something about it. */
+html[data-posture="pocket"] .adm .tbl .hide-xs{display:none}
+
+/* Table density at pocket. Two specific defects, not a general shrink:
+   a date breaking after the month ("2026-08-" / "14") stops reading as a
+   date at all, and the default 16px cell padding spends a third of the
+   remaining width on gutters, which is what pushed the status chip off the
+   edge. The table still scrolls inside its wrapper for anything past that. */
+html[data-posture="pocket"] .adm .tbl th,
+html[data-posture="pocket"] .adm .tbl td{padding:11px 9px;font-size:12.5px}
+html[data-posture="pocket"] .adm .tbl th{font-size:10.5px;letter-spacing:.05em}
+html[data-posture="pocket"] .adm .tbl .num{white-space:nowrap}
+html[data-posture="pocket"] .adm .rcell{gap:8px}
+html[data-posture="pocket"] .adm .rlogo{width:28px;height:28px;font-size:12px;border-radius:8px}
+html[data-posture="pocket"] .adm .tbl .chip{padding:3px 8px;font-size:10.5px;white-space:nowrap}
+html[data-posture="pocket"] .adm .tbl td.acts .btn{margin-inline-start:0}
+
+/* The audit log's timestamp column is the narrowest thing in the table and the
+   first to be squeezed by the long detail string beside it. "8d" wrapping or
+   clipping makes the one column you scan down unreadable. */
+/* nowrap alone. Squeezing the column to width:1% as well pushed its text into
+   the rounded-corner clip on .tbl (overflow:hidden), which ate the first letter
+   of the heading in Arabic. */
+.adm .tbl th.when,
+.adm .tbl td.when{white-space:nowrap}
+
+
+/* ── café drawer ─────────────────────────────────────────────────────────────
+   Four blocks, one screen: what it still needs, whether it is selling, its
+   branches, and the way out to the screens that own money and history. */
+.adm .drawer-hd .dw-id{min-width:0;flex:1}
+.adm .dw-name{font-weight:700;font-size:17px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adm .dw-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px}
+
+/* The verdict line. Amber while a café cannot take an order; green the moment it can. */
+.adm .dw-live{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.adm .dw-live .chip{background:color-mix(in srgb,var(--amber) 16%,transparent);color:var(--amber)}
+.adm .dw-live .chip .d{background:var(--amber)}
+.adm .dw-live.on .chip{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
+.adm .dw-live.on .chip .d{background:var(--green)}
+.adm .dw-prog{font-size:12px;color:var(--faint)}
+
+/* A step that the console can finish offers the verb that finishes it, in place of its count. */
+.adm .dw-fix{border:var(--bw) solid var(--keyline);border-radius:6px;background:var(--paper);
+  color:var(--text);font:inherit;font-size:11.5px;font-weight:700;padding:3px 9px;cursor:pointer;
+  min-height:26px;white-space:nowrap}
+.adm .dw-fix:hover{border-color:var(--accent);color:var(--accent)}
+.adm .dw-fix:focus-visible{box-shadow:var(--focus-shadow);outline:none}
+
+/* Three numbers where seven label/value rows used to be. */
+.adm .dw-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.adm .dw-stats > div{border:var(--bw) solid var(--keyline);border-radius:7px;background:var(--paper);
+  padding:9px 10px;min-width:0}
+.adm .dw-stats .num{display:block;font-size:18px;font-weight:700;line-height:1.15;
+  overflow:hidden;text-overflow:ellipsis}
+.adm .dw-stats em{display:block;font-style:normal;font-size:11px;color:var(--faint);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adm .dw-last{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:var(--muted)}
+
+/* The two doors out. Each states what it holds, so the click is never a guess. */
+.adm .dw-link{display:flex;align-items:center;gap:10px;width:100%;text-align:start;
+  border:var(--bw) solid var(--keyline);border-radius:7px;background:var(--paper);
+  padding:11px 13px;cursor:pointer;font:inherit;color:var(--text);min-height:var(--tap)}
+.adm .dw-link + .dw-link{margin-top:8px}
+.adm .dw-link:hover{border-color:var(--accent)}
+.adm .dw-link:focus-visible{box-shadow:var(--focus-shadow);outline:none}
+.adm .dw-link .dl-t{font-weight:700;font-size:13.5px;white-space:nowrap}
+.adm .dw-link .dl-s{margin-inline-start:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adm .dw-link .dl-a{color:var(--faint);font-size:17px;line-height:1}
+[dir="rtl"] .adm .dw-link .dl-a{transform:scaleX(-1)}
+
+/* Rare and destructive actions live behind this, not in the footer's line of fire. */
+.adm .dw-more{position:relative;flex:0 0 auto}
+.adm .dw-more-btn{min-width:var(--tap);padding-inline:12px;font-size:18px;line-height:1}
+.adm .dw-more-bg{position:fixed;inset:0;z-index:30}
+.adm .dw-menu{position:absolute;bottom:calc(100% + 6px);inset-inline-end:0;z-index:31;min-width:190px;
+  background:var(--paper);border:var(--bw) solid var(--keyline);border-radius:8px;
+  box-shadow:var(--hard-sm);padding:5px;display:flex;flex-direction:column}
+.adm .dw-menu button{display:block;width:100%;text-align:start;border:0;background:none;font:inherit;
+  font-size:13.5px;color:var(--text);padding:9px 11px;border-radius:6px;cursor:pointer;min-height:var(--tap)}
+.adm .dw-menu button:hover{background:var(--surface-2)}
+.adm .dw-menu button.danger{color:var(--bad)}
+.adm .dw-menu button:focus-visible{box-shadow:var(--focus-shadow);outline:none}
+
+/* Reference rows inside the details modal, where they read rather than crowd. */
+.adm .dw-ref{margin-top:14px;padding-top:12px;border-top:var(--bw) solid var(--keyline)}
+
+/* ── a screen narrowed to one café ───────────────────────────────────────────
+   Billing and audit are platform-wide screens. Arriving from a drawer says which
+   café is being asked about, and offers the way back to all of them. */
+.adm .focus-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;
+  padding:10px 13px;border:var(--bw) solid var(--keyline);border-radius:8px;
+  background:color-mix(in srgb,var(--accent) 7%,var(--paper))}
+.adm .focus-bar .fb-t{font-size:12px;color:var(--muted)}
+.adm .focus-bar .fb-n{font-weight:700;font-size:14px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+
+/* On a phone the drawer is the whole screen; the overflow menu must not run off it. */
+html[data-posture="pocket"] .adm .dw-stats{grid-template-columns:repeat(3,1fr)}
+html[data-posture="pocket"] .adm .dw-menu{inset-inline:auto 0;min-width:170px}
+
+/* Changing a subscription's tier moves the feature gate, not just the invoice line. The
+   warning appears only when the tier in the form differs from the one on file. */
+.adm .tier-warn{margin-top:10px;padding:9px 12px;border:var(--bw) solid var(--amber);border-radius:7px;
+  background:color-mix(in srgb,var(--amber) 12%,transparent);color:var(--amber);
+  font-size:12.5px;font-weight:700;line-height:1.45}
+
+/* Says why a field cannot be typed into, next to the field rather than in a tooltip. */
+.adm .field-hint{display:block;margin-top:5px;font-size:11.5px;color:var(--faint);line-height:1.4}
+.adm .field input[readonly]{background:var(--surface-2);color:var(--muted);cursor:default}
+
+/* ── what each plan includes ─────────────────────────────────────────────────
+   The grid that replaced a hardcoded "PRO or ENTERPRISE" comparison. A tick is a
+   pricing decision that moves every café on the tier, so the target is generous
+   and the state reads at a glance rather than needing a legend. */
+.adm .featgrid{margin-top:26px}
+.adm .featgrid h4{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--muted);margin-bottom:4px}
+.adm .featgrid .ph{margin-bottom:12px}
+.adm .featgrid-tbl th.fg-tier{text-align:center;width:120px}
+.adm .featgrid-tbl td.fg-cell{text-align:center}
+.adm .featgrid-tbl .fg-name{font-weight:700;font-size:13.5px}
+.adm .fg-box{width:30px;height:30px;min-height:30px;display:inline-flex;align-items:center;justify-content:center;
+  border:var(--bw) solid var(--keyline);border-radius:7px;background:var(--paper);
+  font:inherit;font-size:15px;font-weight:700;line-height:1;color:transparent;cursor:pointer;
+  transition:background .12s,border-color .12s,color .12s}
+.adm .fg-box:hover{border-color:var(--accent)}
+.adm .fg-box.on{background:var(--green);border-color:var(--green);color:#fff}
+.adm .fg-box:disabled{opacity:.55;cursor:progress;color:var(--muted)}
+.adm .fg-box:focus-visible{box-shadow:var(--focus-shadow);outline:none}
+/* The tap target is the cell on a phone, where a 30px box is a miss waiting to happen. */
+html[data-posture="pocket"] .adm .fg-box{width:var(--tap);height:var(--tap)}
+/* Narrow: the descriptions are what push Enterprise off the edge, and they are the part a
+   platform admin already knows. Drop them and all three tiers fit without a sideways scroll. */
+@media (max-width:639px){
+  .adm .featgrid-tbl .rslug{display:none}
+  .adm .featgrid-tbl th.fg-tier{width:auto;padding-inline:6px;font-size:10px}
+  .adm .featgrid-tbl td.fg-cell{padding-inline:6px}
+}

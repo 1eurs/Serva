@@ -23,10 +23,8 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Physical counts and the variance they reveal.
@@ -47,20 +45,17 @@ public class StocktakeService {
     private final StockLevelRepository levelRepository;
     private final StockMovementRepository movementRepository;
     private final StockService stockService;
-    private final StockConsumptionService consumptionService;
     private final AccessGuard accessGuard;
 
     public StocktakeService(StocktakeRepository stocktakeRepository,
                             StockLevelRepository levelRepository,
                             StockMovementRepository movementRepository,
                             StockService stockService,
-                            StockConsumptionService consumptionService,
                             AccessGuard accessGuard) {
         this.stocktakeRepository = stocktakeRepository;
         this.levelRepository = levelRepository;
         this.movementRepository = movementRepository;
         this.stockService = stockService;
-        this.consumptionService = consumptionService;
         this.accessGuard = accessGuard;
     }
 
@@ -152,31 +147,33 @@ public class StocktakeService {
      * Closes the count and posts a COUNT movement for every line whose reality differed.
      *
      * <p>Uncounted lines are left alone rather than treated as zero — a half-finished count
-     * must not wipe the shelves it never reached.
+     * must not wipe the shelves it never reached. A line that <em>was</em> counted and simply
+     * matched is the opposite case, and is recorded.
      */
     @Transactional
     public Stocktake close(Long stocktakeId) {
         Stocktake take = getOpen(stocktakeId);
-        Set<Long> touched = new LinkedHashSet<>();
         for (StocktakeLine line : take.getLines()) {
             if (!line.isCounted()) {
                 continue;
             }
             BigDecimal variance = line.variance();
             if (variance.signum() == 0) {
+                /* Counted, and it matched. That is not the same as a line nobody reached, so
+                   it still goes in the ledger — and on a first-ever count of an empty shelf
+                   that line is the only thing separating "none here" from "nobody has
+                   looked", which is what decides whether the menu item stays on sale. */
+                stockService.recordUnchangedCount(take.getBranchId(), line.getStockItemId(),
+                        line.getCountedBase(), "Stocktake #" + take.getId());
                 continue;
             }
             stockService.post(line.getStockItemId(), take.getBranchId(), variance,
                     MovementReason.COUNT, null, null, line.getUnitCost(),
                     "Stocktake #" + take.getId(), true);
-            touched.add(line.getStockItemId());
         }
         take.setStatus(StocktakeStatus.CLOSED);
         take.setClosedAt(Instant.now());
-        Stocktake saved = stocktakeRepository.save(take);
-        // A count that found stock nobody had logged should put those items back on the menu.
-        consumptionService.refreshAvailability(take.getRestaurantId(), take.getBranchId(), touched);
-        return saved;
+        return stocktakeRepository.save(take);
     }
 
     @Transactional

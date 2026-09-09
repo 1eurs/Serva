@@ -44,6 +44,14 @@ public class StockInsightsService {
 
     /** Usage window for the velocity estimate. Long enough to smooth a quiet Tuesday. */
     private static final int VELOCITY_DAYS = 14;
+    /**
+     * How much history a runway needs before it is worth printing.
+     *
+     * <p>Two days of trading says nothing about a week: one busy Friday would have the shelf
+     * emptying by Sunday, one slow Monday would promise a fortnight. Below this the honest
+     * answer is that we do not know yet, and the row says so instead of naming a day.
+     */
+    private static final int MIN_HISTORY_DAYS = 3;
     private static final int MONEY_SCALE = 3;
 
     private final StockMovementRepository movementRepository;
@@ -64,8 +72,15 @@ public class StockInsightsService {
         this.recipeService = recipeService;
     }
 
-    /** Projected runway for one item: how fast it goes and how long what's left will last. */
-    public record Cover(StockItem item, BigDecimal onHand, BigDecimal dailyUsage, BigDecimal daysLeft) {}
+    /**
+     * Projected runway for one item: how fast it goes and how long what's left will last.
+     *
+     * @param observedDays how many days of trading the average rests on — the caller shows a
+     *                     runway only when this is enough to mean anything, and says
+     *                     "still learning" rather than a number when it is not
+     */
+    public record Cover(StockItem item, BigDecimal onHand, BigDecimal dailyUsage,
+                        BigDecimal daysLeft, int observedDays) {}
 
     /** What was thrown away, and what it cost. */
     public record Waste(StockItem item, BigDecimal quantityBase, BigDecimal value) {}
@@ -82,19 +97,37 @@ public class StockInsightsService {
     // ============================================================ days of cover
 
     /**
-     * Average daily usage over the last two weeks, projected against what is on hand.
+     * Average daily usage, projected against what is on hand.
      *
      * <p>Only SALE and PREP_CONSUME count as usage — waste and transfers are not demand, and
      * counting them would make a single spillage look like a spike in sales.
+     *
+     * <p>The average is taken over the trading this branch has actually done, not over the
+     * width of the window it is looked at through. Dividing by a flat fourteen made every
+     * young café's runway roughly as wrong as it was young: three days of sales spread over
+     * a fortnight understates demand by a factor of nearly five, and "lasts 30 days" over a
+     * shelf with six days on it is the most expensive sentence this feature can say. It is
+     * also the number the row label prefers over the quantity — so it is the first thing an
+     * owner learns to trust or not.
      */
     @Transactional(readOnly = true)
     public List<Cover> daysOfCover(Long branchId) {
-        Instant since = Instant.now().minus(VELOCITY_DAYS, ChronoUnit.DAYS);
+        Instant now = Instant.now();
+        Instant since = now.minus(VELOCITY_DAYS, ChronoUnit.DAYS);
         Map<Long, BigDecimal> usage = new LinkedHashMap<>();
         for (Object[] row : movementRepository.usageSince(branchId, since)) {
             usage.put((Long) row[0], toDecimal(row[1]));
         }
         Map<Long, StockLevel> levels = stockService.levelsByItem(branchId);
+
+        /* The window, clipped to the day this branch first sold anything through stock.
+           Never longer than the window and never shorter than a day, so the division is
+           always by a real span of trading. */
+        Instant firstUsage = movementRepository.firstUsageAt(branchId);
+        Instant from = firstUsage == null || firstUsage.isBefore(since) ? since : firstUsage;
+        long hours = Math.max(1L, ChronoUnit.HOURS.between(from, now));
+        int observedDays = (int) Math.min(VELOCITY_DAYS, Math.max(1, Math.round(hours / 24.0)));
+        BigDecimal divisor = BigDecimal.valueOf(observedDays);
 
         List<Cover> out = new ArrayList<>();
         for (StockItem item : stockService.listItems(false)) {
@@ -104,11 +137,14 @@ public class StockInsightsService {
             if (used.signum() <= 0) {
                 continue; // nothing moved — a runway estimate would be meaningless
             }
-            BigDecimal perDay = used.divide(BigDecimal.valueOf(VELOCITY_DAYS), 3, RoundingMode.HALF_UP);
-            BigDecimal daysLeft = perDay.signum() <= 0
+            BigDecimal perDay = used.divide(divisor, 3, RoundingMode.HALF_UP);
+            /* Too little history to project from. The rate is still reported — it is the
+               truth about what has happened — but no day is named, and the front end says
+               it is still learning rather than inventing a date. */
+            BigDecimal daysLeft = perDay.signum() <= 0 || observedDays < MIN_HISTORY_DAYS
                     ? null
                     : onHand.divide(perDay, 1, RoundingMode.HALF_UP);
-            out.add(new Cover(item, onHand, perDay, daysLeft));
+            out.add(new Cover(item, onHand, perDay, daysLeft, observedDays));
         }
         out.sort(Comparator.comparing(c -> c.daysLeft() == null ? BigDecimal.valueOf(9999) : c.daysLeft()));
         return out;

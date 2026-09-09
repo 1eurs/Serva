@@ -30,6 +30,13 @@ public class PrintJob extends BaseEntity {
     @Column(name = "printed_at")
     private Instant printedAt;
 
+    /** Which station is printing this right now, for how long the lease lasts. */
+    @Column(name = "claimed_by", length = 64)
+    private String claimedBy;
+
+    @Column(name = "claimed_at")
+    private Instant claimedAt;
+
     public Long getRestaurantId() {
         return restaurantId;
     }
@@ -68,5 +75,21 @@ public class PrintJob extends BaseEntity {
 
     public void setPrintedAt(Instant printedAt) {
         this.printedAt = printedAt;
+    }
+
+    public String getClaimedBy() {
+        return claimedBy;
+    }
+
+    public void setClaimedBy(String claimedBy) {
+        this.claimedBy = claimedBy;
+    }
+
+    public Instant getClaimedAt() {
+        return claimedAt;
+    }
+
+    public void setClaimedAt(Instant claimedAt) {
+        this.claimedAt = claimedAt;
     }
 }

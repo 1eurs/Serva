@@ -55,6 +55,7 @@ class UncountedGoodTest {
     @Mock private RecipeLineRepository recipeLineRepository;
     @Mock private MenuItemRepository menuItemRepository;
     @Mock private RestaurantRepository restaurantRepository;
+    @Mock private DailyLimitService dailyLimitService;
 
     private StockConsumptionService service;
 
@@ -62,11 +63,17 @@ class UncountedGoodTest {
     void setUp() {
         service = new StockConsumptionService(stockService, recipeService, levelRepository,
                 movementRepository, recipeLineRepository, menuItemRepository, restaurantRepository,
-                new ObjectMapper());
+                dailyLimitService, new ObjectMapper());
 
         Restaurant restaurant = new Restaurant();
         restaurant.setAutoHideOutOfStock(true);   // the default, and the strict case
         when(restaurantRepository.findById(RESTAURANT)).thenReturn(Optional.of(restaurant));
+
+        /* These items are not capped, so the real service answers "no cap". Mockito's default
+           for an Integer return is 0, which would read as "sold out" and mask what is being
+           tested here. */
+        when(dailyLimitService.remainingAt(any(), any(), any())).thenReturn(null);
+        when(dailyLimitService.remainingFrom(any(), any())).thenReturn(null);
 
         // Named so the refusal message can be built when a refusal is the correct outcome.
         StockItem good = new StockItem();

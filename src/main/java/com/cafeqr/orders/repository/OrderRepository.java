@@ -75,6 +75,16 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                          @Param("branchId") Long branchId,
                          @Param("statuses") List<OrderStatus> statuses);
 
+    /** Counter-mode sweep: paid orders that went READY before {@code cutoff} in branches running counter mode. */
+    @Query("""
+            SELECT o.id FROM Order o
+            WHERE o.status = com.cafeqr.orders.domain.OrderStatus.READY
+              AND o.paymentStatus = com.cafeqr.orders.domain.PaymentStatus.PAID
+              AND o.readyAt < :cutoff
+              AND o.branchId IN (SELECT b.id FROM Branch b WHERE b.counterMode = true)
+            """)
+    List<Long> findCounterModeHandedOver(@Param("cutoff") Instant cutoff);
+
     // -------- analytics --------
 
     @Query("""
@@ -171,8 +181,13 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     /**
      * Platform-wide per-restaurant order stats for the admin console, one grouped scan:
-     * {@code [restaurantId, ordersInWindow, completedRevenueInWindow, ordersToday, ordersTotal, lastOrderAt]}.
+     * {@code [restaurantId, ordersInWindow, completedRevenueInWindow, ordersToday, ordersTotal,
+     * lastOrderAt, orders7d, ordersPrev7d]}.
      * Declined/cancelled orders are excluded from counts; revenue counts COMPLETED only.
+     *
+     * <p>The last two columns are the churn radar: this week against the week before it. A café
+     * whose volume halves is in trouble long before it stops ordering entirely, and a single
+     * "last order was N days ago" number can't see that coming.
      */
     @Query(value = """
             SELECT o.restaurant_id,
@@ -183,11 +198,33 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                    COUNT(*) FILTER (WHERE o.created_at >= :today
                                       AND o.status NOT IN ('DECLINED','CANCELLED'))           AS orders_today,
                    COUNT(*) FILTER (WHERE o.status NOT IN ('DECLINED','CANCELLED'))           AS orders_total,
-                   MAX(o.created_at)                                                          AS last_order_at
+                   MAX(o.created_at)                                                          AS last_order_at,
+                   COUNT(*) FILTER (WHERE o.created_at >= :week
+                                      AND o.status NOT IN ('DECLINED','CANCELLED'))           AS orders_7d,
+                   COUNT(*) FILTER (WHERE o.created_at >= :prevWeek AND o.created_at < :week
+                                      AND o.status NOT IN ('DECLINED','CANCELLED'))           AS orders_prev_7d
             FROM orders o
             GROUP BY o.restaurant_id
             """, nativeQuery = true)
-    List<Object[]> platformOrderStats(@Param("from") Instant from, @Param("today") Instant today);
+    List<Object[]> platformOrderStats(@Param("from") Instant from,
+                                      @Param("today") Instant today,
+                                      @Param("week") Instant week,
+                                      @Param("prevWeek") Instant prevWeek);
+
+    /**
+     * Daily platform totals since {@code from}: {@code [day, orders, completedRevenue]}, in the
+     * cafés' own timezone so a "day" means the day a café actually worked, not a UTC slice of it.
+     */
+    @Query(value = """
+            SELECT (o.created_at AT TIME ZONE :tz)::date                                      AS day,
+                   COUNT(*) FILTER (WHERE o.status NOT IN ('DECLINED','CANCELLED'))           AS orders,
+                   COALESCE(SUM(o.total) FILTER (WHERE o.status = 'COMPLETED'), 0)            AS revenue
+            FROM orders o
+            WHERE o.created_at >= :from
+            GROUP BY 1
+            ORDER BY 1
+            """, nativeQuery = true)
+    List<Object[]> platformDailyTotals(@Param("from") Instant from, @Param("tz") String timezone);
 
     /** Orders + revenue grouped per (table, type) for a branch since {@code from} — for QR activity. */
     @Query("""

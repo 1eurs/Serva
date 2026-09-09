@@ -4,6 +4,7 @@ import { api, ApiError } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 import { useI18n } from '../../lib/i18n';
 import { BRAND } from '../../lib/brand';
+import { cleanIdentifier, syncInput } from '../../lib/format';
 import './login.css';
 
 export default function ForgotPassword() {
@@ -24,7 +25,7 @@ export default function ForgotPassword() {
     if (!email.trim()) return;
     setLoading(true);
     try {
-      await api.post('/api/auth/forgot-password', { email: email.trim() }, { auth: false });
+      await api.post('/api/auth/forgot-password', { email }, { auth: false });
       setSent(true);
     } catch (err) {
       toast(err instanceof ApiError ? err.message : 'Error');
@@ -43,7 +44,8 @@ export default function ForgotPassword() {
           <>
             <h1>{L.title}</h1><div className="sub">{L.sub}</div>
             <div className="field"><label>{L.email}</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" /></div>
+              <input type="email" value={email} dir="ltr" autoComplete="username"
+                onChange={(e) => setEmail(syncInput(e.target, cleanIdentifier))} /></div>
             <button className="btn full" disabled={loading}>{loading ? '…' : L.send}</button>
           </>
         )}

@@ -2,20 +2,20 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
-import { useT, type Dict } from '../../lib/i18n';
-import { isProPlan } from '../../lib/plan';
+import { useT, Ltr, type Dict } from '../../lib/i18n';
+import { useFeatures } from '../../lib/plan';
 import type { LoyaltyProgram, LoyaltyMemberRow, Restaurant } from '../../lib/types';
 
 const DICT: Dict = {
   ar: {
-    proTitle: 'الولاء ميزة Pro', proSub: 'رقِّ إلى باقة Pro لتشغيل بطاقة الأختام ومكافأة العملاء.',
+    proTitle: 'الولاء ليس ضمن باقتك', proSub: 'رقِّ باقتك لتشغيل بطاقة الأختام ومكافأة العملاء.',
     members: 'الأعضاء', noMembers: 'لا أعضاء بعد — سيظهرون هنا بمجرد جمع العملاء لأختامهم.', search: 'بحث بالاسم أو الجوال', noMatch: 'لا نتائج',
     stMembers: 'عضو', stReady: 'مكافأة متاحة', stRedeemed: 'مكافأة مستبدلة',
     cphone: 'الجوال', cname: 'الاسم', cstamps: 'الأختام', crewards: 'متاحة', clifetime: 'الإجمالي', credeemed: 'مستبدلة',
     loyaltySettings: 'إعدادات الولاء',
   },
   en: {
-    proTitle: 'Loyalty is a Pro feature', proSub: 'Upgrade to Pro to run a stamp card and reward your regulars.',
+    proTitle: 'Loyalty is not part of your plan', proSub: 'Upgrade your plan to run a stamp card and reward your regulars.',
     members: 'Members', noMembers: 'No members yet — they’ll appear here once customers start collecting stamps.', search: 'Search name or phone', noMatch: 'No matches',
     stMembers: 'members', stReady: 'rewards available', stRedeemed: 'redeemed',
     cphone: 'Phone', cname: 'Name', cstamps: 'Stamps', crewards: 'Available', clifetime: 'Lifetime', credeemed: 'Redeemed',
@@ -28,8 +28,8 @@ export default function LoyaltyPage({ onOpenSetup }: { onOpenSetup?: () => void 
   const rid = user!.restaurantId!;
   const t = useT(DICT);
 
-  const restaurantQ = useQuery({ queryKey: ['restaurant', rid], queryFn: () => api.get<Restaurant>(`/api/restaurants/${rid}`) });
-  const pro = isProPlan(restaurantQ.data?.plan);
+  const features = useFeatures();
+  const pro = features.has('LOYALTY');
 
   const programQ = useQuery({ queryKey: ['loyalty-program', rid], queryFn: () => api.get<LoyaltyProgram>('/api/loyalty/program'), enabled: pro });
   const membersQ = useQuery({ queryKey: ['loyalty-members', rid], queryFn: () => api.get<LoyaltyMemberRow[]>('/api/loyalty/members'), enabled: pro });
@@ -48,7 +48,7 @@ export default function LoyaltyPage({ onOpenSetup }: { onOpenSetup?: () => void 
     redeemed: members.reduce((s, m) => s + m.rewardsRedeemed, 0),
   }), [members]);
 
-  if (restaurantQ.isLoading) {
+  if (!features.ready) {
     return <div className="tables-wrap"><div className="center"><div className="spinner" /></div></div>;
   }
   if (!pro) {
@@ -97,7 +97,7 @@ export default function LoyaltyPage({ onOpenSetup }: { onOpenSetup?: () => void 
               <tbody>
                 {filtered.map((m) => (
                   <tr key={m.phone}>
-                    <td className="num" dir="ltr">{m.phone}</td>
+                    <td className="num"><Ltr>{m.phone}</Ltr></td>
                     <td>{m.name || '—'}</td>
                     <td className="num">{m.stamps}{programQ.data ? ` / ${programQ.data.stampsRequired}` : ''}</td>
                     <td className="num">{m.availableRewards || '—'}</td>

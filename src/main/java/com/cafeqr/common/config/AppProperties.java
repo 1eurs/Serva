@@ -62,13 +62,12 @@ public record AppProperties(
     ) {}
 
     /**
-     * Billing details for café subscriptions: the plan name shown on invoices/reminders,
-     * the recurring price, the currency, and the bank transfer details that renewal
+     * Billing details for café subscriptions: the recurring price, the currency, and the
+     * bank transfer details that renewal
      * reminder emails include. (Self-serve public signup was removed; this stays because
      * the renewal/expiry lifecycle job still emails these bank instructions to existing cafés.)
      */
     public record Billing(
-            String planName,
             BigDecimal price,
             String currency,
             String bankName,

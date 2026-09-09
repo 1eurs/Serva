@@ -6,7 +6,10 @@ import java.util.List;
 /** One café's stamp card in the customer's cross-café portal. */
 public record LoyaltyPortalEntryResponse(
         String restaurantSlug,
+        /** Legacy single name; the client prefers the bilingual pair below. */
         String restaurantName,
+        String restaurantNameEn,
+        String restaurantNameAr,
         String logoUrl,
         int stampsRequired,
         String rewardLabel,

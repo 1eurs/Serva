@@ -11,7 +11,11 @@ import java.util.List;
 public record InvitePreviewResponse(
         String username,
         String fullName,
+        String fullNameEn,
+        String fullNameAr,
         String cafeName,
+        String cafeNameEn,
+        String cafeNameAr,
         List<String> permissions,
         Instant expiresAt
 ) {}

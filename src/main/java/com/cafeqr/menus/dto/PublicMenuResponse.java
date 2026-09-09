@@ -24,6 +24,8 @@ public record PublicMenuResponse(
     public record PublicRestaurant(
             Long id,
             String name,
+            String nameEn,
+            String nameAr,
             String slug,
             String logoUrl,
             String phone,
@@ -32,18 +34,22 @@ public record PublicMenuResponse(
             boolean vatEnabled,
             BigDecimal vatRate,
             String theme,
-            String themeCustomJson
+            String themeCustomJson,
+            String menuInfoJson
     ) {
         public static PublicRestaurant from(Restaurant r) {
-            return new PublicRestaurant(r.getId(), r.getName(), r.getSlug(), r.getLogoUrl(),
+            return new PublicRestaurant(r.getId(), r.getName(), r.getNameEn(), r.getNameAr(),
+                    r.getSlug(), r.getLogoUrl(),
                     r.getPhone(), r.getInstagramUrl(), r.getCurrency(), r.isVatEnabled(), r.getVatRate(),
-                    r.getTheme(), r.getThemeCustomJson());
+                    r.getTheme(), r.getThemeCustomJson(), r.getMenuInfoJson());
         }
     }
 
     public record PublicBranch(
             Long id,
             String name,
+            String nameEn,
+            String nameAr,
             String address,
             String phone,
             String openingHours,
@@ -53,7 +59,8 @@ public record PublicMenuResponse(
             if (b == null) {
                 return null;
             }
-            return new PublicBranch(b.getId(), b.getName(), b.getAddress(), b.getPhone(),
+            return new PublicBranch(b.getId(), b.getName(), b.getNameEn(), b.getNameAr(),
+                    b.getAddress(), b.getPhone(),
                     b.getOpeningHours(), b.isAcceptingOrders());
         }
     }

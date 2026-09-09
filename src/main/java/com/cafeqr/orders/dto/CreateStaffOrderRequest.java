@@ -1,6 +1,7 @@
 package com.cafeqr.orders.dto;
 
 import com.cafeqr.orders.domain.OrderType;
+import com.cafeqr.payments.domain.PaymentMethod;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -27,5 +28,12 @@ public record CreateStaffOrderRequest(
         @Size(max = 40) String carPlate,
         @Size(max = 20) String carColor,
         @Size(max = 500) String customerNote,
-        @NotEmpty @Valid List<CreateOrderRequest.Item> items
+        @NotEmpty @Valid List<CreateOrderRequest.Item> items,
+        /**
+         * Counter flow: the customer paid while ordering, so record it in the same transaction
+         * as the order (two requests would let a dropped connection leave a paid-for order
+         * showing unpaid). Method defaults to CARD like the manual mark-paid endpoint.
+         */
+        Boolean paid,
+        PaymentMethod paymentMethod
 ) {}

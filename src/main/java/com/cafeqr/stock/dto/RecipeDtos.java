@@ -65,6 +65,44 @@ public final class RecipeDtos {
             List<String> allergens
     ) {}
 
+    /**
+     * One menu item seen from the shelf's side: what a sale takes off it, what that costs, and
+     * how often it actually sells.
+     *
+     * <p>This is the row the Stock page needs and the recipe endpoint could never give: the
+     * question there is "how is this dish built?", asked one dish at a time from the menu
+     * editor. The question here is the one an owner cannot answer today — "does <em>anything</em>
+     * I sell come off my shelf?" — and it is only answerable across the whole menu at once.
+     *
+     * <p>Deliberately carries no name or price. The dashboard already holds the menu, so
+     * repeating them here would be a second copy to keep bilingual and in step; the client
+     * joins on {@code menuItemId}.
+     */
+    public record MenuLink(
+            Long menuItemId,
+            /** NONE | DAILY_LIMIT | SIMPLE | RECIPE. */
+            String stockMode,
+            Integer dailyLimit,
+            /** Empty for an item that draws nothing — which is the state worth seeing. */
+            List<Take> takes,
+            BigDecimal plateCost,
+            BigDecimal foodCostPercent,
+            /** Units sold in the recent window, so setup can start with what actually sells. */
+            long soldRecently
+    ) {
+        /**
+         * One draw a single sale makes.
+         *
+         * <p>{@code neverCounted} is the difference between a number and a guess: an ingredient
+         * with no count on record at this branch is wired up but unmeasured, and everything
+         * downstream of it — cover, value, the reorder list — is fiction until someone counts
+         * it. Shown rather than hidden, because a wired-but-unmeasured shelf looks identical to
+         * a working one otherwise.
+         */
+        public record Take(Long stockItemId, String nameEn, String nameAr, String baseUnit,
+                           BigDecimal quantityBase, boolean neverCounted) {}
+    }
+
     /** A reusable bundle of disposables: cup + lid + sleeve. */
     public record PackagingRuleRequest(
             @Size(max = 120) String nameEn,

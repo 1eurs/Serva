@@ -1,11 +1,13 @@
 package com.cafeqr.auth;
 
 import com.cafeqr.auth.domain.RefreshToken;
+import com.cafeqr.auth.dto.LoginRequest;
 import com.cafeqr.auth.repository.PasswordResetTokenRepository;
 import com.cafeqr.auth.repository.RefreshTokenRepository;
 import com.cafeqr.auth.security.CustomUserDetails;
 import com.cafeqr.auth.security.JwtService;
 import com.cafeqr.common.config.AppProperties;
+import com.cafeqr.common.exception.BadRequestException;
 import com.cafeqr.common.exception.ConflictException;
 import com.cafeqr.common.exception.ErrorCode;
 import com.cafeqr.users.domain.Permission;
@@ -13,8 +15,11 @@ import com.cafeqr.users.domain.User;
 import com.cafeqr.users.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Instant;
@@ -87,12 +92,67 @@ class AuthServiceTest {
         User user = user(7L, "owner@test.test");
         when(userRepository.findById(7L)).thenReturn(Optional.of(user));
 
-        var updated = authService.updateProfile(7L, "  New Owner  ", "  +96890000000  ");
+        var updated = authService.updateProfile(7L, "  New Owner  ", null, null, "  +96890000000  ");
 
         assertThat(user.getFullName()).isEqualTo("New Owner");
         assertThat(user.getPhone()).isEqualTo("+96890000000");
         assertThat(updated.fullName()).isEqualTo("New Owner");
         assertThat(updated.phone()).isEqualTo("+96890000000");
+    }
+
+    /** A legacy single name is filed by its script, so it lands on the right side of the pair. */
+    @Test
+    void updateProfileFilesALegacyNameByItsScript() {
+        User user = user(7L, "owner@test.test");
+        when(userRepository.findById(7L)).thenReturn(Optional.of(user));
+
+        var updated = authService.updateProfile(7L, "خالد البلوشي", null, null, null);
+
+        assertThat(updated.fullNameAr()).isEqualTo("خالد البلوشي");
+        assertThat(updated.fullNameEn()).isNull();
+        assertThat(user.getFullName()).isEqualTo("خالد البلوشي");
+    }
+
+    /** Renaming in one language must not wipe the other. */
+    @Test
+    void updateProfileKeepsTheOtherLanguage() {
+        User user = user(7L, "owner@test.test");
+        user.setFullNameAr("خالد البلوشي");
+        user.setFullNameEn("Khalid Al Balushi");
+        when(userRepository.findById(7L)).thenReturn(Optional.of(user));
+
+        var updated = authService.updateProfile(7L, null, "Khalid Balushi", null, null);
+
+        assertThat(updated.fullNameEn()).isEqualTo("Khalid Balushi");
+        assertThat(updated.fullNameAr()).isEqualTo("خالد البلوشي");
+    }
+
+    /** Clearing both sides would leave a nameless account whose header falls back to a stale value. */
+    @Test
+    void updateProfileRefusesToClearBothNames() {
+        User user = user(7L, "owner@test.test");
+        user.setFullNameEn("Khalid Al Balushi");
+        when(userRepository.findById(7L)).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> authService.updateProfile(7L, null, "", "", null))
+                .isInstanceOf(BadRequestException.class);
+    }
+
+    /** The complaint that started this: a username pasted out of an Arabic message. */
+    @Test
+    void loginCleansAPastedUsernameBeforeAnythingLooksItUp() {
+        User user = user(9L, "owner@mutrah.om");
+        CustomUserDetails principal = CustomUserDetails.from(user);
+        when(authenticationManager.authenticate(any())).thenReturn(
+                new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
+        when(userRepository.findById(9L)).thenReturn(Optional.of(user));
+
+        var auth = authService.login(new LoginRequest("\u200Fowner@mutrah.om\u200F", "Owner123!"));
+
+        assertThat(auth.accessToken()).isEqualTo("new-access-token");
+        ArgumentCaptor<Authentication> attempt = ArgumentCaptor.forClass(Authentication.class);
+        verify(authenticationManager).authenticate(attempt.capture());
+        assertThat(attempt.getValue().getName()).isEqualTo("owner@mutrah.om");
     }
 
     private static User user(Long id, String email) {

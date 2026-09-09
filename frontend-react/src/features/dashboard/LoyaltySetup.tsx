@@ -2,10 +2,10 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
-import { useI18n, useT, type Dict } from '../../lib/i18n';
+import { useI18n, useT, nameOf, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { useConfirm } from '../../lib/confirm';
-import { isProPlan, isPlanRequiredError } from '../../lib/plan';
+import { useFeatures, isPlanRequiredError } from '../../lib/plan';
 import type { LoyaltyProgram, MenuItemResponse, Restaurant } from '../../lib/types';
 import { StampCard } from '../customer/StampCard';
 import { MOTIF_OPTIONS, motifDataUrl, resolveMenuSkin } from '../customer/menuThemes';
@@ -32,7 +32,7 @@ const DICT: Dict = {
     rewardTitle: 'تفاصيل المكافأة', rewardSub: 'اختر الأصناف المجانية والنص الذي يظهر للعميل — يستبدل العميل مكافأته بصنف واحد منها.',
     rulesTitle: 'قواعد جمع الأختام', rulesSub: 'حدّد عدد الطلبات والحد الأدنى المؤهّل.',
     preview: 'معاينة بطاقة العميل', previewEmpty: 'مكافأتك القادمة',
-    proTitle: 'الولاء ميزة Pro', proSub: 'رقِّ إلى باقة Pro لتشغيل بطاقة الأختام ومكافأة العملاء.',
+    proTitle: 'الولاء ليس ضمن باقتك', proSub: 'رقِّ باقتك لتشغيل بطاقة الأختام ومكافأة العملاء.',
     program: 'بطاقة الأختام', on: 'مُفعّل', off: 'متوقّف',
     onSub: 'يحصل العملاء على ختم مع كل طلب مؤهّل', offSub: 'الولاء متوقّف — لا يمكن جمع الأختام أو استبدالها',
     turnOn: 'تفعيل', turnOff: 'إيقاف',
@@ -49,14 +49,14 @@ const DICT: Dict = {
     colorAutoHint: 'بدون لون مخصص، تتبع البطاقة ثيم قائمتك تلقائياً. المعاينة تعرض ثيم قائمتك الحالي.',
     stampIconL: 'أيقونة الختم', motifL: 'نقشة البطاقة', motifNone: 'بدون',
     stateCollecting: 'جمع الأختام', stateReady: 'المكافأة جاهزة',
-    save: 'حفظ التغييرات', saved: 'تم الحفظ', proNeeded: 'هذه الميزة ضمن باقة Pro.',
+    save: 'حفظ التغييرات', saved: 'تم الحفظ', proNeeded: 'هذه الميزة ليست ضمن باقتك.',
   },
   en: {
     sub: 'Reward customers automatically: a stamp on every order, a reward when the card is full.',
     rewardTitle: 'Reward details', rewardSub: 'Choose the items customers can claim free (they pick one) and the message they will see.',
     rulesTitle: 'Earning rules', rulesSub: 'Set the number of orders and optional qualifying total.',
     preview: 'Customer card preview', previewEmpty: 'Your next reward',
-    proTitle: 'Loyalty is a Pro feature', proSub: 'Upgrade to Pro to run a stamp card and reward your regulars.',
+    proTitle: 'Loyalty is not part of your plan', proSub: 'Upgrade your plan to run a stamp card and reward your regulars.',
     program: 'Stamp card', on: 'Enabled', off: 'Disabled',
     onSub: 'Customers earn a stamp on every qualifying order', offSub: 'Loyalty is paused — stamps cannot be earned or redeemed',
     turnOn: 'Turn on', turnOff: 'Turn off',
@@ -73,7 +73,7 @@ const DICT: Dict = {
     colorAutoHint: 'Without custom colors the card follows your menu theme automatically. The preview shows your current menu theme.',
     stampIconL: 'Stamp icon', motifL: 'Card pattern', motifNone: 'None',
     stateCollecting: 'Collecting', stateReady: 'Reward ready',
-    save: 'Save changes', saved: 'Saved', proNeeded: 'This feature is part of the Pro plan.',
+    save: 'Save changes', saved: 'Saved', proNeeded: 'This feature is not part of your plan.',
   },
 };
 
@@ -87,7 +87,8 @@ export default function LoyaltySetup() {
   const qc = useQueryClient();
 
   const restaurantQ = useQuery({ queryKey: ['restaurant', rid], queryFn: () => api.get<Restaurant>(`/api/restaurants/${rid}`) });
-  const pro = isProPlan(restaurantQ.data?.plan);
+  const features = useFeatures();
+  const pro = features.has('LOYALTY');
 
   const programQ = useQuery({ queryKey: ['loyalty-program', rid], queryFn: () => api.get<LoyaltyProgram>('/api/loyalty/program'), enabled: pro });
   const itemsQ = useQuery({ queryKey: ['menu-items', rid], queryFn: () => api.get<MenuItemResponse[]>(`/api/menu/items?restaurantId=${rid}`), enabled: pro });
@@ -164,7 +165,7 @@ export default function LoyaltySetup() {
         'On the house — pick your favorite! 🎉',
       ];
 
-  if (restaurantQ.isLoading) {
+  if (restaurantQ.isLoading || !features.ready) {
     return <div className="tables-wrap"><div className="center"><div className="spinner" /></div></div>;
   }
   if (!pro) {
@@ -355,7 +356,7 @@ export default function LoyaltySetup() {
               <div className="cust-bg loy-preview-live" data-menu-theme={previewSkin.themeId}
                 {...(previewSkin.attrs ?? {})} style={previewSkin.style as CSSProperties | undefined}>
                 <StampCard sample
-                  name={restaurantQ.data?.name || 'Serva'}
+                  name={nameOf(restaurantQ.data, lang) || 'Serva'}
                   logoUrl={restaurantQ.data?.logoUrl}
                   rewardLabel={form.rewardLabel.trim() || t('previewEmpty')}
                   rewardItemNames={selectedNames}

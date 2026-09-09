@@ -82,9 +82,12 @@ public class PurchasingController {
                     StockItem item = s.item();
                     BigDecimal size = item.getPurchaseUnitSize();
                     // Show the figure in the unit the café actually orders in — nobody buys
-                    // "2400 grams of beans", they buy three bags.
+                    // "2400 grams of beans", they buy three bags. Whole bags: rounding this
+                    // to two decimals meant the list, which is the message sent to a
+                    // supplier, asked for "2.4 × 1 kg bag". Up, never down — a short order
+                    // is another trip.
                     BigDecimal inPurchaseUnits = size != null && size.signum() > 0
-                            ? s.suggestedBase().divide(size, 2, RoundingMode.CEILING)
+                            ? s.suggestedBase().divide(size, 0, RoundingMode.CEILING)
                             : null;
                     return new PurchasingDtos.SuggestionResponse(item.getId(), item.getNameEn(),
                             item.getNameAr(), item.getBaseUnit().name(), item.getPurchaseUnitLabel(),
@@ -126,14 +129,22 @@ public class PurchasingController {
         return ApiResponse.ok("Order created", toOrder(po));
     }
 
-    @Operation(summary = "Draft an order straight from the reorder suggestions")
+    /**
+     * @param send true when the owner has just sent the list to their supplier — the order is
+     *             recorded as SENT rather than DRAFT, which is what the shelf reads to stop
+     *             asking for what is already coming
+     */
+    @Operation(summary = "Build an order straight from the reorder suggestions")
     @PostMapping("/purchase-orders/from-suggestions")
     public ApiResponse<PurchasingDtos.OrderResponse> fromSuggestions(
             @RequestParam(required = false) Long branchId,
-            @RequestParam(required = false) Long supplierId) {
+            @RequestParam(required = false) Long supplierId,
+            @RequestParam(defaultValue = "false") boolean send) {
         Long branch = stockService.resolveBranch(branchId);
-        return ApiResponse.ok("Order drafted",
-                toOrder(purchasingService.createFromSuggestions(branch, supplierId)));
+        PurchaseOrder po = send
+                ? purchasingService.sendFromSuggestions(branch, supplierId)
+                : purchasingService.createFromSuggestions(branch, supplierId);
+        return ApiResponse.ok(send ? "Order sent" : "Order drafted", toOrder(po));
     }
 
     @Operation(summary = "Book part of a line as delivered")

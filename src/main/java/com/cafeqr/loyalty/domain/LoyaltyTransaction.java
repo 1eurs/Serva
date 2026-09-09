@@ -28,6 +28,16 @@ public class LoyaltyTransaction extends BaseEntity {
     @Column(name = "order_id", nullable = false)
     private Long orderId;
 
+    /**
+     * Where it happened — the branch of the order that earned the stamp or took the reward.
+     *
+     * <p>Null for rows written before branch attribution existed, and only for those: the
+     * stamp balance is restaurant-wide by design, but every effect on it happens somewhere,
+     * and a café with two shops needs to know which one is giving rewards away.
+     */
+    @Column(name = "branch_id")
+    private Long branchId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, length = 20)
     private LoyaltyTxnType type;
@@ -47,6 +57,9 @@ public class LoyaltyTransaction extends BaseEntity {
 
     public Long getOrderId() { return orderId; }
     public void setOrderId(Long orderId) { this.orderId = orderId; }
+
+    public Long getBranchId() { return branchId; }
+    public void setBranchId(Long branchId) { this.branchId = branchId; }
 
     public LoyaltyTxnType getType() { return type; }
     public void setType(LoyaltyTxnType type) { this.type = type; }

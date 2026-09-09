@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Normal permission, no prompt. Some OEM builds withhold interface details without it,
+         and the scan is built entirely out of those. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- Bluetooth printers. CONNECT only, and only to talk to a device the café has ALREADY
+         paired in Android settings: this app never scans, which is what would drag in the
+         location permission and a conversation no café should have to have about a printer.
+         Below Android 12 the old permission covers it and is granted at install. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Choosing the foreground-service type is the one genuinely awkward decision here, and
+         both obvious answers are wrong:
+           dataSync        — Android 15 stops it after ~6 hours a day. A station works a shift.
+           connectedDevice — additionally demands one of BLUETOOTH_*/CHANGE_WIFI_*/NFC/USB,
+                             none of which this app has any business holding. It crashes at
+                             startForeground without one; that is how this was found.
+         specialUse is the category Android provides for exactly this: a long-running job that
+         fits no other type. It is not time-limited and needs no unrelated permission. If this
+         is ever published on Play rather than sideloaded, that subtype has to be justified. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Lets the app open the system dialog that stops Android's battery manager from
+         suspending it. Sideloaded, so Play's restriction on this permission does not apply. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@drawable/ic_station"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.ServaStation"
+        android:usesCleartextTraffic="true">
+        <!-- The printer is a raw TCP socket, which this flag does not govern either way. It is
+             here so a café can point the app at a plain-http Serva during setup or on a local
+             test rig; production uses https and nothing about that changes. -->
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".StationService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Prints café receipts to a local network thermal printer for the
+                    whole trading day. Must keep running with the screen off and resume after a
+                    power cut, or orders reach the kitchen with no ticket." />
+        </service>
+
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

@@ -61,6 +61,13 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Check RTL text isolation
+        # Numbers, times, phone numbers and order numbers reverse on an Arabic page unless
+        # they are isolated (lib/i18n `Ltr` / `ltrText`). The bug is invisible in English
+        # and invisible in review — it had already been hand-patched four times before the
+        # shape was spotted — so it is caught here by shape instead.
+        run: npm run check:bidi
+
       - name: Type-check and build
         # `npm run build` is `tsc -b && vite build` — the same command
         # deploy-vps.sh runs, so a green job here means the deploy will build.

@@ -24,10 +24,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final StreamTicketService streamTickets;
+    private final CustomUserDetailsService accounts;
 
-    public JwtAuthenticationFilter(JwtService jwtService, StreamTicketService streamTickets) {
+    public JwtAuthenticationFilter(JwtService jwtService, StreamTicketService streamTickets,
+                                   CustomUserDetailsService accounts) {
         this.jwtService = jwtService;
         this.streamTickets = streamTickets;
+        this.accounts = accounts;
     }
 
     @Override
@@ -37,11 +40,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = resolveToken(request);
         if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
-                CustomUserDetails principal = jwtService.parsePrincipal(token);
-                var authentication = new UsernamePasswordAuthenticationToken(
-                        principal, null, principal.getAuthorities());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                CustomUserDetails principal = authenticate(token);
+                if (principal != null) {
+                    var authentication = new UsernamePasswordAuthenticationToken(
+                            principal, null, principal.getAuthorities());
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
             } catch (Exception ex) {
                 // Invalid/expired token: leave the context unauthenticated; the entry point handles 401.
                 log.debug("Rejected JWT: {}", ex.getMessage());
@@ -49,6 +54,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         chain.doFilter(request, response);
+    }
+
+    /**
+     * Verifies the token, then builds the principal from the account row rather than from the
+     * claims the token was minted with.
+     *
+     * <p>A JWT states what was true when it was issued, which is exactly right for identity —
+     * that is what the signature protects — and wrong for everything else. The claims used to be
+     * the only source of an account's permissions, branch and active flag, so an owner who
+     * deactivated a member at the end of a shift left them able to work the till for the rest of
+     * the token's life, and taking an area away from someone took effect whenever their browser
+     * next happened to refresh. Neither is a thing an owner can be asked to reason about.
+     *
+     * <p>The cost is one indexed lookup on a request that is about to make several. The claims
+     * stay in the token: they cost nothing, and they are what makes a captured token readable
+     * when something has to be explained afterwards.
+     */
+    private CustomUserDetails authenticate(String token) {
+        CustomUserDetails claimed = jwtService.parsePrincipal(token);
+        CustomUserDetails account = accounts.loadById(claimed.getUserId()).orElse(null);
+        if (account == null || !account.isEnabled()) {
+            log.debug("Rejected JWT for user {}: the account is deactivated or gone", claimed.getUserId());
+            return null;
+        }
+        return account;
     }
 
     /**

@@ -83,7 +83,8 @@ class CafeQrFlowIntegrationTest {
 
         // 2. Admin creates a restaurant.
         MvcResult restaurantResult = perform(authed(post("/api/admin/restaurants", Map.of(
-                "name", "Demo Cafe", "vatEnabled", true, "vatRate", 5)), adminToken))
+                "name", "Demo Cafe", "vatEnabled", true, "vatRate", 5,
+                "defaultBranchName", "Main Branch")), adminToken))
                 .andExpect(status().isOk())
                 .andReturn();
         Number restaurantId = json(restaurantResult, "$.data.id");
@@ -104,10 +105,16 @@ class CafeQrFlowIntegrationTest {
         String ownerToken = read(post("/api/auth/login", Map.of(
                 "username", "owner@cafeqr.test", "password", "Owner123!")), "$.data.accessToken");
 
-        // 5. Owner creates a branch.
-        Number branchId = json(perform(authed(post(
-                "/api/restaurants/" + restaurantId + "/branches", Map.of("name", "Main Branch")), ownerToken))
-                .andExpect(status().isOk()).andReturn(), "$.data.id");
+        // 5. Owner opens the branch admin onboarding already provisioned.
+        //    POST /api/admin/restaurants is a one-shot onboard — restaurant + first branch +
+        //    subscription — so the café has a shop before the owner ever logs in. Creating one
+        //    here asked for a SECOND branch, which is a Pro feature: on the STANDARD plan this
+        //    café starts on, BranchService.requireBranchAllowance correctly answered 402.
+        Number branchId = json(perform(authed(
+                get("/api/restaurants/" + restaurantId + "/branches"), ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].name").value("Main Branch"))
+                .andReturn(), "$.data[0].id");
 
         // 6. Owner creates a table (QR).
         MvcResult tableResult = perform(authed(post(

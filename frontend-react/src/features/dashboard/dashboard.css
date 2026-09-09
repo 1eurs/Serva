@@ -242,15 +242,10 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
 .tables-tool{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap}
 .addtable{display:flex;gap:8px;align-items:center}
 /* QR studio — presets, ink/paper/badge, shapes, logo, font + live preview. */
-.qr-style{display:flex;flex-direction:column;gap:12px;margin:-4px 0 16px;padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md)}
-.qr-style.locked{opacity:.85}
-.qr-style-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-.qr-style-head{font-family:var(--bold);font-weight:800;font-size:14px;letter-spacing:.02em}
-.qr-style-actions{display:flex;gap:8px;flex-wrap:wrap}
-.qr-style-body{display:grid;grid-template-columns:auto 1fr;gap:18px 20px;align-items:start}
-.qr-style-preview{background:var(--paper);border:var(--bw) solid var(--keyline);border-radius:10px;padding:12px;line-height:0;box-shadow:var(--hard-sm);position:sticky;top:12px}
-.qr-style-controls{display:flex;flex-direction:column;gap:11px;min-width:0}
 .qr-style-row{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
+/* The studio's rows used to sit in a flex column that spaced them; inside a Settings
+   pane section they are plain siblings, so they carry their own rhythm. */
+.qr-style-row+.qr-style-row{margin-top:11px}
 .qr-style-row.dim{opacity:.45}
 .qr-style-lbl{font-size:11.5px;font-weight:700;color:var(--muted);min-width:5rem;padding-top:7px;letter-spacing:.03em;text-transform:uppercase}
 .qr-logo-ctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -272,12 +267,26 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
 .qr-preset-swatch i{flex:1;display:block}
 .qr-preset b{font-size:10.5px;font-weight:800;letter-spacing:.02em}
 .qr-style-hint{margin:2px 0 0;font-size:11.5px;color:var(--muted);line-height:1.4}
-.dash .qr-style{border:var(--bw) solid var(--keyline);border-radius:8px;box-shadow:var(--hard-sm)}
+
+/* Center-mark picker: café name / café logo / another image. The café logo is a tile
+   rather than a second upload button — the file is already on the profile. */
+.qr-logo-picks{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:11px}
+.qr-logo-pick{appearance:none;display:flex;flex-direction:column;align-items:center;gap:6px;
+  border:var(--bw) solid var(--keyline);background:var(--paper);color:var(--ink);border-radius:9px;
+  padding:9px 11px 7px;cursor:pointer;min-width:82px;box-shadow:2px 2px 0 transparent;
+  transition:transform .12s,box-shadow .12s}
+.qr-logo-pick:hover:not(:disabled){transform:translate(-1px,-1px);box-shadow:var(--hard-xs)}
+.qr-logo-pick.on{background:var(--lime);color:var(--fill-ink);box-shadow:var(--hard-xs);transform:translate(-1px,-1px)}
+.qr-logo-pick:disabled{cursor:not-allowed;opacity:.6}
+.qr-logo-pick b{font-size:10.5px;font-weight:800;letter-spacing:.02em}
+.qr-logo-face{display:grid;place-items:center;width:38px;height:38px;border-radius:8px;
+  border:var(--bw-hair) solid var(--keyline);background:#fff center/contain no-repeat;
+  font-size:15px;font-weight:900;color:var(--ink)}
+
+/* The pane's live specimen sits on its own white card — the code is drawn on paper. */
+.qr-spec-stage{display:grid;place-items:center;padding:12px;border-radius:10px;background:var(--paper);
+  border:var(--bw) solid var(--keyline);box-shadow:var(--hard-xs);line-height:0}
 .dash .qrtile{background:transparent;border-color:var(--keyline)}
-@media (max-width:900px){
-  .qr-style-body{grid-template-columns:1fr}
-  .qr-style-preview{position:static;justify-self:center}
-}
 .tcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
 .tcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px;display:flex;flex-direction:column;align-items:center;gap:11px}
 .tcard-hd{display:flex;align-items:center;gap:8px;align-self:stretch;justify-content:space-between}
@@ -317,6 +326,8 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
   .inv-note{font-size:10px;color:#333;padding-inline-start:16px}
   .inv-hr{border-top:1px dashed #000;margin:6px 0}
   .inv-total{font-weight:800;font-size:14px}
+  /* Counter slips: the kitchen and the counter must read NOT PAID at a glance. */
+  .inv-unpaid{font-weight:900;letter-spacing:.02em}
   .inv-thanks{text-align:center;font-weight:600;margin-top:2px}
 }
 
@@ -335,7 +346,10 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
      printed top margin    = ~12mm (fixed; unremovable without reverse feed)
    22mm bottom padding ⇒ ~10mm printed bottom, roughly matching the ~12mm top. The anchor
    dot in buildEscPosRaster keeps RawBT from trimming this padding as trailing blank rows. */
-.receipt-capture-sheet .invoice-sheet{display:block;box-sizing:border-box;width:80mm;margin:0;padding:0 4mm 22mm;background:#fff;color:#000;font-size:11.5px;line-height:1.5}
+/* font-weight 500, not 400: the slip is rasterised at 203dpi and burned, and IBM Plex at
+   book weight leaves 1-dot stems that a thermal head prints grey. One step up costs no width
+   worth measuring and doubles the ink under every letter. */
+.receipt-capture-sheet .invoice-sheet{display:block;box-sizing:border-box;width:80mm;margin:0;padding:0 4mm 22mm;background:#fff;color:#000;font-size:11.5px;font-weight:500;line-height:1.5}
 .receipt-capture-sheet .inv-name{text-align:center;font-size:16px;font-weight:800}
 .receipt-capture-sheet .inv-sub{text-align:center;font-size:11px;color:#333}
 .receipt-capture-sheet .inv-title{text-align:center;font-weight:700;margin:6px 0 8px;padding:3px 0;border-top:1px dashed #000;border-bottom:1px dashed #000}
@@ -413,7 +427,7 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
    (KEEP IN SYNC with the .receipt-capture-sheet block above), just visibly positioned
    with a paper look instead of hidden behind the app. */
 .receipt-preview-sheet{flex:0 0 auto}
-.receipt-preview-sheet .invoice-sheet{display:block;box-sizing:border-box;width:80mm;margin:0;padding:4mm;background:#fff;color:#000;font-size:11.5px;line-height:1.5;border:1px solid var(--line-2);border-radius:4px;box-shadow:0 4px 14px rgba(0,0,0,.12)}
+.receipt-preview-sheet .invoice-sheet{display:block;box-sizing:border-box;width:80mm;margin:0;padding:4mm;background:#fff;color:#000;font-size:11.5px;font-weight:500;line-height:1.5;border:1px solid var(--line-2);border-radius:4px;box-shadow:0 4px 14px rgba(0,0,0,.12)}
 .receipt-preview-sheet .inv-name{text-align:center;font-size:16px;font-weight:800}
 .receipt-preview-sheet .inv-sub{text-align:center;font-size:11px;color:#333}
 .receipt-preview-sheet .inv-title{text-align:center;font-weight:700;margin:6px 0 8px;padding:3px 0;border-top:1px dashed #000;border-bottom:1px dashed #000}
@@ -448,6 +462,12 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
 .mitem-disc.on{color:var(--accent-ink);background:var(--accent)}
 .mitem-disc.sched{color:var(--muted);background:var(--surface);border:1px solid var(--line-2)}
 .mitem-disc.ended{color:var(--faint);background:var(--surface);border:1px solid var(--line-2)}
+/* Sold out by the shelf, not by the owner. Amber rather than red: nothing is broken and
+   nothing needs undoing — it is a fact about the fridge that expires with the next delivery.
+   --amber is a FILL grade (#F5B83D reads at 1.9:1 on this page), so the text takes the
+   darker grade the pro skin already ships — the same split the stock page makes for out. */
+.dash{--out-ink:#B45309}   /* amber-700 · 5.02:1 on white */
+.mitem-out{font-family:var(--font-ar);font-weight:700;font-size:10.5px;letter-spacing:.02em;padding:2px 7px;border-radius:999px;white-space:nowrap;color:var(--out-ink);background:var(--tint-warn);border:1px solid var(--edge-warn)}
 /* Discount block in the item editor. */
 /* Item editor can run tall (photos + options + discount): scroll inside the modal,
    widen a touch so paired fields sit side-by-side, and keep the actions reachable. */
@@ -534,19 +554,14 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
 .look-controls-head h4{font-size:18px;font-weight:800}
 .look-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .look-control-title{font-size:13px;font-weight:800;margin-bottom:12px}
-.look-theme-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px}
-.look-theme-row button{min-height:86px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--text);border-radius:15px;display:grid;grid-template-columns:32px 1fr;grid-template-rows:auto auto;align-items:center;gap:3px 9px;cursor:pointer;padding:9px;text-align:start}
-.look-theme-row button:hover{border-color:var(--accent)}
-.look-theme-row button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);box-shadow:0 0 0 3px var(--accent-glow)}
-.look-theme-row button:disabled{opacity:.6;cursor:not-allowed}
-.look-theme-swatch{grid-row:1 / span 2;width:32px;height:48px;border-radius:10px;box-shadow:inset 0 0 0 1px var(--line-2)}
-.look-theme-row b{font-size:12px;font-weight:900;line-height:1.1}
-.look-theme-row small{font-size:10.5px;color:var(--muted);line-height:1.2}
-.look-theme-row button.on small{color:color-mix(in srgb,var(--accent-ink) 72%,transparent)}
 .look-motif-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(66px,1fr));gap:8px}
 .look-motif-row button{min-height:64px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--muted);border-radius:15px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;padding:6px 4px}
 .look-motif-row button span{font-size:21px;line-height:1}.look-motif-row button b{font-size:11px;font-weight:800}
 .look-motif-row button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);box-shadow:0 0 0 3px var(--accent-glow)}
+.look-layout-note{margin-top:10px;font-size:11.5px;line-height:1.5;color:var(--muted)}
+.look-layout-note .num{color:var(--text);font-weight:800}
+.look-layout-note.warn{color:var(--warn,var(--bad));font-weight:600}
+.look-layout-note.warn .num{color:inherit}
 .look-range{display:flex;align-items:center;gap:12px;border:1px solid var(--line);background:var(--bg-2);border-radius:14px;padding:11px 12px;color:var(--muted);font-size:12.5px;font-weight:800;margin-top:12px}
 .look-range span{white-space:nowrap}.look-range input{flex:1;min-width:120px;accent-color:var(--accent)}.look-range input:disabled{opacity:.45}
 .look-colors{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:10px}
@@ -585,7 +600,7 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
 .profile-fields+.profile-settings{margin-top:16px}
 .profile-setting{display:flex;align-items:center;justify-content:space-between;gap:18px;min-height:68px;border: var(--bw-hair) solid var(--line-2);border-radius:7px;background:var(--paper);padding:11px 12px}
 .profile-setting>div{min-width:0}.profile-setting b{display:block;color:var(--ink);font-size:12.5px;font-weight:900}.profile-setting div>span{display:block;max-width:58ch;margin-top:3px;color:var(--muted);font-size:10.5px;line-height:1.4}
-.profile-payment-setting,.profile-printer-setting{grid-column:1 / -1}
+.profile-payment-setting,.profile-printer-setting,.profile-counter-setting{grid-column:1 / -1}
 .printer-station-actions{display:flex;align-items:center;gap:10px;flex:0 0 auto}
 .print-server-status{display:block;margin-top:5px;font-size:10.5px;font-weight:800}
 .print-server-status.ok{color:var(--ready,#15803d)}
@@ -633,6 +648,11 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 .switch span{position:absolute;top:2px;inset-inline-start:2px;width:20px;height:20px;border-radius:50%;background:var(--muted);transition:.22s}
 .switch.on{background:var(--accent);border-color:var(--accent)}
 .switch.on span{inset-inline-start:22px;background:var(--accent-ink)}
+/* Held off by stock. It reads as an off switch, because that is what the customer sees,
+   and refuses the drag because the only thing a click could write here is the owner's own
+   "off" — a decision they did not make and would then have to remember to undo. */
+.switch.locked{cursor:not-allowed;border-style:dashed;border-color:var(--edge-warn);background:var(--tint-warn)}
+.switch.locked span{background:var(--out-ink,#B45309)}
 
 /* item editor */
 .itemedit{display:flex;gap:14px;margin-bottom:6px}
@@ -825,6 +845,23 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 .dash .tbl tbody tr{transition:background .15s}
 .dash .tbl tbody tr:hover{background:var(--surface-2)}
 .dash .rslug{font-family:var(--font-mono);font-size:11px;color:var(--faint);margin-top:3px}
+/* Prose help under a field. Same weight as .rslug and deliberately NOT monospaced: .rslug is
+   for machine data (slugs, ids, tokens), and IBM Plex Mono carries no Arabic — an Arabic
+   sentence in it falls through to a face that leaves the letters unjoined, which is how the
+   staff modal's hints were reading on an Arabic dashboard. */
+.dash .hint{font-size:11.5px;color:var(--faint);margin-top:4px;line-height:1.5}
+.dash .hint.warn{color:var(--amber);font-weight:600}
+/* What the member will actually be able to open, restated from the toggles above it. */
+.dash .access-summary{margin-top:8px;font-size:11.5px;line-height:1.6;color:var(--muted)}
+.dash .access-summary b{color:var(--text);font-weight:700}
+.dash .field-err{margin-top:5px;font-size:11.5px;font-weight:600;color:var(--bad);line-height:1.4}
+.dash .field.bad input{border-color:var(--bad)}
+/* The credential hand-off after a direct create — same shape as the invite's share step. */
+.dash .handover-row{display:flex;flex-direction:column;gap:10px;margin:10px 0 4px}
+/* Same muted sub-line, but for a human name rather than an identifier. The mono face has no
+   Arabic, so an Arabic name inherits a fallback and the mono tracking pulls its letters apart —
+   it has to carry the Arabic face and normal tracking to stay joined and readable. */
+.dash .person-sub{font-family:var(--font-ar);font-size:11.5px;letter-spacing:normal;color:var(--faint);margin-top:3px}
 .dash .team-page .tbl tbody tr{cursor:default}
 .team-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
 .perm-tags{display:flex;gap:7px;flex-wrap:wrap;margin:2px 0 14px}
@@ -832,6 +869,12 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 
 /* shorter staff form: copy/reset password row + permission switches */
 .pw-row{display:flex;gap:8px;align-items:stretch}
+/* A value we worked out, shown rather than asked for, with the way to overrule it beside it. */
+.derived-row{display:flex;gap:8px;align-items:center;min-height:36px;padding:0 10px;border: var(--bw-hair) solid var(--line-2);border-radius:10px;background:var(--bg-2)}
+.derived-row b{flex:1;min-width:0;font-size:14px;font-weight:800;letter-spacing:.01em;overflow:hidden;text-overflow:ellipsis}
+/* Opens a field that is real but not the point: the other script's name, contact details. */
+.field-add{display:block;margin:-2px 0 10px;padding:0;border:0;background:none;font:inherit;font-size:12px;font-weight:700;color:var(--accent-text);cursor:pointer;text-align:start}
+.field-add:hover{text-decoration:underline}
 .pw-row input{flex:1;min-width:0}
 .perm-groups{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;align-items:start}
 .perm-group-hd{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:6px}
@@ -994,6 +1037,8 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 .dash .switch{border:var(--bw) solid var(--keyline)}
 .dash .switch.on{background:var(--lime);border-color:var(--keyline)}
 .dash .switch.on span{background:var(--ink)}
+/* The skin's flat keyline would swallow the dashed edge that says this one will not move. */
+.dash .switch.locked{border:var(--bw) dashed var(--edge-warn);background:var(--tint-warn)}
 .dash .sndtgl{border:var(--bw) solid var(--keyline);border-radius:8px}
 .dash .sndtgl.on{background:var(--lime);color:var(--fill-ink);border-color:var(--keyline)}
 .dash .chip{border: var(--bw-hair) solid var(--keyline);border-radius:6px}
@@ -1004,6 +1049,12 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 .dash .acct-menu{border:var(--bw) solid var(--keyline);border-radius:9px;box-shadow:var(--hard-lg)}
 .dash .modal-card{border:var(--bw-heavy) solid var(--keyline);border-radius:10px;box-shadow:var(--hard-xl)}
 .dash .team-modal{max-width:560px;max-height:88vh;overflow-y:auto}
+/* Paired fields on one line — the bilingual name, and email + phone. There is no base .row2
+   rule in the theme, so these had been stacking full width and the modal was twice as tall as
+   it needed to be. Scoped here rather than added globally: other .row2 users have their own
+   spacing and are not asking for this. */
+.dash .team-modal .row2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+@media(max-width:639px){.dash .team-modal .row2{grid-template-columns:1fr}}
 .dash .team-modal .preset-row{margin:10px 0 4px}
 
 /* ---- phone-only nav ---- */
@@ -1212,4 +1263,48 @@ html[data-input="touch"] .dash .switch span{top:50%;transform:translateY(-50%)}
   .tcard:hover{box-shadow:0 14px 26px -22px rgba(0,0,0,.55)}
   .who:hover .av{box-shadow:none;border-color:var(--line-2)}
   .rail .nav button:hover .tip{opacity:0}
+}
+
+/* =====================================================================
+   Support session bar.
+
+   A platform admin inside a café is holding a borrowed session, and the
+   dashboard otherwise looks exactly like the café's own. The bar is
+   deliberately loud and deliberately fixed: it names whose dashboard this
+   is, counts the half hour down, and is the way back out.
+   ===================================================================== */
+.supportbar{position:fixed;inset-block-start:0;inset-inline:0;z-index:900;
+  display:flex;align-items:center;gap:10px;padding:7px 14px;
+  background:var(--amber,#d98324);color:#1b1206;
+  font-size:12.5px;font-weight:600;box-shadow:0 2px 10px rgb(0 0 0 / .25)}
+.supportbar .sb-dot{width:8px;height:8px;border-radius:50%;background:#1b1206;
+  animation:sb-pulse 1.6s ease-in-out infinite}
+.supportbar .sb-txt{flex:1;min-width:0;display:flex;align-items:baseline;gap:9px;overflow:hidden}
+.supportbar .sb-txt strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.supportbar .sb-user{font-family:var(--font-mono);font-size:11px;opacity:.75;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.supportbar .sb-clock{font-family:var(--font-mono);font-size:12px;opacity:.85}
+.supportbar .sb-exit{border:0;background:rgb(0 0 0 / .14);color:inherit;cursor:pointer;
+  width:26px;height:26px;border-radius:7px;font-size:13px;line-height:1;flex:0 0 auto}
+.supportbar .sb-exit:hover{background:rgb(0 0 0 / .26)}
+
+/* The bar sits above everything, so the app is pushed down rather than covered. */
+body:has(.supportbar) .dash{padding-block-start:34px}
+
+@keyframes sb-pulse{0%,100%{opacity:1}50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.supportbar .sb-dot{animation:none}}
+
+/* ---- "counter printer not collecting" — the one printing failure the queue cannot fix ----
+   Semantic red, not the accent: it is a fault, and it must read as one from across the room.
+   Never collapsed to a dot (see .dtop .dlive): on a phone the sentence goes and the icon and
+   the count stay, which is enough to send someone to the counter tablet. */
+.dprinter{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;padding:3px 10px;border-radius:999px;
+  font-size:12px;font-weight:800;color:var(--bad);
+  border:var(--bw-hair) solid color-mix(in srgb,var(--bad) 45%,transparent);
+  background:color-mix(in srgb,var(--bad) 9%,var(--paper))}
+.dprinter .d{width:8px;height:8px;border-radius:50%;background:var(--bad);animation:dlp 1.4s infinite}
+.dprinter b{font-variant-numeric:tabular-nums;margin-inline-start:2px}
+@media (max-width:639px){
+  .dtop .dprinter .lbl{display:none}
+  .dtop .dprinter{padding:3px 8px}
 }

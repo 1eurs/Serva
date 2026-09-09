@@ -6,8 +6,10 @@ import com.cafeqr.common.config.AppProperties;
 import com.cafeqr.common.exception.BadRequestException;
 import com.cafeqr.common.exception.ErrorCode;
 import com.cafeqr.common.exception.ResourceNotFoundException;
+import com.cafeqr.common.util.Pasted;
 import com.cafeqr.common.util.Tokens;
 import com.cafeqr.restaurants.RestaurantService;
+import com.cafeqr.restaurants.domain.Restaurant;
 import com.cafeqr.users.domain.Permission;
 import com.cafeqr.users.domain.StaffInvite;
 import com.cafeqr.users.domain.User;
@@ -89,6 +91,12 @@ public class StaffInviteService {
         }
         return inviteRepository.pendingForRestaurant(restaurantId).stream()
                 .map(invite -> userRepository.findById(invite.getUserId())
+                        // Every row carries a live join link, and the link is the credential for
+                        // the account behind it: whoever opens it chooses the password and walks
+                        // in with that account's access. So the list shows exactly the invites the
+                        // viewer could have issued themselves — nothing from another branch, and
+                        // nothing holding access they don't have.
+                        .filter(userManagementService::canTakeOver)
                         .map(user -> toResponse(invite, user))
                         .orElse(null))
                 .filter(java.util.Objects::nonNull)
@@ -103,6 +111,9 @@ public class StaffInviteService {
             throw new BadRequestException(ErrorCode.CONFLICT, "That member has already joined.");
         }
         User user = requireUser(existing.getUserId());
+        // A resend mints a fresh link and hands it straight back, so it is the same act as being
+        // shown one in the pending list — and answers to the same rule.
+        userManagementService.requireTakeoverAllowed(user);
         inviteRepository.revokeAllForUser(user.getId());
         return toResponse(issue(user.getId(), SecurityUtils.currentUser().getUserId()), user);
     }
@@ -140,12 +151,16 @@ public class StaffInviteService {
     public InvitePreviewResponse preview(String token) {
         StaffInvite invite = openable(token);
         User user = requireUser(invite.getUserId());
-        String cafe = user.getRestaurantId() == null ? null
-                : restaurantService.getEntity(user.getRestaurantId()).getName();
+        Restaurant cafe = user.getRestaurantId() == null ? null
+                : restaurantService.getEntity(user.getRestaurantId());
         return new InvitePreviewResponse(
                 user.getUsername(),
                 user.getFullName(),
-                cafe,
+                user.getFullNameEn(),
+                user.getFullNameAr(),
+                cafe == null ? null : cafe.getName(),
+                cafe == null ? null : cafe.getNameEn(),
+                cafe == null ? null : cafe.getNameAr(),
                 user.getPermissions().stream().map(Permission::name).sorted().toList(),
                 invite.getExpiresAt());
     }
@@ -187,7 +202,9 @@ public class StaffInviteService {
      * useful — "ask for a new link" reads very differently from "you've already joined".
      */
     private StaffInvite openable(String token) {
-        StaffInvite invite = inviteRepository.findByToken(token)
+        // The invite link is pasted out of a message too, and a bidi mark riding along in the
+        // token turns "here is your account" into "this link isn't valid".
+        StaffInvite invite = inviteRepository.findByToken(Pasted.identifier(token))
                 .orElseThrow(() -> new BadRequestException(ErrorCode.TOKEN_INVALID,
                         "This invite link isn't valid. Ask the café to send a new one."));
         if (invite.getAcceptedAt() != null) {
@@ -205,7 +222,7 @@ public class StaffInviteService {
         return invite;
     }
 
-    /** Only staff of the same café may touch an invite. */
+    /** Only staff who would administer the account once it is claimed may touch its invite. */
     private StaffInvite guarded(Long inviteId) {
         StaffInvite invite = inviteRepository.findById(inviteId)
                 .orElseThrow(() -> ResourceNotFoundException.of("Invite", inviteId));
@@ -216,6 +233,9 @@ public class StaffInviteService {
                     || !user.getRestaurantId().equals(viewer.getRestaurantId()))) {
             throw new BadRequestException(ErrorCode.FORBIDDEN, "That invite belongs to another café.");
         }
+        // Inside the café the invite is reachable by exactly the people who could manage the
+        // member afterwards: a branch manager has no business cancelling the other shop's new hire.
+        userManagementService.requireManageable(user);
         return invite;
     }
 
@@ -230,6 +250,8 @@ public class StaffInviteService {
                 user.getId(),
                 user.getUsername(),
                 user.getFullName(),
+                user.getFullNameEn(),
+                user.getFullNameAr(),
                 user.getPermissions().stream().map(Permission::name).sorted().toList(),
                 user.getBranchId(),
                 joinUrl(invite.getToken()),

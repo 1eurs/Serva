@@ -1,6 +1,7 @@
 package com.cafeqr.analytics;
 
 import com.cafeqr.analytics.dto.BenchmarkResponse;
+import com.cafeqr.plans.domain.Feature;
 import com.cafeqr.analytics.dto.CustomerBaseResponse;
 import com.cafeqr.analytics.dto.CustomerDirectoryResponse;
 import com.cafeqr.analytics.dto.CustomersInsightResponse;
@@ -33,7 +34,7 @@ import java.util.List;
  * <ul>
  *   <li>{@code @PreAuthorize("hasAuthority('ANALYTICS')")} — same as the Standard analytics
  *       controller, ensures the staff member may see analytics at all.</li>
- *   <li>{@link Entitlements#requirePro()} — checks the restaurant's {@code plan = PRO}
+ *   <li>{@link Entitlements#require} with {@code Feature.PRO_ANALYTICS} — checks the grid
  *       and throws 402 PLAN_REQUIRED on Standard. The platform admin is always allowed
  *       so they can preview the features.</li>
  * </ul>
@@ -59,7 +60,7 @@ public class ProAnalyticsController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) Long branchId) {
-        entitlements.requirePro();
+        entitlements.require(Feature.PRO_ANALYTICS);
         return ApiResponse.ok(proService.itemConversion(startOfDay(from), startOfDay(to.plusDays(1)), branchId));
     }
 
@@ -70,7 +71,7 @@ public class ProAnalyticsController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(defaultValue = "10") int limit,
             @RequestParam(required = false) Long branchId) {
-        entitlements.requirePro();
+        entitlements.require(Feature.PRO_ANALYTICS);
         return ApiResponse.ok(proService.marketBasket(startOfDay(from), startOfDay(to.plusDays(1)), branchId, limit));
     }
 
@@ -80,7 +81,7 @@ public class ProAnalyticsController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) Long branchId) {
-        entitlements.requirePro();
+        entitlements.require(Feature.PRO_ANALYTICS);
         return ApiResponse.ok(proService.staffPerformance(startOfDay(from), startOfDay(to.plusDays(1)), branchId));
     }
 
@@ -90,7 +91,7 @@ public class ProAnalyticsController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) Long branchId) {
-        entitlements.requirePro();
+        entitlements.require(Feature.PRO_ANALYTICS);
         return ApiResponse.ok(proService.funnel(startOfDay(from), startOfDay(to.plusDays(1)), branchId));
     }
 
@@ -100,7 +101,7 @@ public class ProAnalyticsController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) Long branchId) {
-        entitlements.requirePro();
+        entitlements.require(Feature.PRO_ANALYTICS);
         return ApiResponse.ok(proService.kitchenTiming(startOfDay(from), startOfDay(to.plusDays(1)), branchId));
     }
 
@@ -109,7 +110,7 @@ public class ProAnalyticsController {
     public ApiResponse<List<ForecastSlotResponse>> forecast(
             @RequestParam(defaultValue = "4") int weeks,
             @RequestParam(required = false) Long branchId) {
-        entitlements.requirePro();
+        entitlements.require(Feature.PRO_ANALYTICS);
         return ApiResponse.ok(proService.forecast(weeks, branchId));
     }
 
@@ -117,7 +118,7 @@ public class ProAnalyticsController {
     @GetMapping("/customers")
     public ApiResponse<CustomersInsightResponse> customers(
             @RequestParam(required = false) Long branchId) {
-        entitlements.requirePro();
+        entitlements.require(Feature.PRO_ANALYTICS);
         return ApiResponse.ok(proService.customers(branchId));
     }
 
@@ -125,7 +126,7 @@ public class ProAnalyticsController {
     @GetMapping("/customer-base")
     public ApiResponse<CustomerBaseResponse> customerBase(
             @RequestParam(required = false) Long branchId) {
-        entitlements.requirePro();
+        entitlements.require(Feature.PRO_ANALYTICS);
         return ApiResponse.ok(proService.customerBase(branchId));
     }
 
@@ -136,7 +137,7 @@ public class ProAnalyticsController {
             @RequestParam(defaultValue = "") @Size(max = 100) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
-        entitlements.requirePro();
+        entitlements.require(Feature.PRO_ANALYTICS);
         return ApiResponse.ok(PageResponse.from(
                 proService.customerDirectory(branchId, search, page, size)));
     }
@@ -144,7 +145,7 @@ public class ProAnalyticsController {
     @Operation(summary = "Pro · Anonymous benchmark — your café vs the Serva median")
     @GetMapping("/benchmark")
     public ApiResponse<BenchmarkResponse> benchmark() {
-        entitlements.requirePro();
+        entitlements.require(Feature.PRO_ANALYTICS);
         return ApiResponse.ok(proService.benchmark());
     }
 

@@ -1,6 +1,7 @@
 package com.cafeqr.analytics;
 
 import com.cafeqr.analytics.dto.BenchmarkResponse;
+import com.cafeqr.plans.domain.Feature;
 import com.cafeqr.analytics.dto.CustomerBaseResponse;
 import com.cafeqr.analytics.dto.CustomerDirectoryResponse;
 import com.cafeqr.analytics.dto.CustomerInsightResponse;
@@ -37,7 +38,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * PRO-only insights. Every method enforces the plan gate via {@link Entitlements#requirePro()}
+ * Gated insights. Every method enforces the gate via {@link Entitlements#require} with
+ * {@code Feature.PRO_ANALYTICS}
  * (called from the controller, not here — keeping this service pure-data) and applies the
  * caller's restaurant/branch scoping from {@link AccessGuard}.
  *
@@ -173,13 +175,15 @@ public class ProAnalyticsService {
         List<Object[]> rows = orderEventLogRepository.staffPerformance(restaurantId, branchId, from, to);
         List<StaffPerformanceResponse> out = new ArrayList<>(rows.size());
         for (Object[] r : rows) {
-            Double avgAccept = r[5] == null ? null : ((Number) r[5]).doubleValue();
+            Double avgAccept = r[7] == null ? null : ((Number) r[7]).doubleValue();
             out.add(new StaffPerformanceResponse(
                     r[0] == null ? null : ((Number) r[0]).longValue(),
                     (String) r[1],
-                    ((Number) r[2]).longValue(),
-                    ((Number) r[3]).longValue(),
+                    (String) r[2],
+                    (String) r[3],
                     ((Number) r[4]).longValue(),
+                    ((Number) r[5]).longValue(),
+                    ((Number) r[6]).longValue(),
                     avgAccept));
         }
         return out;

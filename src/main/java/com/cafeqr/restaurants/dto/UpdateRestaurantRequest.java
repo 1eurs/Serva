@@ -13,7 +13,11 @@ import java.math.BigDecimal;
  * ({@code null} still means "leave unchanged").
  */
 public record UpdateRestaurantRequest(
+        /** Legacy single name; prefer the bilingual pair below. */
         @Size(max = 150) String name,
+        /** Send "" to clear one side of the pair — the other language then stands alone. */
+        @Size(max = 150) String nameEn,
+        @Size(max = 150) String nameAr,
         @Size(max = 500) String logoUrl,
         @Size(max = 40) String phone,
         @Email @Size(max = 150) String email,

@@ -12,6 +12,8 @@ public record InviteResponse(
         Long userId,
         String username,
         String fullName,
+        String fullNameEn,
+        String fullNameAr,
         List<String> permissions,
         Long branchId,
         String joinUrl,

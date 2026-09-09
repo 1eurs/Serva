@@ -32,8 +32,11 @@ public record MenuItemResponse(
         Integer dailyLimit,
         /** How many are still sellable today under a daily cap; null when not capped. */
         Integer remainingToday,
-        /** True when Serva switched it off for lack of stock, rather than the owner doing so. */
-        boolean autoUnavailable,
+        /**
+         * Why the branch in view cannot make this right now, or null when it can. Not a
+         * decision anybody made — see {@link SoldOut}.
+         */
+        SoldOut soldOut,
         Long packagingRuleId,
         Integer preparationTimeMinutes,
         int displayOrder,
@@ -42,7 +45,36 @@ public record MenuItemResponse(
         Instant createdAt,
         Instant updatedAt
 ) {
+    /**
+     * Stock has run the item off the menu, without anybody switching it off.
+     *
+     * <p>{@code available} is the owner's own decision and is restaurant-wide; this is a
+     * measurement of one branch's shelf, taken fresh on every read. The two together are what
+     * the customer actually sees, so a dashboard that shows only the first tells an owner
+     * their latte is on sale while every order for it is being refused.
+     *
+     * <p>Carries the blocking ingredient's two names rather than one: the row is read on a
+     * screen that is entirely Arabic or entirely English.
+     *
+     * @param reason OUT_OF_STOCK or DAILY_LIMIT_REACHED
+     */
+    public record SoldOut(String reason, String blockerNameEn, String blockerNameAr) {}
+
+    /** Without a branch in hand there is no daily-limit figure to give; see the overload. */
     public static MenuItemResponse from(MenuItem i) {
+        return from(i, null, null);
+    }
+
+    /**
+     * @param remainingToday how many are still sellable at the branch being viewed, or null
+     *                       when the item is uncapped or no single branch is in view. The cap
+     *                       is restaurant-wide but the tally against it is not, so this figure
+     *                       is meaningless without saying where.
+     * @param soldOut        why that same branch cannot make it right now, or null when it can
+     *                       — and equally null when no single branch is in view, for the same
+     *                       reason: a shelf belongs to a branch, not to a restaurant.
+     */
+    public static MenuItemResponse from(MenuItem i, Integer remainingToday, SoldOut soldOut) {
         return new MenuItemResponse(
                 i.getId(), i.getRestaurantId(), i.getBranchId(), i.getCategoryId(),
                 i.getNameEn(), i.getNameAr(), i.getDescriptionEn(), i.getDescriptionAr(),
@@ -51,8 +83,9 @@ public record MenuItemResponse(
                 i.getDiscountValue(), i.getDiscountStartsAt(), i.getDiscountEndsAt(),
                 i.getImageUrl(), i.isAvailable(),
                 i.getStockMode().name(), i.getStockItemId(), i.getDailyLimit(),
-                i.remainingToday(java.time.LocalDate.now(com.cafeqr.common.util.TimeZones.CAFES)),
-                i.isAutoUnavailable(), i.getPackagingRuleId(),
+                remainingToday,
+                soldOut,
+                i.getPackagingRuleId(),
                 i.getPreparationTimeMinutes(),
                 i.getDisplayOrder(),
                 i.getImages().stream().map(MenuItemImage::getUrl).toList(),

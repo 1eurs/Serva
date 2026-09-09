@@ -1,6 +1,8 @@
 package com.cafeqr.loyalty;
 
 import com.cafeqr.auth.security.AccessGuard;
+import com.cafeqr.branches.BranchService;
+import com.cafeqr.branches.dto.BranchResponse;
 import com.cafeqr.common.exception.BadRequestException;
 import com.cafeqr.loyalty.domain.LoyaltyMember;
 import com.cafeqr.loyalty.domain.LoyaltyProgram;
@@ -18,9 +20,11 @@ import com.cafeqr.restaurants.domain.Restaurant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.math.BigDecimal;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -33,12 +37,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class LoyaltyServiceTest {
 
     private static final Long RESTAURANT_ID = 1L;
+    private static final Long BRANCH_ID = 7L;
     private static final Long LATTE_ID = 100L;   // 1.500
     private static final Long MUFFIN_ID = 101L;  // 0.800
     private static final Long TEA_ID = 102L;     // not a reward item
@@ -48,6 +55,7 @@ class LoyaltyServiceTest {
     @Mock private LoyaltyTransactionRepository txnRepository;
     @Mock private MenuItemRepository menuItemRepository;
     @Mock private RestaurantService restaurantService;
+    @Mock private BranchService branchService;
     @Mock private AccessGuard accessGuard;
 
     private LoyaltyService loyaltyService;
@@ -55,7 +63,7 @@ class LoyaltyServiceTest {
     @BeforeEach
     void setUp() {
         loyaltyService = new LoyaltyService(programRepository, memberRepository, txnRepository,
-                menuItemRepository, restaurantService, accessGuard);
+                menuItemRepository, restaurantService, branchService, accessGuard);
     }
 
     private Restaurant restaurant() {
@@ -96,6 +104,7 @@ class LoyaltyServiceTest {
         Order o = new Order();
         o.setId(50L);
         o.setRestaurantId(RESTAURANT_ID);
+        o.setBranchId(BRANCH_ID);
         o.setCustomerPhone("99990000");
         o.setItems(new java.util.ArrayList<>(List.of(
                 line(LATTE_ID, "1.500"), line(MUFFIN_ID, "0.800"), line(TEA_ID, "0.500"))));
@@ -291,5 +300,84 @@ class LoyaltyServiceTest {
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("pattern");
         verify(programRepository, never()).save(any());
+    }
+
+    // ============================================================ branch attribution
+
+    /**
+     * The card is restaurant-wide on purpose, but every stamp and every reward happens
+     * somewhere. Without the branch on the ledger row a two-shop café cannot tell which of
+     * them is giving the rewards away.
+     */
+    @Test
+    void aRedemptionRecordsTheBranchItHappenedAt() {
+        LoyaltyProgram program = program(LATTE_ID);
+        stubRedemption(program, memberWithReward());
+
+        loyaltyService.applyRedemption(order(), true, LATTE_ID);
+
+        ArgumentCaptor<LoyaltyTransaction> saved = ArgumentCaptor.forClass(LoyaltyTransaction.class);
+        verify(txnRepository).save(saved.capture());
+        assertThat(saved.getValue().getBranchId()).isEqualTo(BRANCH_ID);
+    }
+
+    @Test
+    void activityIsGroupedByBranchAndNamed() {
+        when(accessGuard.scopedRestaurantId()).thenReturn(RESTAURANT_ID);
+        when(accessGuard.scopedBranchId()).thenReturn(null);
+        when(branchService.listByRestaurant(RESTAURANT_ID)).thenReturn(List.of(
+                branchResponse(BRANCH_ID, "Mutrah", "مطرح"),
+                branchResponse(8L, "Qurum", "القرم")));
+        when(txnRepository.activityByBranch(eq(RESTAURANT_ID), isNull(), any(), any()))
+                .thenReturn(List.<Object[]>of(
+                        new Object[]{BRANCH_ID, 40L, 2L},
+                        new Object[]{8L, 5L, 9L}));
+
+        var rows = loyaltyService.branchActivity(null, Instant.EPOCH, Instant.now());
+
+        assertThat(rows).hasSize(2);
+        assertThat(rows.get(0).branchNameEn()).isEqualTo("Mutrah");
+        assertThat(rows.get(0).stampsEarned()).isEqualTo(40L);
+        assertThat(rows.get(0).rewardsRedeemed()).isEqualTo(2L);
+        /* The point of the report: Qurum hands over far more than it issues, so it is
+           carrying the cost of collecting done elsewhere. */
+        assertThat(rows.get(1).rewardsRedeemed()).isGreaterThan(rows.get(1).stampsEarned());
+    }
+
+    /** Rows written before attribution existed have no branch; they are reported, not dropped. */
+    @Test
+    void activityKeepsUnattributedRowsInTheirOwnBucket() {
+        when(accessGuard.scopedRestaurantId()).thenReturn(RESTAURANT_ID);
+        when(accessGuard.scopedBranchId()).thenReturn(null);
+        when(branchService.listByRestaurant(RESTAURANT_ID)).thenReturn(List.of());
+        when(txnRepository.activityByBranch(eq(RESTAURANT_ID), isNull(), any(), any()))
+                .thenReturn(List.<Object[]>of(new Object[]{null, 12L, 3L}));
+
+        var rows = loyaltyService.branchActivity(null, Instant.EPOCH, Instant.now());
+
+        assertThat(rows).singleElement().satisfies(r -> {
+            assertThat(r.branchId()).isNull();
+            assertThat(r.branchNameEn()).isNull();
+            assertThat(r.stampsEarned()).isEqualTo(12L);
+        });
+    }
+
+    /** A branch-scoped user sees their own branch, whatever they ask for. */
+    @Test
+    void branchScopedStaffCannotWidenTheReport() {
+        when(accessGuard.scopedRestaurantId()).thenReturn(RESTAURANT_ID);
+        when(accessGuard.scopedBranchId()).thenReturn(BRANCH_ID);
+        when(branchService.listByRestaurant(RESTAURANT_ID)).thenReturn(List.of());
+        when(txnRepository.activityByBranch(eq(RESTAURANT_ID), eq(BRANCH_ID), any(), any()))
+                .thenReturn(List.of());
+
+        loyaltyService.branchActivity(8L, Instant.EPOCH, Instant.now());
+
+        verify(txnRepository).activityByBranch(eq(RESTAURANT_ID), eq(BRANCH_ID), any(), any());
+    }
+
+    private static BranchResponse branchResponse(Long id, String nameEn, String nameAr) {
+        return new BranchResponse(id, RESTAURANT_ID, nameEn, nameEn, nameAr, null, null, null,
+                true, true, false, false, null, null);
     }
 }

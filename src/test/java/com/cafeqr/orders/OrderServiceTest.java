@@ -17,10 +17,13 @@ import com.cafeqr.orders.domain.OrderStatus;
 import com.cafeqr.orders.domain.OrderType;
 import com.cafeqr.orders.dto.AcceptOrderRequest;
 import com.cafeqr.orders.dto.CreateOrderRequest;
+import com.cafeqr.orders.dto.CreateStaffOrderRequest;
 import com.cafeqr.orders.dto.OrderResponse;
 import com.cafeqr.orders.dto.OrderTrackingResponse;
 import com.cafeqr.orders.realtime.OrderStreamService;
 import com.cafeqr.orders.repository.OrderRepository;
+import com.cafeqr.payments.PaymentService;
+import com.cafeqr.payments.domain.PaymentMethod;
 import com.cafeqr.restaurants.RestaurantService;
 import com.cafeqr.restaurants.domain.Restaurant;
 import com.cafeqr.tables.TableService;
@@ -41,6 +44,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -62,6 +66,8 @@ class OrderServiceTest {
     @Mock private EventLogService eventLogService;
     @Mock private LoyaltyService loyaltyService;
     @Mock private com.cafeqr.stock.StockConsumptionService stockConsumptionService;
+    @Mock private PaymentService paymentService;
+    @Mock private com.cafeqr.orders.print.PrintJobService printJobService;
 
     private OrderService orderService;
 
@@ -69,7 +75,8 @@ class OrderServiceTest {
     void setUp() {
         orderService = new OrderService(orderRepository, restaurantService, branchService, tableService,
                 menuService, accessGuard, notificationService, streamService, events, customerService,
-                otpService, eventLogService, loyaltyService, stockConsumptionService, new ObjectMapper());
+                otpService, eventLogService, loyaltyService, stockConsumptionService, paymentService,
+                printJobService, new ObjectMapper());
         lenient().when(otpService.isPhoneTokenValid(any(), any())).thenReturn(true);
     }
 
@@ -154,6 +161,108 @@ class OrderServiceTest {
         assertThat(response.items().get(0).nameEn()).isEqualTo("Latte");
 
         verify(notificationService, times(1)).send(any());
+        // Not counter mode: the receipt prints on completion, so nothing is queued on arrival.
+        verify(printJobService, never()).enqueueIfEnabled(any());
+    }
+
+    private void stubStaffOrder(Branch branch) {
+        when(accessGuard.scopedRestaurantId()).thenReturn(1L);
+        when(restaurantService.getEntity(1L)).thenReturn(restaurant());
+        when(branchService.getEntityInRestaurant(1L, 5L)).thenReturn(branch);
+        when(menuService.getOrderableItem(1L, 5L, 100L)).thenReturn(menuItem());
+        when(orderRepository.nextOrderNumber()).thenReturn(1001L);
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
+            Order o = inv.getArgument(0);
+            o.setId(1L);
+            return o;
+        });
+    }
+
+    private static CreateStaffOrderRequest staffOrder(Boolean paid, PaymentMethod method) {
+        return new CreateStaffOrderRequest(5L, OrderType.DINE_IN, null, null, null, null, null, null,
+                List.of(new CreateOrderRequest.Item(100L, 1, null, null)), paid, method);
+    }
+
+    @Test
+    void staffOrderOpensInProgressAndUnpaidByDefault() {
+        stubStaffOrder(branch());
+
+        OrderResponse response = orderService.createStaffOrder(staffOrder(null, null));
+
+        assertThat(response.status()).isEqualTo(OrderStatus.ACCEPTED);
+        verify(paymentService, never()).markPaid(anyLong(), any());
+        verify(printJobService, never()).enqueueIfEnabled(any());
+    }
+
+    @Test
+    void counterModeStaffOrderOpensReadyAndRecordsPaymentInOneGo() {
+        Branch counter = branch();
+        counter.setCounterMode(true);
+        stubStaffOrder(counter);
+
+        OrderResponse response = orderService.createStaffOrder(staffOrder(true, PaymentMethod.CASH));
+
+        // Skips "in progress": the kitchen works off the printed ticket, the board is the hand-over list.
+        assertThat(response.status()).isEqualTo(OrderStatus.READY);
+        assertThat(response.readyAt()).isNotNull();
+        // Stock still moves — READY counts as accepted to the stock rule.
+        verify(stockConsumptionService).onOrderAccepted(any(Order.class), any(Restaurant.class));
+        verify(paymentService).markPaid(1L, PaymentMethod.CASH);
+        // The arrival ticket is queued for the station, durably, in the same transaction.
+        verify(printJobService).enqueueIfEnabled(any(Order.class));
+    }
+
+    @Test
+    void counterModeUnpaidStaffOrderWaitsInProgressAsAnOpenTab() {
+        Branch counter = branch();
+        counter.setCounterMode(true);
+        stubStaffOrder(counter);
+
+        OrderResponse response = orderService.createStaffOrder(staffOrder(false, null));
+
+        // READY must never mean "not paid yet" — the Collect tap on the board moves it on.
+        assertThat(response.status()).isEqualTo(OrderStatus.ACCEPTED);
+        assertThat(response.readyAt()).isNull();
+        verify(paymentService, never()).markPaid(anyLong(), any());
+    }
+
+    @Test
+    void staffOrderPaidWithoutMethodDefaultsToCard() {
+        stubStaffOrder(branch());
+
+        orderService.createStaffOrder(staffOrder(true, null));
+
+        verify(paymentService).markPaid(1L, PaymentMethod.CARD);
+    }
+
+    @Test
+    void counterModeCustomerOrderSkipsNewAndOpensAsAnUnpaidTab() {
+        Branch counter = branch();
+        counter.setCounterMode(true);
+        when(restaurantService.getActiveBySlug("demo")).thenReturn(restaurant());
+        when(branchService.getEntityInRestaurant(1L, 5L)).thenReturn(counter);
+        RestaurantTable table = new RestaurantTable();
+        table.setId(9L);
+        table.setBranchId(5L);
+        table.setRestaurantId(1L);
+        when(tableService.getActiveByToken("tok")).thenReturn(table);
+        when(menuService.getOrderableItem(1L, 5L, 100L)).thenReturn(menuItem());
+        when(orderRepository.nextOrderNumber()).thenReturn(1001L);
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
+            Order o = inv.getArgument(0);
+            o.setId(1L);
+            return o;
+        });
+
+        OrderTrackingResponse response = orderService.createOrder(new CreateOrderRequest(
+                "demo", 5L, "tok", OrderType.DINE_IN, "Sara", "9999", null, null, null, null, null,
+                false, null, List.of(new CreateOrderRequest.Item(100L, 1, null, null))));
+
+        // The ticket prints at the counter on arrival, so nobody taps Accept; payment is unknown.
+        assertThat(response.status()).isEqualTo(OrderStatus.ACCEPTED);
+        verify(stockConsumptionService).onOrderAccepted(any(Order.class), any(Restaurant.class));
+        // ...and "prints on arrival" means a durable job, not a hope that a tablet is watching.
+        verify(printJobService).enqueueIfEnabled(any(Order.class));
     }
 
     @Test

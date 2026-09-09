@@ -344,6 +344,19 @@ public class RecipeService {
         return recipeLineRepository.findByMenuItemId(menuItemId);
     }
 
+    /** Lines for many menu items in one query, grouped by item — the menu-wide setup view. */
+    @Transactional(readOnly = true)
+    public Map<Long, List<RecipeLine>> linesForMenuItems(List<Long> menuItemIds) {
+        if (menuItemIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, List<RecipeLine>> byItem = new LinkedHashMap<>();
+        for (RecipeLine line : recipeLineRepository.findByMenuItemIdIn(menuItemIds)) {
+            byItem.computeIfAbsent(line.getMenuItemId(), id -> new ArrayList<>()).add(line);
+        }
+        return byItem;
+    }
+
     @Transactional(readOnly = true)
     public List<RecipeLine> linesForOptions(List<Long> optionIds) {
         return optionIds.isEmpty() ? List.of() : recipeLineRepository.findByMenuItemOptionIdIn(optionIds);

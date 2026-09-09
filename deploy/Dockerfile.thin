@@ -1,0 +1,26 @@
+# The image both environments actually run.
+#
+# The fat Dockerfile at the repo root builds from source, which means the host does the
+# Maven build — fine when there is one host, wrong once there are two: staging and
+# production would each compile their own jar, and "we tested it on staging" would be a
+# claim about two different binaries that happened to come from the same commit.
+#
+# So the jar is built once, on the machine running the deploy, and this only wraps it.
+# Java bytecode does not care that the Pi is arm64 and the VPS is x86_64 — only the base
+# image differs, and each host pulls its own. Same jar, same behaviour, both places.
+#
+# It also makes a deploy cheap: the base layer is cached after the first run, so shipping
+# a new build is a ~70MB rsync and a COPY, not a dependency resolve on a Raspberry Pi.
+FROM eclipse-temurin:21-jre-jammy
+WORKDIR /app
+
+RUN groupadd --system app && useradd --system --gid app app
+
+# Named app.jar so the entrypoint never has to guess at a version-stamped filename.
+COPY app.jar app.jar
+
+RUN mkdir -p /app/uploads && chown -R app:app /app
+USER app
+
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

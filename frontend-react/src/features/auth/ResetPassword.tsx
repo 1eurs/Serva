@@ -4,6 +4,7 @@ import { api, ApiError } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 import { useI18n } from '../../lib/i18n';
 import { BRAND } from '../../lib/brand';
+import { cleanSecret, syncInput } from '../../lib/format';
 import './login.css';
 
 export default function ResetPassword() {
@@ -53,9 +54,11 @@ export default function ResetPassword() {
           <>
             <h1>{L.title}</h1><div className="sub">{L.sub}</div>
             <div className="field"><label>{L.pass}</label>
-              <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" /></div>
+              <input type="password" value={pw} autoComplete="new-password"
+                onChange={(e) => setPw(syncInput(e.target, cleanSecret))} /></div>
             <div className="field"><label>{L.confirm}</label>
-              <input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} autoComplete="new-password" /></div>
+              <input type="password" value={pw2} autoComplete="new-password"
+                onChange={(e) => setPw2(syncInput(e.target, cleanSecret))} /></div>
             <button className="btn full" disabled={loading}>{loading ? '…' : L.submit}</button>
           </>
         )}

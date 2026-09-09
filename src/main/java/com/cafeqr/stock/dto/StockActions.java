@@ -45,7 +45,17 @@ public final class StockActions {
             Long branchId,
             @NotNull Long stockItemId,
             @NotNull @DecimalMin("0.0") BigDecimal quantityBase,
-            @Size(max = 300) String note
+            @Size(max = 300) String note,
+            /**
+             * True when somebody set this figure by looking at the shelf.
+             *
+             * <p>Both things that write here are absolute — "the shelf holds this much" — but
+             * they are not the same event. Walking the shelf is a count; typing over a figure
+             * because a delivery went unlogged is a correction, and the history has to be able
+             * to tell an owner which one they are reading. Defaults to a correction, so an
+             * older client keeps the behaviour it had.
+             */
+            Boolean counted
     ) {}
 
     /** Moving stock to another branch. */

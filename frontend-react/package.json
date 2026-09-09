@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "seed": "node scripts/seed.mjs"
+    "seed": "node scripts/seed.mjs",
+    "check:bidi": "node scripts/check-bidi.mjs",
+    "mock:printer": "node scripts/mock-cleanter.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.59.0",

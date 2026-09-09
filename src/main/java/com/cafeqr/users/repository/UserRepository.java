@@ -30,4 +30,18 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findFirstByRestaurantIdAndOwnerTrueOrderByIdAsc(Long restaurantId);
 
     List<User> findByBranchIdOrderByIdAsc(Long branchId);
+
+    /** Every owner across the platform — the audience for a billing notice or a broadcast. */
+    List<User> findByOwnerTrueAndActiveTrue();
+
+    /**
+     * {@code [restaurantId, ownerCount]} for the console's activation checklist.
+     *
+     * <p>Owners specifically, not every account: the question the checklist asks is "can the
+     * person who runs this café sign in", and a café with a cashier but no owner has not
+     * finished onboarding.
+     */
+    @Query("SELECT u.restaurantId, COUNT(u) FROM User u "
+            + "WHERE u.restaurantId IS NOT NULL AND u.owner = true GROUP BY u.restaurantId")
+    List<Object[]> countOwnersPerRestaurant();
 }

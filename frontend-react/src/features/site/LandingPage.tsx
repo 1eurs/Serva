@@ -4,6 +4,7 @@ import { useI18n } from '../../lib/i18n';
 import { ensureGoogleFonts } from '../../lib/fonts';
 import type { Lang } from '../../lib/types';
 import { SiteFooter } from './SiteFooter';
+import LeadForm from './LeadForm';
 import './site.css';
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -102,7 +103,7 @@ const COPY: Record<Lang, Copy> = {
         { q: 'Can I upgrade later?', a: 'Anytime. Move from Standard to Pro whenever you’re ready — no second setup fee.' },
       ],
     },
-    cta: { title: 'Serve faster. Run smarter. Grow bigger.', sub: 'Get set up this week. Message us and we’ll take it from there.', btn: 'Get started on WhatsApp' },
+    cta: { title: 'Serve faster. Run smarter. Grow bigger.', sub: 'Leave your details and we’ll call you back within one working day — or message us on WhatsApp and we’ll take it from there.', btn: 'Get started on WhatsApp' },
     footer: { tagline: 'Your whole operation, one platform.', made: 'Built in Oman', rights: 'All rights reserved.', links: ['Features', 'Pricing', 'How it works', 'FAQ'] },
   },
   ar: {
@@ -163,15 +164,17 @@ const COPY: Record<Lang, Copy> = {
         { q: 'هل يمكنني الترقية لاحقاً؟', a: 'في أي وقت. انتقل من ستاندرد إلى برو متى شئت — دون رسوم تهيئة جديدة.' },
       ],
     },
-    cta: { title: 'خدمة أسرع. إدارة أذكى. نموّ أكبر.', sub: 'جهّز حسابك هذا الأسبوع. راسلنا ونتولّى الباقي.', btn: 'ابدأ عبر واتساب' },
+    cta: { title: 'خدمة أسرع. إدارة أذكى. نموّ أكبر.', sub: 'اترك بياناتك وسنتصل بك خلال يوم عمل واحد — أو راسلنا عبر واتساب ونتولّى الباقي.', btn: 'ابدأ عبر واتساب' },
     footer: { tagline: 'عملك بالكامل، في منصّة واحدة.', made: 'صُنع في عُمان', rights: 'جميع الحقوق محفوظة.', links: ['المميزات', 'الأسعار', 'كيف تعمل', 'الأسئلة'] },
   },
 };
 
 /* ── reusable bits ───────────────────────────────────────────────────────── */
-function Cta({ href, children, arrow, variant = 'accent', className = '' }: {
+function Cta({ href, children, arrow, variant = 'accent', className = '', onClick }: {
   href: string; children: ReactNode; arrow: string;
   variant?: 'accent' | 'dark' | 'white' | 'secondary'; className?: string;
+  /** In-page links inside the mobile menu use this to close it on the way out. */
+  onClick?: () => void;
 }) {
   const bg = {
     accent: 'bg-neo-accent text-black',
@@ -183,6 +186,7 @@ function Cta({ href, children, arrow, variant = 'accent', className = '' }: {
   return (
     <a
       href={href}
+      onClick={onClick}
       {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
       className={`inline-flex h-14 items-center justify-center gap-2 border-4 border-black px-7 text-sm font-bold uppercase tracking-wide shadow-neo-sm transition-all duration-100 hover:-translate-y-0.5 hover:shadow-neo active:translate-x-[3px] active:translate-y-[3px] active:shadow-none ${bg} ${className}`}
     >
@@ -277,7 +281,7 @@ export default function LandingPage() {
               className="hidden h-12 items-center justify-center border-4 border-black bg-white px-5 text-sm font-bold uppercase tracking-wide shadow-neo-sm transition-all duration-100 hover:-translate-y-0.5 hover:bg-neo-accent hover:shadow-neo active:translate-x-[2px] active:translate-y-[2px] active:shadow-none sm:inline-flex">
               {c.nav.login}
             </Link>
-            <Cta href={waLink(c.cta.btn)} arrow={c.arrow} className="hidden h-12 md:inline-flex">{c.nav.cta}</Cta>
+            <Cta href="#start" arrow={c.arrow} className="hidden h-12 md:inline-flex">{c.nav.cta}</Cta>
             <button
               onClick={() => setMenuOpen((v) => !v)}
               aria-label="Menu" aria-expanded={menuOpen}
@@ -304,7 +308,7 @@ export default function LandingPage() {
                 className="border-4 border-black bg-white px-4 py-3 text-base font-bold uppercase tracking-wide shadow-neo-sm active:translate-x-[2px] active:translate-y-[2px] active:shadow-none">
                 {c.nav.login}
               </Link>
-              <Cta href={waLink(c.cta.btn)} arrow={c.arrow} className="mt-1 w-full">{c.nav.cta}</Cta>
+              <Cta href="#start" onClick={() => setMenuOpen(false)} arrow={c.arrow} className="mt-1 w-full">{c.nav.cta}</Cta>
             </div>
           </div>
         )}
@@ -525,15 +529,15 @@ export default function LandingPage() {
         </section>
 
         {/* ── CTA BAND ──────────────────────────────────────── */}
-        <section className="relative overflow-hidden border-b-4 border-black bg-neo-accent py-20 md:py-28">
+        <section id="start" className="scroll-mt-24 relative overflow-hidden border-b-4 border-black bg-neo-accent py-20 md:py-28">
           <div className="neo-diag pointer-events-none absolute inset-0 opacity-[0.08]" aria-hidden="true" />
           <div className="relative mx-auto max-w-4xl px-4 text-center sm:px-6">
             <h2 className="text-4xl font-black uppercase leading-[0.95] tracking-tighter text-[#15181c] md:text-6xl" style={{ textShadow: '4px 4px 0 #fafaf7' }}>
               {c.cta.title}
             </h2>
             <p className="mx-auto mt-5 max-w-xl text-lg font-bold text-[#15181c] md:text-xl">{c.cta.sub}</p>
-            <div className="mt-9 flex justify-center">
-              <Cta href={waLink(c.cta.btn)} arrow={c.arrow} variant="dark" className="h-16 px-9 text-base">{c.cta.btn}</Cta>
+            <div className="mt-9">
+              <LeadForm waHref={waLink(c.cta.btn)} />
             </div>
           </div>
         </section>

@@ -102,13 +102,20 @@ public class StockService {
         }
         level.setQuantityBase(next);
         levelRepository.save(level);
+        return writeMovement(stockItemId, branchId, delta, reason, orderId, wasteReason,
+                unitCost, note, next);
+    }
 
+    /** One line in the ledger. Split out so a count that moved nothing can still write one. */
+    private StockMovement writeMovement(Long stockItemId, Long branchId, BigDecimal delta,
+                                        MovementReason reason, Long orderId, WasteReason wasteReason,
+                                        BigDecimal unitCost, String note, BigDecimal balanceAfter) {
         StockMovement movement = new StockMovement();
         movement.setStockItemId(stockItemId);
         movement.setBranchId(branchId);
         movement.setDeltaBase(delta);
         movement.setReason(reason);
-        movement.setBalanceAfter(next);
+        movement.setBalanceAfter(balanceAfter);
         movement.setWasteReason(wasteReason);
         movement.setOrderId(orderId);
         movement.setUserId(SecurityUtils.currentUserIdOrNull());
@@ -145,7 +152,7 @@ public class StockService {
         }
         BigDecimal effectiveCost = unitCost;
         if (effectiveCost != null && effectiveCost.signum() >= 0) {
-            reaverageCost(item, branchId, quantityBase, effectiveCost);
+            reaverageCost(item, quantityBase, effectiveCost);
         } else {
             effectiveCost = item.getCostPerBaseUnit();
         }
@@ -155,11 +162,18 @@ public class StockService {
     /**
      * Weighted average of what is already on hand and what just arrived. When on-hand is zero
      * or negative there is nothing meaningful to blend with, so the new price simply wins.
+     *
+     * <p>The blend weighs the delivery against on-hand at <em>every</em> branch, not just the
+     * one taking it in, because {@code costPerBaseUnit} is a property of the item
+     * and every branch reads it. Weighing against one branch's shelf made a delivery into a
+     * quiet two-branch café rewrite plate cost for the whole restaurant at close to the new
+     * price, however much stock the other branch was sitting on.
      */
-    private void reaverageCost(StockItem item, Long branchId, BigDecimal incomingQty, BigDecimal incomingCost) {
-        BigDecimal onHand = levelRepository.findByStockItemIdAndBranchId(item.getId(), branchId)
-                .map(StockLevel::getQuantityBase)
-                .orElse(BigDecimal.ZERO);
+    private void reaverageCost(StockItem item, BigDecimal incomingQty, BigDecimal incomingCost) {
+        BigDecimal onHand = levelRepository.totalOnHand(item.getId());
+        if (onHand == null) {
+            onHand = BigDecimal.ZERO;
+        }
         BigDecimal blended;
         if (onHand.signum() <= 0 || item.getCostPerBaseUnit().signum() <= 0) {
             blended = incomingCost;
@@ -187,9 +201,17 @@ public class StockService {
                 reason == null ? WasteReason.OTHER : reason, item.getCostPerBaseUnit(), note, true);
     }
 
-    /** Sets on-hand to an exact figure, recording the difference as a MANUAL correction. */
+    /**
+     * Sets on-hand to an exact figure, recording the difference in the ledger.
+     *
+     * <p>{@code counted} decides what the ledger calls it. A shelf that was walked writes a
+     * COUNT, which is also what {@link #lastCountAt} reads to answer "when did anybody last
+     * look at this?"; anything else is a MANUAL correction. The arithmetic is identical —
+     * only the name on the line differs, and the name is the whole point of a ledger.
+     */
     @Transactional
-    public void adjustTo(Long branchId, Long stockItemId, BigDecimal newQuantityBase, String note) {
+    public void adjustTo(Long branchId, Long stockItemId, BigDecimal newQuantityBase, String note,
+                         boolean counted) {
         StockItem item = getItem(stockItemId);
         requireBranch(item, branchId);
         BigDecimal current = levelRepository.findByStockItemIdAndBranchId(stockItemId, branchId)
@@ -197,10 +219,43 @@ public class StockService {
                 .orElse(BigDecimal.ZERO);
         BigDecimal delta = newQuantityBase.subtract(current);
         if (delta.signum() == 0) {
+            if (counted) {
+                recordUnchangedCount(branchId, stockItemId, newQuantityBase, note);
+            }
             return;
         }
-        post(stockItemId, branchId, delta, MovementReason.MANUAL, null, null,
-                item.getCostPerBaseUnit(), note, true);
+        post(stockItemId, branchId, delta, counted ? MovementReason.COUNT : MovementReason.MANUAL,
+                null, null, item.getCostPerBaseUnit(), note, true);
+    }
+
+    /**
+     * Walking the shelf and finding exactly what the books said is still walking the shelf.
+     *
+     * <p>{@link #post} refuses a zero delta, which is right for the arithmetic and wrong for
+     * the evidence — {@link #lastCountAt} is what lets the stock page date its own figures
+     * rather than state them as timeless fact, and it reads counts out of the ledger.
+     *
+     * <p>The sharp case is the first count of all. An empty shelf counted as empty is
+     * zero-minus-zero, so nothing was written at all — not the movement and not the level row
+     * — and the good stayed <em>never counted</em>, which is exactly what keeps a menu item on
+     * sale ({@code StockConsumptionService.neverCounted}). An owner would count zero
+     * croissants, watch the croissant stay on the menu, and hear about it from the customer
+     * who was refused at checkout. Never counted and counted-to-zero are different facts, and
+     * this is where the second one gets written down.
+     */
+    @Transactional
+    public void recordUnchangedCount(Long branchId, Long stockItemId,
+                                     BigDecimal quantityBase, String note) {
+        // The row's existence is itself the record that somebody has looked at this shelf.
+        lockLevel(stockItemId, branchId);
+        writeMovement(stockItemId, branchId, BigDecimal.ZERO.setScale(QTY_SCALE),
+                MovementReason.COUNT, null, null, null, note, quantityBase);
+    }
+
+    /** When anybody last counted anything at this branch, or null if nobody ever has. */
+    @Transactional(readOnly = true)
+    public java.time.Instant lastCountAt(Long branchId) {
+        return movementRepository.lastCountAt(branchId);
     }
 
     /** Moves stock between two branches of the same restaurant as a matched out/in pair. */

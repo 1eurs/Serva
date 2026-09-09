@@ -1,0 +1,11 @@
+# Build output
+build/
+app/build/
+.gradle/
+.kotlin/
+local.properties
+
+# The signing key. It must NOT be committed, and it must NOT be lost: an APK signed with a
+# different key cannot update an installed one — every café would have to uninstall first.
+# Back keystore/ up to a password manager the day it is created.
+keystore/

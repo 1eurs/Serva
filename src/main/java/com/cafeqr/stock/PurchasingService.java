@@ -19,10 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Suppliers, reorder suggestions and purchase orders.
@@ -42,18 +41,15 @@ public class PurchasingService {
     private final SupplierRepository supplierRepository;
     private final PurchaseOrderRepository purchaseOrderRepository;
     private final StockService stockService;
-    private final StockConsumptionService consumptionService;
     private final AccessGuard accessGuard;
 
     public PurchasingService(SupplierRepository supplierRepository,
                              PurchaseOrderRepository purchaseOrderRepository,
                              StockService stockService,
-                             StockConsumptionService consumptionService,
                              AccessGuard accessGuard) {
         this.supplierRepository = supplierRepository;
         this.purchaseOrderRepository = purchaseOrderRepository;
         this.stockService = stockService;
-        this.consumptionService = consumptionService;
         this.accessGuard = accessGuard;
     }
 
@@ -95,14 +91,22 @@ public class PurchasingService {
     // ============================================================ suggestions
 
     /**
-     * Everything at or below its reorder point, with the quantity that would restore par.
+     * Everything at or below its reorder point, with the quantity that would restore par —
+     * less whatever is already on its way.
      *
      * <p>Items with no reorder point set are skipped rather than guessed at — a suggestion the
      * owner did not configure is noise, and noise is what makes people stop reading the list.
+     *
+     * <p>So is a suggestion to buy what you bought an hour ago. The list is the message an
+     * owner sends their supplier, and with nothing subtracted it kept asking for beans that
+     * were already on the van — every evening until the delivery landed. What is outstanding
+     * on an open order counts as stock that is coming, so an order that covers the shortfall
+     * removes the line and one that half covers it asks for the half that is missing.
      */
     @Transactional(readOnly = true)
     public List<Suggestion> suggestions(Long branchId) {
         Map<Long, StockLevel> levels = stockService.levelsByItem(branchId);
+        Map<Long, BigDecimal> onOrder = outstandingByItem(branchId);
         List<Suggestion> out = new ArrayList<>();
         for (StockItem item : stockService.listItems(false)) {
             StockLevel level = levels.get(item.getId());
@@ -116,7 +120,8 @@ public class PurchasingService {
             BigDecimal target = level.getParLevelBase() != null
                     ? level.getParLevelBase()
                     : level.getReorderPointBase();
-            BigDecimal needed = target.subtract(onHand);
+            BigDecimal needed = target.subtract(onHand)
+                    .subtract(onOrder.getOrDefault(item.getId(), BigDecimal.ZERO));
             if (needed.signum() <= 0) {
                 continue;
             }
@@ -124,6 +129,65 @@ public class PurchasingService {
                     level.getParLevelBase(), needed, item.getSupplierId()));
         }
         return out;
+    }
+
+    /** How much of each item is outstanding on the branch's open orders. */
+    @Transactional(readOnly = true)
+    public Map<Long, BigDecimal> outstandingByItem(Long branchId) {
+        Map<Long, BigDecimal> out = new LinkedHashMap<>();
+        for (PurchaseOrder po : listOrders(branchId, true)) {
+            for (PurchaseOrderLine line : po.getLines()) {
+                BigDecimal left = line.outstandingBase();
+                if (left != null && left.signum() > 0) {
+                    out.merge(line.getStockItemId(), left, BigDecimal::add);
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Closes out what a delivery just covered.
+     *
+     * <p>An order the café sent has to stop being an order once the goods arrive, or the
+     * shelf ends up permanently claiming beans are on the way. Asking for a second, separate
+     * "mark it arrived" tap is the kind of bookkeeping this whole feature exists to avoid —
+     * the owner already told us the delivery landed by logging it. So a RECEIVE for an item
+     * pays down that item's outstanding lines, oldest order first, and an order whose lines
+     * are all covered closes itself.
+     *
+     * <p>Deliberately not exact matching: cafés do not reconcile line by line, and a delivery
+     * of beans against the only open order for beans is the intent every time.
+     */
+    @Transactional
+    public void settleFromDelivery(Long branchId, Map<Long, BigDecimal> receivedByItem) {
+        if (receivedByItem.isEmpty()) {
+            return;
+        }
+        Map<Long, BigDecimal> left = new LinkedHashMap<>(receivedByItem);
+        List<PurchaseOrder> open = listOrders(branchId, true);
+        /* Oldest first: the order that has been waiting longest is the one this delivery is. */
+        for (int i = open.size() - 1; i >= 0; i--) {
+            PurchaseOrder po = open.get(i);
+            boolean touched = false;
+            for (PurchaseOrderLine line : po.getLines()) {
+                BigDecimal spare = left.getOrDefault(line.getStockItemId(), BigDecimal.ZERO);
+                BigDecimal owing = line.outstandingBase();
+                if (spare.signum() <= 0 || owing == null || owing.signum() <= 0) {
+                    continue;
+                }
+                BigDecimal applied = spare.min(owing);
+                line.setQuantityReceivedBase(line.getQuantityReceivedBase().add(applied));
+                left.put(line.getStockItemId(), spare.subtract(applied));
+                touched = true;
+            }
+            if (touched) {
+                boolean settled = po.getLines().stream()
+                        .allMatch(l -> l.outstandingBase() == null || l.outstandingBase().signum() <= 0);
+                po.setStatus(settled ? PurchaseOrderStatus.RECEIVED : PurchaseOrderStatus.PARTIAL);
+                purchaseOrderRepository.save(po);
+            }
+        }
     }
 
     // ============================================================ purchase orders
@@ -178,6 +242,18 @@ public class PurchasingService {
     }
 
     /** Builds a draft order straight from the reorder suggestions for one supplier. */
+    /**
+     * The order as the café actually places it: built from the shortfall and immediately
+     * SENT, because the act that creates it is the owner copying the list into WhatsApp.
+     * A DRAFT would be a state this product has no screen for and nobody would ever leave.
+     */
+    @Transactional
+    public PurchaseOrder sendFromSuggestions(Long branchId, Long supplierId) {
+        PurchaseOrder po = createFromSuggestions(branchId, supplierId);
+        po.setStatus(PurchaseOrderStatus.SENT);
+        return purchaseOrderRepository.save(po);
+    }
+
     @Transactional
     public PurchaseOrder createFromSuggestions(Long branchId, Long supplierId) {
         List<OrderLine> lines = suggestions(branchId).stream()
@@ -230,13 +306,7 @@ public class PurchasingService {
             line.setUnitCost(unitCost);
         }
         po.refreshStatusFromLines();
-        PurchaseOrder saved = purchaseOrderRepository.save(po);
-
-        // A delivery is the most common way an 86'd item comes back — put it on the menu again.
-        Set<Long> touched = new LinkedHashSet<>();
-        touched.add(line.getStockItemId());
-        consumptionService.refreshAvailability(po.getRestaurantId(), po.getBranchId(), touched);
-        return saved;
+        return purchaseOrderRepository.save(po);
     }
 
     /** Receives every outstanding line at once — the "the whole delivery arrived" button. */

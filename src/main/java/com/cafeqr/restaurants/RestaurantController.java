@@ -4,6 +4,7 @@ import com.cafeqr.auth.security.AccessGuard;
 import com.cafeqr.common.api.ApiResponse;
 import com.cafeqr.restaurants.dto.RestaurantResponse;
 import com.cafeqr.restaurants.dto.UpdateRestaurantRequest;
+import com.cafeqr.restaurants.dto.UpdateRestaurantMenuInfoRequest;
 import com.cafeqr.restaurants.dto.UpdateRestaurantReceiptRequest;
 import com.cafeqr.restaurants.dto.UpdateRestaurantThemeRequest;
 import com.cafeqr.subscriptions.SubscriptionService;
@@ -68,6 +69,18 @@ public class RestaurantController {
                                                        @Valid @RequestBody UpdateRestaurantThemeRequest request) {
         accessGuard.requireRestaurantAccess(restaurantId);
         return ApiResponse.ok("Menu theme updated", restaurantService.updateTheme(restaurantId, request.theme(), request.themeCustomJson()));
+    }
+
+    @Operation(summary = "Update the menu's house card (info shown above the categories)")
+    // Same owners as the theme: the card is edited from the menu/profile screens, and it is
+    // the café's own words about itself, so PROFILE must not be locked out of it either.
+    @PreAuthorize("hasAnyAuthority('MENU','PROFILE')")
+    @PatchMapping("/api/restaurants/{restaurantId}/menu-info")
+    public ApiResponse<RestaurantResponse> updateMenuInfo(@PathVariable Long restaurantId,
+                                                          @Valid @RequestBody UpdateRestaurantMenuInfoRequest request) {
+        accessGuard.requireRestaurantAccess(restaurantId);
+        return ApiResponse.ok("Menu info updated",
+                restaurantService.updateMenuInfo(restaurantId, request.menuInfoJson()));
     }
 
     @Operation(summary = "Update the printed receipt customization")

@@ -6,9 +6,9 @@ import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { useSkin } from '../../lib/skin';
 import { usePosture } from '../../lib/posture';
-import { useI18n, useT, type Dict } from '../../lib/i18n';
+import { useI18n, useT, nameOf, personName, Ltr, ltrText, type Dict } from '../../lib/i18n';
 import { omr, omanDate, omanHour } from '../../lib/format';
-import { isPlanRequiredError, isProPlan } from '../../lib/plan';
+import { isPlanRequiredError, useFeatures } from '../../lib/plan';
 import type { Restaurant, BranchResponse, PageResponse } from '../../lib/types';
 import './analytics.css';
 
@@ -25,7 +25,7 @@ interface Summary {
 interface DailyPoint { date: string; orders: number; revenue: string }
 interface Conversion { menuItemId: number; nameEn: string; nameAr: string; views: number; orders: number; conversionRate: string }
 interface Affinity { itemAId: number; aNameEn: string; aNameAr: string; itemBId: number; bNameEn: string; bNameAr: string; coOrders: number }
-interface Staff { actorUserId: number; actorName: string; accepted: number; declined: number; completed: number; avgAcceptSeconds: number | null }
+interface Staff { actorUserId: number; actorName: string; actorNameEn?: string | null; actorNameAr?: string | null; accepted: number; declined: number; completed: number; avgAcceptSeconds: number | null }
 interface ForecastSlot { dayOfWeek: number; hour: number; expectedOrders: number }
 interface CustomerInsight { profileId: number; name: string; phone: string; orderCount: number; lastOrderAt: string | null }
 interface Customers { topRegulars: CustomerInsight[]; atRisk: CustomerInsight[] }
@@ -67,7 +67,7 @@ const DICT: Dict = {
     a_noData: 'لا توجد بيانات لهذه الفترة.', a_retry: 'حاول مرة أخرى',
     a_secOverview: 'نظرة عامة', a_secMenu: 'القائمة', a_secTeam: 'الفريق', a_secCustomers: 'العملاء',
     a_secService: 'الخدمة', a_secItems: 'الأصناف',
-    a_lockTitle: 'افتح تحليلات برو', a_lockCta: 'الترقية إلى برو',
+    a_lockTitle: 'افتح التحليلات المتقدّمة', a_lockCta: 'ترقية الباقة',
     a_lockRange: 'استعلم حتى ٩٠ يومًا من السجل وافتح طبقة التحليلات التشخيصية.',
     a_lockMenu: 'اعرف أي الأصناف تُشاهَد كثيرًا وتُطلب قليلًا، وما الذي يُطلب معًا.',
     a_lockTeam: 'تابِع سرعة القبول وإنتاجية كل عضو في الفريق.',
@@ -112,7 +112,7 @@ const DICT: Dict = {
     a_noData: 'No data for this period.', a_retry: 'Try again',
     a_secOverview: 'Overview', a_secMenu: 'Menu', a_secTeam: 'Team', a_secCustomers: 'Customers',
     a_secService: 'Service', a_secItems: 'Items',
-    a_lockTitle: 'Unlock Pro analytics', a_lockCta: 'Upgrade to Pro',
+    a_lockTitle: 'Unlock advanced analytics', a_lockCta: 'Upgrade your plan',
     a_lockRange: 'Query up to 90 days of history and unlock the diagnostic layer.',
     a_lockMenu: 'See which items get views but few orders, and what sells together.',
     a_lockTeam: 'Track accept times and throughput for each team member.',
@@ -248,20 +248,19 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
   const nm = (en: string, ar: string) => (lang === 'ar' ? ar || en : en || ar);
   const cur = lang === 'ar' ? 'ر.ع' : 'OMR';
 
-  const restaurantQ = useQuery({
-    queryKey: ['restaurant', user!.restaurantId],
-    queryFn: () => api.get<Restaurant>(`/api/restaurants/${user!.restaurantId}`),
-    enabled: !!user!.restaurantId,
-    refetchOnMount: 'always',
-  });
-  const planReady = restaurantQ.isSuccess && !!restaurantQ.data;
-  const isPro = planReady && isProPlan(restaurantQ.data!.plan);
+  // This screen used to fetch the café and work its own plan rule out from the tier. Two
+  // different things live behind that one boolean, and the grid can now separate them: the
+  // date range is FULL_HISTORY, the diagnostic cards are PRO_ANALYTICS.
+  const features = useFeatures();
+  const planReady = features.ready;
+  const isPro = features.has('PRO_ANALYTICS');
+  const fullHistory = features.has('FULL_HISTORY');
 
-  // API window — Standard is capped at Today / 7d even if range state is stale.
+  // API window — a capped plan gets Today / 7d even if range state is stale.
   const queryRange: Range = useMemo(() => {
-    if (!planReady || isPro) return range;
+    if (!planReady || fullHistory) return range;
     return range === '30d' || range === '90d' || range === 'custom' ? '7d' : range;
-  }, [planReady, isPro, range]);
+  }, [planReady, fullHistory, range]);
 
   const PRESET_DAYS: Record<Exclude<Range, 'custom'>, number> = { today: 1, '7d': 7, '30d': 30, '90d': 90 };
   const win = queryRange === 'custom'
@@ -276,11 +275,11 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
     ? { from: omanDate(new Date(Date.now() - 7 * DAY)), to: omanDate(new Date(Date.now() - 7 * DAY)) }
     : (() => { const fromMs = new Date(from + 'T00:00:00').getTime(); return { from: ymd(fromMs - spanDays * DAY), to: ymd(fromMs - DAY) }; })();
 
-  // Keep the picker in sync when a café is downgraded from Pro.
+  // Keep the picker in sync when a café loses the longer window.
   useEffect(() => {
-    if (!planReady || isPro) return;
+    if (!planReady || fullHistory) return;
     if (range === '30d' || range === '90d' || range === 'custom') setRange('7d');
-  }, [planReady, isPro, range]);
+  }, [planReady, fullHistory, range]);
   useEffect(() => { setCustomerPage(0); }, [branchFilter]);
 
   const summaryQ = useQuery({
@@ -426,26 +425,26 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
     ? fmtDate(to, lang, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
     : `${fmtDate(from, lang, { day: 'numeric', month: 'short' })} – ${fmtDate(to, lang, { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
-  const presets: Range[] = isPro ? ['today', '7d', '30d', '90d', 'custom'] : ['today', '7d'];
+  const presets: Range[] = fullHistory ? ['today', '7d', '30d', '90d', 'custom'] : ['today', '7d'];
   const tabs: Array<{ key: Section; label: string; locked: boolean }> = [
     { key: 'overview', label: t('a_secOverview'), locked: false },
     { key: 'menu', label: t('a_secMenu'), locked: false },
     { key: 'team', label: t('a_secTeam'), locked: !isPro },
     { key: 'customers', label: t('a_secCustomers'), locked: !isPro },
   ];
-  const bestSellerCap = isPro ? 8 : 5;
+  const bestSellerCap = fullHistory ? 8 : 5;  // matches the server's CAPPED_BEST_SELLING_LIMIT
   const metricLabel: Record<Metric, string> = { revenue: t('a_revenue'), orders: t('a_orders'), aov: t('a_aov') };
 
-  if (restaurantQ.isError) {
+  if (features.query.isError) {
     return (
       <ErrCard
-        message={restaurantQ.error instanceof ApiError ? restaurantQ.error.message : t('a_noData')}
-        onRetry={() => restaurantQ.refetch()}
+        message={features.query.error instanceof ApiError ? features.query.error.message : t('a_noData')}
+        onRetry={() => features.query.refetch()}
         t={t}
       />
     );
   }
-  if (restaurantQ.isLoading || !planReady) return <Skeleton />;
+  if (!planReady) return <Skeleton />;
 
   return (
     <div className="an" ref={rootRef}>
@@ -466,7 +465,7 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
                 onClick={() => setRange(p)}>{p === 'today' ? t('a_today') : p === '7d' ? t('a_7d') : p === '30d' ? t('a_30d') : p === '90d' ? t('a_90d') : t('a_custom')}</button>
             ))}
           </div>
-          {isPro && range === 'custom' && (
+          {fullHistory && range === 'custom' && (
             <div className="an-daterange">
               <input type="date" value={customFrom} max={customTo || todayD} onChange={(e) => setCustomFrom(e.target.value)} aria-label={t('a_custom')} />
               <span className="an-dr-sep">–</span>
@@ -476,7 +475,7 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
           {canPickBranch && (
             <select className="an-branch-sel" value={branchFilter} aria-label={t('a_allBranches')} onChange={(e) => setBranchFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}>
               <option value="all">{t('a_allBranches')}</option>
-              {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              {branches.map((b) => <option key={b.id} value={b.id}>{nameOf(b, lang)}</option>)}
             </select>
           )}
         </div>
@@ -663,7 +662,7 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
                         head={[t('a_member'), t('a_done'), t('a_avgAccept')]}
                         rows={rows.map((m) => ({
                           key: m.actorUserId,
-                          name: m.actorName,
+                          name: personName({ fullName: m.actorName, fullNameEn: m.actorNameEn, fullNameAr: m.actorNameAr }, lang),
                           share: (m.completed / max) * 100,
                           cells: [String(m.completed), m.avgAcceptSeconds == null ? t('a_never') : `${Math.round(m.avgAcceptSeconds)}${t('a_sec')}`],
                         }))}
@@ -716,7 +715,7 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
                         {customersQ.data.topRegulars.slice(0, 8).map((c) => (
                           <motion.li key={c.profileId} variants={itemV}>
                             <span className="an-av on">{(c.name || c.phone).slice(0, 1)}</span>
-                            <span className="an-li-name">{c.name || c.phone}</span>
+                            <span className="an-li-name">{c.name ? <bdi>{c.name}</bdi> : <Ltr>{c.phone}</Ltr>}</span>
                             <span className="an-li-val">{c.orderCount} {t('a_ordersN')}</span>
                           </motion.li>
                         ))}
@@ -730,7 +729,7 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
                         {customersQ.data.atRisk.slice(0, 8).map((c) => (
                           <motion.li key={c.profileId} variants={itemV}>
                             <span className="an-av">{(c.name || c.phone).slice(0, 1)}</span>
-                            <span className="an-li-name">{c.name || c.phone}</span>
+                            <span className="an-li-name">{c.name ? <bdi>{c.name}</bdi> : <Ltr>{c.phone}</Ltr>}</span>
                             <span className="an-li-val">{c.lastOrderAt ? fmtDate(c.lastOrderAt.slice(0, 10), lang, { day: 'numeric', month: 'short' }) : t('a_never')}</span>
                           </motion.li>
                         ))}
@@ -1099,7 +1098,7 @@ function DaypartCard({ rows, t }: { rows: DaypartPoint[]; t: T }) {
   const meterRows = rows.map((r, i) => ({
     label: t(DAYPART_KEY[r.daypart] ?? r.daypart),
     pct: (r.orders / max) * 100,
-    value: `${r.orders} · ${omr(r.revenue)}`,
+    value: `${ltrText(r.orders)} · ${ltrText(omr(r.revenue))}`,
     hot: i === peak,
   }));
   return <MeterRows rows={meterRows} />;
@@ -1199,7 +1198,7 @@ function CustomerDirectoryTable({ data, loading, search, page, lang, t, onSearch
                 {data.content.map((customer) => (
                   <tr key={customer.phone}>
                     <td className="name">{customer.name || '—'}</td>
-                    <td><a href={`tel:${customer.phone}`} dir="ltr">{customer.phone}</a></td>
+                    <td><a href={`tel:${customer.phone}`}><Ltr>{customer.phone}</Ltr></a></td>
                     <td className="n">{customer.orderCount}</td>
                     <td className="n q">{customer.lastOrderAt
                       ? new Intl.DateTimeFormat(lang === 'ar' ? 'ar-u-nu-latn' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(customer.lastOrderAt))

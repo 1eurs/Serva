@@ -15,7 +15,10 @@ public record CreateUserRequest(
         @NotBlank @Size(max = 60) String username,
         @NotBlank @Size(min = 8, max = 100) String password,
         /** Optional display name — defaults to the username when blank. */
+        /** Legacy single name; prefer the pair below. Sent alone, it is filed by its script. */
         @Size(max = 150) String fullName,
+        @Size(max = 150) String fullNameEn,
+        @Size(max = 150) String fullNameAr,
         /** Optional — only needed for email-based password reset. */
         @Email @Size(max = 150) String email,
         @Size(max = 40) String phone,

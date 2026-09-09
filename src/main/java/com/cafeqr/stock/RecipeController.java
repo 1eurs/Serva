@@ -1,6 +1,7 @@
 package com.cafeqr.stock;
 
 import com.cafeqr.common.api.ApiResponse;
+import com.cafeqr.branches.BranchService;
 import com.cafeqr.common.exception.BadRequestException;
 import com.cafeqr.common.exception.ErrorCode;
 import com.cafeqr.common.exception.ResourceNotFoundException;
@@ -8,6 +9,7 @@ import com.cafeqr.menus.domain.MenuItem;
 import com.cafeqr.menus.domain.MenuItemOption;
 import com.cafeqr.menus.domain.MenuItemOptionGroup;
 import com.cafeqr.menus.repository.MenuItemRepository;
+import com.cafeqr.orders.repository.OrderItemRepository;
 import com.cafeqr.stock.domain.Allergen;
 import com.cafeqr.stock.domain.BaseUnit;
 import com.cafeqr.stock.domain.OrderTypeScope;
@@ -15,6 +17,7 @@ import com.cafeqr.stock.domain.PackagingRule;
 import com.cafeqr.stock.domain.RecipeLine;
 import com.cafeqr.stock.domain.StockItem;
 import com.cafeqr.stock.domain.StockKind;
+import com.cafeqr.stock.domain.StockLevel;
 import com.cafeqr.stock.domain.StockMode;
 import com.cafeqr.stock.dto.RecipeDtos;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,11 +32,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -56,13 +62,22 @@ public class RecipeController {
     private final RecipeService recipeService;
     private final StockService stockService;
     private final MenuItemRepository menuItemRepository;
+    private final BranchService branchService;
+    private final DailyLimitService dailyLimitService;
+    private final OrderItemRepository orderItemRepository;
 
     public RecipeController(RecipeService recipeService,
                             StockService stockService,
-                            MenuItemRepository menuItemRepository) {
+                            MenuItemRepository menuItemRepository,
+                            BranchService branchService,
+                            DailyLimitService dailyLimitService,
+                            OrderItemRepository orderItemRepository) {
         this.recipeService = recipeService;
         this.stockService = stockService;
         this.menuItemRepository = menuItemRepository;
+        this.branchService = branchService;
+        this.dailyLimitService = dailyLimitService;
+        this.orderItemRepository = orderItemRepository;
     }
 
     // ============================================================ menu item recipes
@@ -116,12 +131,6 @@ public class RecipeController {
             }
         }
 
-        // Turning tracking off (or changing how it works) must clear an automatic 86 — otherwise
-        // the item stays hidden with nothing left to bring it back.
-        if (item.isAutoUnavailable()) {
-            item.setAvailable(true);
-            item.setAutoUnavailable(false);
-        }
         menuItemRepository.save(item);
 
         recipeService.replaceMenuItemRecipe(menuItemId, toDraws(request.lines()), toScopes(request.lines()));
@@ -144,10 +153,31 @@ public class RecipeController {
     /**
      * A counted good named after the menu item. Reused if one already exists so toggling the
      * mode off and on doesn't leave a trail of duplicate "Croissant" items behind.
+     *
+     * <p>The item's own good wins over a name match, and a name match is only taken when no
+     * other menu item has already claimed it. Matching on name alone quietly merged the counts
+     * of two menu items that happened to share an English name — a "Water" in Drinks and a
+     * "Water" in Extras sold each other's stock down, and neither owner could see why.
      */
     private StockItem findOrCreateGood(MenuItem item) {
-        return stockService.listItems(false).stream()
-                .filter(s -> s.getKind() == StockKind.GOOD && s.getNameEn().equalsIgnoreCase(item.getNameEn()))
+        List<StockItem> goods = stockService.listItems(false);
+        if (item.getStockItemId() != null) {
+            for (StockItem good : goods) {
+                if (good.getId().equals(item.getStockItemId()) && good.getKind() == StockKind.GOOD) {
+                    return good;
+                }
+            }
+        }
+        Set<Long> claimed = menuItemRepository
+                .findByRestaurantIdOrderByDisplayOrderAscIdAsc(item.getRestaurantId()).stream()
+                .filter(other -> !other.getId().equals(item.getId()))
+                .map(MenuItem::getStockItemId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        return goods.stream()
+                .filter(s -> s.getKind() == StockKind.GOOD
+                        && s.getNameEn().equalsIgnoreCase(item.getNameEn())
+                        && !claimed.contains(s.getId()))
                 .findFirst()
                 .orElseGet(() -> {
                     StockItem good = new StockItem();
@@ -202,10 +232,96 @@ public class RecipeController {
 
         return new RecipeDtos.Response(item.getId(), item.getStockMode().name(), item.getStockItemId(),
                 item.getDailyLimit(),
-                item.remainingToday(java.time.LocalDate.now(com.cafeqr.common.util.TimeZones.CAFES)),
+                dailyLimitService.remainingAt(item,
+                        branchService.resolveBranchForDisplay(item.getRestaurantId()),
+                        java.time.LocalDate.now(com.cafeqr.common.util.TimeZones.CAFES)),
                 item.getPackagingRuleId(), lines, optionRecipes,
                 plateCost, packagingCost, price,
                 recipeService.foodCostPercent(plateCost, price), margin, allergens);
+    }
+
+    // ============================================================ the menu, from the shelf
+
+    /** How far back "sells well" looks. Long enough to survive a quiet week, short enough to
+        reflect a menu that changed. */
+    private static final int SELLS_WINDOW_DAYS = 30;
+
+    /**
+     * Every menu item and what one sale takes off the shelf.
+     *
+     * <p>The stock feature has two halves — the shelf, and the menu items that draw on it — and
+     * until now only the shelf had a page. An owner could enter twenty ingredients, watch the
+     * numbers never move, and reasonably conclude the feature was broken; the half that makes
+     * stock move was reachable only from a button inside the menu editor, one item at a time,
+     * and nothing anywhere said how many items were still unlinked. This answers that across
+     * the whole menu at once.
+     *
+     * <p>Open to every plan on purpose. It is not a report — it is the setup surface, and
+     * putting the thing that makes the feature work behind a gate would gate the feature.
+     */
+    @Operation(summary = "Every menu item and what a sale takes off the shelf")
+    @GetMapping("/menu-links")
+    @Transactional(readOnly = true)
+    public ApiResponse<List<RecipeDtos.MenuLink>> menuLinks(@RequestParam(required = false) Long branchId) {
+        Long restaurantId = stockService.requireCafeScope();
+        Long branch = stockService.resolveBranch(branchId);
+
+        List<MenuItem> items = menuItemRepository.findByRestaurantIdOrderByDisplayOrderAscIdAsc(restaurantId);
+        if (items.isEmpty()) {
+            return ApiResponse.ok(List.of());
+        }
+
+        Map<Long, StockItem> stockById = new LinkedHashMap<>();
+        for (StockItem stockItem : stockService.listItems(true)) {
+            stockById.put(stockItem.getId(), stockItem);
+        }
+        /* A level row is the record that someone has counted this here. No row is not zero —
+           see StockConsumptionService.neverCounted, which is why nothing gets 86'd over it. */
+        Map<Long, StockLevel> levels = stockService.levelsByItem(branch);
+        Map<Long, Long> sold = soldRecently(restaurantId, branch);
+
+        List<RecipeDtos.MenuLink> out = new ArrayList<>(items.size());
+        for (MenuItem item : items) {
+            /* explode() is the same call the ordering path makes, so this list is literally
+               what a sale will draw — including packaging the owner never typed. Costing one
+               menu at a time is what menuEconomics already does; this page is opened by an
+               owner now and then, not by a customer on every menu load. */
+            List<RecipeDtos.MenuLink.Take> takes = new ArrayList<>();
+            if (item.getStockMode().consumesStock()) {
+                for (RecipeService.Draw draw : recipeService.explode(item, List.of(), null, false)) {
+                    StockItem stockItem = stockById.get(draw.stockItemId());
+                    if (stockItem == null) {
+                        continue; // archived out from under the recipe; the line is dead weight
+                    }
+                    takes.add(new RecipeDtos.MenuLink.Take(
+                            stockItem.getId(), stockItem.getNameEn(), stockItem.getNameAr(),
+                            stockItem.getBaseUnit().name(), draw.quantityBase(),
+                            !levels.containsKey(stockItem.getId())));
+                }
+            }
+
+            BigDecimal plateCost = takes.isEmpty() ? null : recipeService.asMoney(recipeService.plateCost(item));
+            BigDecimal price = item.effectivePrice(Instant.now());
+            out.add(new RecipeDtos.MenuLink(item.getId(), item.getStockMode().name(),
+                    item.getDailyLimit(), takes, plateCost,
+                    recipeService.foodCostPercent(plateCost, price),
+                    sold.getOrDefault(item.getId(), 0L)));
+        }
+        return ApiResponse.ok(out);
+    }
+
+    /** Units sold per menu item over the recent window, so setup can lead with what sells. */
+    private Map<Long, Long> soldRecently(Long restaurantId, Long branchId) {
+        Instant to = Instant.now();
+        Instant from = to.minus(SELLS_WINDOW_DAYS, ChronoUnit.DAYS);
+        Map<Long, Long> byItem = new LinkedHashMap<>();
+        for (Object[] row : orderItemRepository.bestSelling(restaurantId, branchId, from, to)) {
+            Long menuItemId = (Long) row[0];
+            if (menuItemId != null && row[3] != null) {
+                byItem.merge(menuItemId, ((Number) row[3]).longValue(), Long::sum);
+            }
+        }
+        return byItem;
     }
 
     // ============================================================ prep recipes

@@ -39,8 +39,17 @@ public class JwtService {
     }
 
     public String generateAccessToken(CustomUserDetails user) {
+        return generateAccessToken(user, accessTtlMinutes);
+    }
+
+    /**
+     * An access token with a chosen lifetime. Used for support impersonation, which is issued
+     * without a refresh token and expires on its own — an admin looking at a café's dashboard
+     * should not still be inside it an hour after they closed the tab.
+     */
+    public String generateAccessToken(CustomUserDetails user, long ttlMinutes) {
         Instant now = Instant.now();
-        Instant expiry = now.plus(accessTtlMinutes, ChronoUnit.MINUTES);
+        Instant expiry = now.plus(ttlMinutes, ChronoUnit.MINUTES);
         List<String> perms = user.getPermissions().stream().map(Permission::name).toList();
         return Jwts.builder()
                 .issuer(issuer)

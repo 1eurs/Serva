@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError, adoptSession } from '../../lib/api';
-import { useI18n, LangToggle } from '../../lib/i18n';
+import { useI18n, LangToggle, nameOf, personName } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { BRAND } from '../../lib/brand';
+import { cleanSecret, syncInput } from '../../lib/format';
 import type { AuthResponse, InvitePreview } from '../../lib/types';
 import './login.css';
 
@@ -112,7 +113,8 @@ export default function JoinPage() {
         <div className="login-top"><div className="mark">{BRAND.name}</div><LangToggle /></div>
         <h1>{L.title}</h1>
         <div className="sub">
-          {preview.fullName}{preview.cafeName ? ` — ${L.at} ${preview.cafeName}` : ''}
+          {personName(preview, lang)}
+          {preview.cafeName ? ` — ${L.at} ${nameOf({ name: preview.cafeName, nameEn: preview.cafeNameEn, nameAr: preview.cafeNameAr }, lang)}` : ''}
         </div>
 
         <div className="field">
@@ -133,12 +135,12 @@ export default function JoinPage() {
         <div className="field">
           <label>{L.pass}</label>
           <input type="password" value={password} autoComplete="new-password"
-            onChange={(e) => setPassword(e.target.value)} />
+            onChange={(e) => setPassword(syncInput(e.target, cleanSecret))} />
         </div>
         <div className="field">
           <label>{L.pass2}</label>
           <input type="password" value={confirm} autoComplete="new-password"
-            onChange={(e) => setConfirm(e.target.value)} />
+            onChange={(e) => setConfirm(syncInput(e.target, cleanSecret))} />
         </div>
         <div className="join-hint">{L.hint}</div>
 

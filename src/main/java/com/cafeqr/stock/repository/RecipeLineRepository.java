@@ -25,11 +25,6 @@ public interface RecipeLineRepository extends JpaRepository<RecipeLine, Long> {
 
     void deleteByPrepItemId(Long prepItemId);
 
-    /** Every menu item whose recipe touches one of these stock items — the auto-86 lookup. */
-    @Query("select distinct r.menuItemId from RecipeLine r "
-            + "where r.stockItemId in :stockItemIds and r.menuItemId is not null")
-    List<Long> menuItemIdsUsing(@Param("stockItemIds") List<Long> stockItemIds);
-
     /** Same, reached through a modifier rather than the item's own recipe. */
     @Query("select distinct g.menuItem.id from MenuItemOption o "
             + "join o.optionGroup g "

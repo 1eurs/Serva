@@ -3,6 +3,7 @@ package com.cafeqr.users;
 import com.cafeqr.auth.dto.UserResponse;
 import com.cafeqr.common.api.ApiResponse;
 import com.cafeqr.users.dto.CreateUserRequest;
+import com.cafeqr.users.dto.SetBranchRequest;
 import com.cafeqr.users.dto.UpdateUserRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -50,6 +51,14 @@ public class UserManagementController {
     public ApiResponse<UserResponse> update(@PathVariable Long userId,
                                             @Valid @RequestBody UpdateUserRequest request) {
         return ApiResponse.ok("User updated", userManagementService.update(userId, request));
+    }
+
+    @Operation(summary = "Move a member to a branch, or to all branches (omit branchId)")
+    @PatchMapping("/{userId}/branch")
+    public ApiResponse<UserResponse> setBranch(@PathVariable Long userId,
+                                               @RequestBody(required = false) SetBranchRequest request) {
+        return ApiResponse.ok("Branch updated",
+                userManagementService.setBranch(userId, request == null ? null : request.branchId()));
     }
 
     @Operation(summary = "Activate a user")

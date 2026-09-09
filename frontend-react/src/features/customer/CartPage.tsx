@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
 import type { PublicMenu, PublicItem, OrderTracking, CreateOrderPayload, OrderType, LoyaltySummary } from '../../lib/types';
-import { omr, estimateVat, round3, sanitizePhone } from '../../lib/format';
+import { omr, estimateVat, round3, syncPhoneInput, isValidPhone } from '../../lib/format';
 import { useI18n, useT, pick, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { useCartStore, useCart, lineUnitPrice } from '../../lib/cart';
@@ -22,7 +22,7 @@ const DICT: Dict = {
         carPlate: 'رقم لوحة السيارة العُمانية', carPlatePh: 'مثال: 1234 أ ب',
         carPlateHint: 'اختياري — اكتب الأرقام ثم الرمز', plateNum: 'الأرقام', plateCode: 'الرمز', carColor: 'لون السيارة',
         name: 'الاسم (اختياري)', nameReq: 'الاسم', nameRequired: 'الاسم مطلوب لطلبات السيارة',
-        phoneRequired: 'الجوال مطلوب لطلبات السيارة',
+        phoneRequired: 'الجوال مطلوب لطلبات السيارة', phoneInvalid: 'رقم غير صحيح — ٨ أرقام تبدأ بـ ٩ أو ٧',
         phone: 'الجوال', phoneOpt: 'الجوال (اختياري)', myCars: 'سياراتك المحفوظة', myPhones: 'أرقامك المحفوظة',
         note: 'ملاحظة على الطلب', notePh: 'مثال: بدون سكر…', itemNote: 'ملاحظة على الصنف…',
         subtotal: 'المجموع الفرعي', vat: 'ضريبة القيمة المضافة', total: 'الإجمالي',
@@ -36,7 +36,7 @@ const DICT: Dict = {
         carPlate: 'Oman car plate', carPlatePh: 'e.g. 1234 AB',
         carPlateHint: 'Optional — numbers, then the letter code', plateNum: 'Numbers', plateCode: 'Code', carColor: 'Car color',
         name: 'Name (optional)', nameReq: 'Name', nameRequired: 'Name is required for car orders',
-        phoneRequired: 'Phone is required for car orders',
+        phoneRequired: 'Phone is required for car orders', phoneInvalid: 'Not a valid number — 8 digits starting with 9 or 7',
         phone: 'Phone', phoneOpt: 'Phone (optional)', myCars: 'Your saved cars', myPhones: 'Your saved numbers',
         note: 'Order note', notePh: 'e.g. no sugar…', itemNote: 'Note for this item…',
         subtotal: 'Subtotal', vat: 'VAT', total: 'Total',
@@ -207,7 +207,11 @@ export default function CartPage() {
     // already carries its table id, so the phone there is purely opt-in for loyalty stamps.
     const nextErrors: { name?: string; phone?: string } = {};
     if (orderType === 'CAR' && !name.trim()) nextErrors.name = t('nameRequired');
+    // Non-empty was never the question: the café has to be able to ring this number back.
+    // Checked for any phone that was typed, not just the car-order one, because a malformed
+    // number also silently costs the customer their loyalty stamp.
     if (orderType === 'CAR' && !phone.trim()) nextErrors.phone = t('phoneRequired');
+    else if (phone.trim() && !isValidPhone(phone)) nextErrors.phone = t('phoneInvalid');
     setErrors(nextErrors);
     if (nextErrors.name) { nameRef.current?.focus(); return; }
     if (nextErrors.phone) { phoneRef.current?.focus(); return; }
@@ -355,7 +359,7 @@ export default function CartPage() {
               <input id="c-phone" ref={phoneRef} className="num" type="tel" inputMode="tel" autoComplete="tel"
                 value={phone} placeholder="9XXXXXXX"
                 aria-invalid={!!errors.phone} aria-describedby={errors.phone ? 'c-phone-err' : undefined}
-                onChange={(e) => { setPhone(sanitizePhone(e.target.value)); if (errors.phone) setErrors((er) => ({ ...er, phone: undefined })); }} />
+                onChange={(e) => { setPhone(syncPhoneInput(e.target)); if (errors.phone) setErrors((er) => ({ ...er, phone: undefined })); }} />
               {errors.phone && <p id="c-phone-err" className="field-error" aria-live="polite">{errors.phone}</p>}
               {savedPhones.length > 1 && (
                 <div className="saved-chips">

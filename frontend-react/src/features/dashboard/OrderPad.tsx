@@ -2,16 +2,21 @@ import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
-import { useI18n, useT, type Dict } from '../../lib/i18n';
+import { useI18n, useT, Ltr, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
-import { omr, estimateVat, discountPercent, sanitizePhone } from '../../lib/format';
+import { omr, estimateVat, discountPercent, syncPhoneInput } from '../../lib/format';
 import { lineUnitPrice, cartLineKey, effectiveBasePrice } from '../../lib/cart';
 import { CAR_COLORS, carColorLabel } from '../../lib/carColors';
 import type {
-  Restaurant, PublicMenu, PublicItem, TableResponse, OrderType,
+  Restaurant, PublicMenu, PublicItem, TableResponse, OrderType, BranchResponse,
   SelectedOption, CreateStaffOrderPayload, OrderResponse,
 } from '../../lib/types';
+import { sellable } from '../../lib/types';
 import './orderpad.css';
+
+/** How the customer settled at the counter. 'CARD' doubles as plain "paid" when the café
+ *  doesn't split cash from card (mirrors the mark-paid default on the board). */
+type PadPay = 'UNPAID' | 'CASH' | 'CARD';
 
 interface PadLine { key: string; item: PublicItem; qty: number; note: string; selectedOptions: SelectedOption[] }
 
@@ -25,7 +30,10 @@ const DICT: Dict = {
     p_place: 'إرسال للمطبخ', p_placing: 'جارٍ…', p_sent: 'تم إرسال الطلب', p_clear: 'تفريغ',
     p_addOpts: 'اختر الخيارات', p_add: 'إضافة', p_required: 'مطلوب', p_qty: 'الكمية',
     p_search: 'بحث في القائمة…', p_all: 'الكل', p_noItems: 'لا أصناف متاحة', p_loading: 'جارٍ التحميل…',
+    p_soldout: 'نفد',
     p_close: 'إغلاق',
+    p_pay: 'الدفع', p_unpaid: 'لم يدفع', p_paid: 'مدفوع', p_cash: 'نقداً', p_card: 'بطاقة',
+    p_placePaid: 'مدفوع · إرسال', p_send: 'إرسال', p_sendUnpaid: 'إرسال دون دفع',
   },
   en: {
     p_type: 'Order type', p_dinein: 'Dine-in', p_car: 'Car',
@@ -36,7 +44,10 @@ const DICT: Dict = {
     p_place: 'Send to kitchen', p_placing: 'Sending…', p_sent: 'Order sent', p_clear: 'Clear',
     p_addOpts: 'Choose options', p_add: 'Add', p_required: 'required', p_qty: 'Qty',
     p_search: 'Search the menu…', p_all: 'All', p_noItems: 'No available items', p_loading: 'Loading…',
+    p_soldout: 'Sold out',
     p_close: 'Close',
+    p_pay: 'Payment', p_unpaid: 'Not paid', p_paid: 'Paid', p_cash: 'Cash', p_card: 'Card',
+    p_placePaid: 'Paid · Send', p_send: 'Send', p_sendUnpaid: 'Send, not paid',
   },
 };
 
@@ -69,6 +80,14 @@ export default function OrderPad({ branchId, onPlaced }: { branchId?: number; on
     queryFn: () => api.get<TableResponse[]>(`/api/branches/${branchId}/tables`),
     enabled: !!branchId,
   });
+  // Same cache key the Shell and board use — react-query dedupes it.
+  const branchQ = useQuery({
+    queryKey: ['branch', branchId],
+    queryFn: () => api.get<BranchResponse>(`/api/branches/${branchId}`),
+    enabled: !!branchId,
+  });
+  const counterMode = !!branchQ.data?.counterMode;
+  const splitMethods = !!restaurantQ.data?.paymentMethodSelectionEnabled;
 
   const [lines, setLines] = useState<PadLine[]>([]);
   const [orderType, setOrderType] = useState<OrderType>('DINE_IN');
@@ -78,6 +97,7 @@ export default function OrderPad({ branchId, onPlaced }: { branchId?: number; on
   const [customerNote, setCustomerNote] = useState('');
   const [carPlate, setCarPlate] = useState('');
   const [carColor, setCarColor] = useState('');
+  const [pay, setPay] = useState<PadPay>('UNPAID');
   const [activeCat, setActiveCat] = useState<number | 'all'>('all');
   const [search, setSearch] = useState('');
   const [optionItem, setOptionItem] = useState<PublicItem | null>(null);
@@ -119,11 +139,11 @@ export default function OrderPad({ branchId, onPlaced }: { branchId?: number; on
 
   const reset = () => {
     setLines([]); setCustomerName(''); setCustomerPhone(''); setCustomerNote('');
-    setCarPlate(''); setCarColor(''); setTableId(undefined);
+    setCarPlate(''); setCarColor(''); setTableId(undefined); setPay('UNPAID');
   };
 
   const place = useMutation({
-    mutationFn: () => {
+    mutationFn: (pay: PadPay) => {
       const payload: CreateStaffOrderPayload = {
         branchId: branchId!,
         orderType,
@@ -133,6 +153,8 @@ export default function OrderPad({ branchId, onPlaced }: { branchId?: number; on
         carPlate: orderType === 'CAR' ? carPlate.trim() || null : null,
         carColor: orderType === 'CAR' ? carColor || null : null,
         customerNote: customerNote.trim() || null,
+        paid: pay !== 'UNPAID',
+        paymentMethod: pay === 'UNPAID' ? null : pay,
         items: lines.map((l) => ({
           menuItemId: l.item.id,
           quantity: l.qty,
@@ -144,6 +166,8 @@ export default function OrderPad({ branchId, onPlaced }: { branchId?: number; on
     },
     onSuccess: (order) => {
       toast(`${t('p_sent')} · #${order.dailyNumber}`);
+      // Counter mode: the ticket prints on arrival from the branch's print-station device (see
+      // Shell → printOnArrival), which may or may not be this one — so nothing prints here.
       reset();
       qc.invalidateQueries({ queryKey: ['live'] });
       qc.invalidateQueries({ queryKey: ['orders'] });
@@ -175,9 +199,16 @@ export default function OrderPad({ branchId, onPlaced }: { branchId?: number; on
               {visibleItems.map((it) => {
                 const onSale = it.salePrice != null;
                 const inCart = lines.filter((l) => l.item.id === it.id).reduce((s, l) => s + l.qty, 0);
+                /* The kitchen cannot make it, so the counter must not sell it: the order would
+                   be refused on the way to the ticket, in front of a customer who has already
+                   been told a price. Greyed rather than dropped from the grid — a tile that
+                   simply vanishes reads as a bug in the pad, not as an empty shelf. */
+                const out = !sellable(it);
                 return (
-                  <button key={it.id} className={'pad-item' + (onSale ? ' sale' : '')} onClick={() => onItemClick(it)}>
-                    {onSale && <span className="pad-item-off">−{discountPercent(it.price, it.salePrice!)}%</span>}
+                  <button key={it.id} className={'pad-item' + (onSale ? ' sale' : '') + (out ? ' out' : '')}
+                    disabled={out} onClick={() => onItemClick(it)}>
+                    {out && <span className="pad-item-sold">{t('p_soldout')}</span>}
+                    {!out && onSale && <span className="pad-item-off"><Ltr>−{discountPercent(it.price, it.salePrice!)}%</Ltr></span>}
                     {inCart > 0 && <span className="pad-item-incart">{inCart}</span>}
                     <span className="pad-item-nm">{nm(it.nameEn, it.nameAr)}</span>
                     <span className="pad-item-pr">
@@ -256,7 +287,7 @@ export default function OrderPad({ branchId, onPlaced }: { branchId?: number; on
 
         <div className="pad-cust">
           <input placeholder={`${t('p_name')} (${t('p_optional')})`} value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-          <input className="num" placeholder={`${t('p_phone')} (${t('p_optional')})`} value={customerPhone} onChange={(e) => setCustomerPhone(sanitizePhone(e.target.value))} inputMode="tel" />
+          <input className="num" placeholder={`${t('p_phone')} (${t('p_optional')})`} value={customerPhone} onChange={(e) => setCustomerPhone(syncPhoneInput(e.target))} inputMode="tel" />
         </div>
 
         <div className="pad-totals">
@@ -266,12 +297,52 @@ export default function OrderPad({ branchId, onPlaced }: { branchId?: number; on
           <div className="pad-grand"><span>{t('p_total')}</span><b>{omr(total)} {cur}</b></div>
         </div>
 
-        <div className="pad-actions">
-          {lines.length > 0 && <button className="pad-clear" onClick={reset}>{t('p_clear')}</button>}
-          <button className="pad-place" disabled={!canPlace || place.isPending} onClick={() => place.mutate()}>
-            {place.isPending ? t('p_placing') : t('p_place')}
-          </button>
-        </div>
+        {counterMode ? (
+          /* Counter mode: one tap records the payment AND sends. Whether that is one "Paid"
+             button or a Cash / Card pair follows the café's "choose payment method at
+             collection" setting, the same way the board's Collect button does — with it off,
+             Card is recorded, as everywhere else. The unpaid path stays one tap too. */
+          <div className="pad-actions pad-counter">
+            {lines.length > 0 && <button className="pad-clear" onClick={reset}>{t('p_clear')}</button>}
+            {splitMethods ? (
+              <>
+                <button className="pad-place cash" disabled={!canPlace || place.isPending} onClick={() => place.mutate('CASH')}>
+                  💵 {t('p_cash')} · {t('p_send')}
+                </button>
+                <button className="pad-place card" disabled={!canPlace || place.isPending} onClick={() => place.mutate('CARD')}>
+                  ▣ {t('p_card')} · {t('p_send')}
+                </button>
+              </>
+            ) : (
+              <button className="pad-place paid-one" disabled={!canPlace || place.isPending} onClick={() => place.mutate('CARD')}>
+                ✓ {t('p_placePaid')}
+              </button>
+            )}
+            <button className="pad-place unpaid" disabled={!canPlace || place.isPending} onClick={() => place.mutate('UNPAID')}>
+              {place.isPending ? t('p_placing') : t('p_sendUnpaid')}
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="pad-pay" role="radiogroup" aria-label={t('p_pay')}>
+              <span className="pad-pay-lb">{t('p_pay')}</span>
+              {(splitMethods ? (['UNPAID', 'CASH', 'CARD'] as PadPay[]) : (['UNPAID', 'CARD'] as PadPay[])).map((k) => (
+                <button key={k} type="button" role="radio" aria-checked={pay === k}
+                  className={'pad-pay-opt' + (pay === k ? ' on' : '') + (k === 'UNPAID' ? ' none' : '')}
+                  onClick={() => setPay(k)}>
+                  {k === 'UNPAID' ? t('p_unpaid') : k === 'CASH' ? `💵 ${t('p_cash')}` : splitMethods ? `▣ ${t('p_card')}` : `✓ ${t('p_paid')}`}
+                </button>
+              ))}
+            </div>
+
+            <div className="pad-actions">
+              {lines.length > 0 && <button className="pad-clear" onClick={reset}>{t('p_clear')}</button>}
+              <button className={'pad-place' + (pay !== 'UNPAID' ? ' paid' : '')} disabled={!canPlace || place.isPending} onClick={() => place.mutate(pay)}>
+                {place.isPending ? t('p_placing') : pay !== 'UNPAID' ? t('p_placePaid') : t('p_place')}
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {optionItem && (

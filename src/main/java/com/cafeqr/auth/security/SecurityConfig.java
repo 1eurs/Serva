@@ -5,6 +5,7 @@ import jakarta.servlet.DispatcherType;
 import com.cafeqr.common.config.AppProperties;
 import com.cafeqr.common.ratelimit.RateLimitFilter;
 import com.cafeqr.common.ratelimit.RateLimiter;
+import com.cafeqr.common.util.Pasted;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -97,9 +98,31 @@ public class SecurityConfig {
         return source;
     }
 
+    /**
+     * BCrypt, wrapped so a password is cleaned of invisible pasted characters at exactly two
+     * points: when it is hashed and when it is checked. Doing it here rather than at each caller
+     * is what makes the two sides impossible to disagree about — every path that sets a password
+     * (login, invite accept, reset, admin-created owner) goes through this one bean.
+     */
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        BCryptPasswordEncoder bcrypt = new BCryptPasswordEncoder();
+        return new PasswordEncoder() {
+            @Override
+            public String encode(CharSequence rawPassword) {
+                return bcrypt.encode(clean(rawPassword));
+            }
+
+            @Override
+            public boolean matches(CharSequence rawPassword, String encodedPassword) {
+                return bcrypt.matches(clean(rawPassword), encodedPassword);
+            }
+
+            /** Null passes straight through, so BCrypt still raises its own error for it. */
+            private CharSequence clean(CharSequence raw) {
+                return raw == null ? null : Pasted.secret(raw.toString());
+            }
+        };
     }
 
     @Bean

@@ -1,43 +1,21 @@
 /* ============================================================================
-   Look studio — progressive disclosure + action-hierarchy layer.
-   Owned by this file only. The base .look-* grid/card/motif/color primitives
-   live in dashboard.css (owned by another agent) — this file adds ONLY the
-   new structure on top: preset emphasis, the Fine-tune/Advanced disclosures,
-   the sticky save bar and its dirty indicator. Nothing here redefines a
-   selector dashboard.css already owns.
+   Look studio — the theme gallery, the personalisations and the save bar.
+   The base .look-* grid/stage/colour primitives live in dashboard.css; this file
+   owns the structure layered on top and never redefines a selector that one has.
+
+   The screen is four direct controls — colours, font, corners, layout — and a phone
+   that answers each one. No named looks to pick between and nothing to disclose
+   progressively: an owner sets what they came to set and watches it happen.
    ============================================================================ */
 
-/* Presets stay the prominent, un-collapsed first block — give it a touch more
-   presence than a plain control block so it reads as "start here". */
+/* Colours are the prominent first block — a touch more presence than a plain control
+   block, because they are what an owner came to this screen for. */
 .look-presets-block{border-color:var(--accent);box-shadow:0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent)}
 /* …but under the branded skins, `.dash .look-control-block` (0,2,0) outranks the line
    above (0,1,0), so the accent border and ring were being silently dropped and the block
    looked like every other one. Re-assert the emphasis at matching specificity, in the
    skin's own vocabulary: keep the hard offset, spend the accent on the keyline. */
 .dash .look-presets-block{border-color:var(--accent);box-shadow:var(--hard-sm)}
-
-/* ---- Fine-tune / Advanced disclosures -------------------------------------- */
-.look-disclosure{border:1px solid var(--line);background:var(--surface);border-radius:18px;overflow:hidden}
-.look-disclosure + .look-disclosure{margin-top:0}
-.look-disclosure-trigger{
-  width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;
-  padding:14px 16px;border:0;background:transparent;color:var(--text);cursor:pointer;text-align:start;
-}
-@media (hover:hover){.look-disclosure-trigger:hover{background:var(--bg-2)}}
-html[data-input="touch"] .look-disclosure-trigger{min-height:var(--tap-lg)}
-.look-disclosure-trigger:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
-.look-disclosure-label{display:flex;flex-direction:column;gap:2px}
-.look-disclosure-label b{font-size:14px;font-weight:800}
-.look-disclosure-label small{font-size:11.5px;color:var(--muted);font-weight:600}
-.look-disclosure-chevron{font-size:15px;color:var(--muted);transition:transform .16s ease;flex:0 0 auto}
-.look-disclosure.open .look-disclosure-chevron{transform:rotate(180deg);color:var(--accent)}
-.look-disclosure-body{padding:0 16px 16px;display:flex;flex-direction:column;gap:14px}
-
-/* Sub-groups inside "Fine-tune" (Typography & shape / Cards & header / Motif &
-   stickers / Colours) — each is a labeled cluster of the existing control blocks. */
-.look-finetune-group{display:flex;flex-direction:column;gap:10px}
-.look-finetune-group + .look-finetune-group{padding-top:14px;border-top:1px dashed var(--line)}
-.look-group-title{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700}
 
 /* ---- Action hierarchy: Save is the only filled button, pinned to the bottom
    of the controls column so it's reachable without scrolling back up. ------- */
@@ -64,21 +42,98 @@ html[data-input="touch"] .look-disclosure-trigger{min-height:var(--tap-lg)}
 }
 
 /* ---- Branded chrome -------------------------------------------------------
-   This file predates the bold/pro skins. dashboard.css hands `.look-control-block`
-   and `.look-controls-head` an ink keyline, an 8px radius and a hard offset, but it
-   has never heard of the three elements introduced here — so Fine-tune and Advanced
-   sat in the middle of that column wearing an 18px radius and a hairline, next to
-   blocks wearing 8px and a shadow. That mismatch is what reads as unfinished: not
-   any one panel, but two design systems stacked in one column.
-   Keyline and radius only — no new colour, and the disclosures stay quieter than the
-   blocks they contain by taking the small shadow rather than the full one. --------- */
-.dash .look-disclosure{border:var(--bw) solid var(--keyline);border-radius:8px;box-shadow:var(--hard-sm)}
-.dash .look-disclosure-trigger{padding:14px 16px}
-.dash .look-disclosure-label b{font-family:var(--bold);font-weight:800}
-.dash .look-disclosure.open .look-disclosure-trigger{border-block-end:var(--bw-hair) solid var(--line-2)}
-.dash .look-disclosure-body{padding-block-start:14px}
-.dash .look-disclosure-trigger:focus-visible{outline:none;box-shadow:var(--focus-shadow)}
-.dash .look-finetune-group + .look-finetune-group{border-block-start:var(--bw-hair) dashed var(--line-2)}
-
+   dashboard.css hands `.look-control-block` an ink keyline, an 8px radius and a hard
+   offset under the bold/pro skins; anything this file introduces has to answer in the
+   same vocabulary or the column reads as two design systems stacked. Keyline and
+   radius only — no new colour. ---------------------------------------------------- */
 .dash .look-savebar{border:var(--bw) solid var(--keyline);border-radius:8px;box-shadow:var(--hard-sm);background:var(--surface)}
 .dash .look-dirty-badge{font-family:var(--bold);color:var(--accent-text)}
+
+/* ---- Layout picker ---------------------------------------------------------
+   Two cards, each carrying a drawn miniature of the page it produces. This is the
+   first control on the screen because it is the only one that changes the *shape*
+   of the customer's menu; colours only repaint it. */
+.look-layout-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.look-layout-card{
+  display:flex;flex-direction:column;align-items:stretch;gap:8px;text-align:start;cursor:pointer;
+  padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--text);
+  font-family:inherit;transition:border-color .12s,box-shadow .12s;
+}
+.look-layout-card b{font-size:13px;font-weight:800}
+.look-layout-card small{color:var(--muted);font-size:11px;line-height:1.45}
+@media (hover:hover){.look-layout-card:hover{border-color:var(--accent)}}
+.look-layout-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.look-layout-card.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.dash .look-layout-card.on{box-shadow:var(--hard-sm)}
+html[data-input="touch"] .look-layout-card{min-height:var(--tap-lg)}
+
+/* The miniature paints itself from the dashboard palette, not the menu theme: it shows
+   the SHAPE of the layout, and must stay readable while the menu colours change. */
+/* Capped, not full-bleed: at card width the 64x48 drawing blows up into a poster and the
+   picker stops reading as a control. */
+.look-layout-thumb{display:block;width:100%;max-width:132px;height:auto;aspect-ratio:64/48;border-radius:10px}
+.look-layout-thumb .lt-bg{fill:var(--bg-2)}
+.look-layout-thumb .lt-photo{fill:color-mix(in srgb, var(--accent) 55%, transparent)}
+.look-layout-thumb .lt-line{fill:color-mix(in srgb, var(--text) 55%, transparent)}
+.look-layout-thumb .lt-dim{fill:color-mix(in srgb, var(--text) 24%, transparent)}
+.look-layout-card.on .lt-photo{fill:var(--accent)}
+/* The miniature is a picture of the customer's page, so in Arabic it has to mirror with it —
+   otherwise it promises a thumbnail on the left and the menu delivers one on the right. Pure
+   geometry, no text, so a flip is the whole fix. */
+html[dir="rtl"] .look-layout-thumb{transform:scaleX(-1)}
+
+/* The save bar is sticky, so the last control block needs room to clear it — without this
+   the layout hint text sits underneath the buttons. */
+.look-controls{padding-bottom:8px}
+
+
+/* ---- Font ------------------------------------------------------------------
+   Every face names itself in its own type. A list of family names set in the panel's
+   own font tells an owner nothing — on an Arabic menu the shape of the Arabic name IS
+   the choice, so the button is the specimen. */
+.look-font-row{display:flex;flex-wrap:wrap;gap:8px}
+.look-font{
+  /* Arabic display faces carry deep descenders (Reem Kufi especially); a tight line box
+     clips them, and a clipped specimen misrepresents the font it is selling. */
+  padding:10px 15px 12px;cursor:pointer;font-size:16px;line-height:1.7;
+  border:1px solid var(--line);border-radius:12px;background:var(--bg-2);color:var(--text);
+}
+@media (hover:hover){.look-font:hover{border-color:var(--accent)}}
+.look-font:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.look-font.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.dash .look-font{border:var(--bw-hair) solid var(--keyline);border-radius:6px}
+.dash .look-font.on{border-color:var(--ink);box-shadow:var(--hard-sm)}
+html[data-input="touch"] .look-font{min-height:var(--tap)}
+
+/* ---- Corners ---------------------------------------------------------------
+   The mark is a corner, drawn at the radius it selects — the control shows its own
+   effect rather than naming it. */
+.look-radius-row{display:flex;flex-wrap:wrap;gap:8px}
+.look-radius{
+  display:inline-flex;align-items:center;gap:9px;padding:9px 14px;cursor:pointer;
+  border:1px solid var(--line);border-radius:12px;background:var(--bg-2);color:var(--text);font-family:inherit;
+}
+.look-radius b{font-size:12.5px;font-weight:800}
+.look-radius-mark{
+  width:17px;height:17px;flex:0 0 auto;
+  border:2px solid var(--accent);border-inline-end:0;border-block-end:0;
+}
+.look-radius-mark.r-sharp{border-start-start-radius:2px}
+.look-radius-mark.r-soft{border-start-start-radius:6px}
+.look-radius-mark.r-round{border-start-start-radius:11px}
+@media (hover:hover){.look-radius:hover{border-color:var(--accent)}}
+.look-radius:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.look-radius.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.dash .look-radius{border:var(--bw-hair) solid var(--keyline);border-radius:6px}
+.dash .look-radius.on{border-color:var(--ink);box-shadow:var(--hard-sm)}
+html[data-input="touch"] .look-radius{min-height:var(--tap)}
+
+/* One line under a control saying what it does NOT reach — the honest replacement for
+   the drawers of settings that used to sit here. */
+.look-note{margin-top:10px;font-size:11.5px;line-height:1.5;color:var(--muted)}
+
+/* The preview's stand-in when the card is switched on but has no words yet. Dashed, and in
+   the menu's own muted ink, so it reads as "nothing here yet" rather than as a paragraph
+   the café wrote — it must never be mistaken for the real card. */
+.c-house.look-house-empty{border-style:dashed}
+.look-house-empty .c-house-note{color:var(--muted);font-style:italic}

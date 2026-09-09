@@ -26,6 +26,7 @@ export default function LegalPage() {
 
   const ui = LEGAL_UI[lang];
   const doc = LEGAL[lang][slug];
+  // bidi-ok: locale-native date, already correct in both directions.
   const updated = new Date(LEGAL_UPDATED).toLocaleDateString(lang === 'ar' ? 'ar-OM' : 'en-GB', {
     year: 'numeric', month: 'long', day: 'numeric',
   });

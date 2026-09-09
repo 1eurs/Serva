@@ -11,6 +11,8 @@ const LoyaltyPortal = lazy(() => import('./features/customer/LoyaltyPortal'));
 const LegalPage = lazy(() => import('./features/site/LegalPage'));
 const AnalyticsGuidePage = lazy(() => import('./features/site/AnalyticsGuidePage'));
 const DashboardApp = lazy(() => import('./features/dashboard/DashboardApp'));
+// Driven by headless print stations, never by a person — see features/print/RenderPage.
+const RenderPage = lazy(() => import('./features/print/RenderPage'));
 const AdminApp = lazy(() => import('./features/admin/AdminApp'));
 
 export default function App() {
@@ -39,6 +41,10 @@ export default function App() {
 
         {/* App B — Serva dashboard (JWT) */}
         <Route path="/dashboard/*" element={<DashboardApp />} />
+
+        {/* The receipt renderer a print station drives in an off-screen WebView. Public and
+            data-less: everything it prints is handed to it through window.servaRenderJob. */}
+        <Route path="/print/render" element={<RenderPage />} />
 
         {/* App C — platform admin (JWT) */}
         <Route path="/admin/*" element={<AdminApp />} />

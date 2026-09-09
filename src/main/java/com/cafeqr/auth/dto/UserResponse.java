@@ -8,7 +8,10 @@ import java.util.Set;
 
 public record UserResponse(
         Long id,
+        /** Legacy single name, kept for callers that predate the bilingual pair. */
         String fullName,
+        String fullNameEn,
+        String fullNameAr,
         String username,
         String email,
         String phone,
@@ -29,6 +32,8 @@ public record UserResponse(
         return new UserResponse(
                 user.getId(),
                 user.getFullName(),
+                user.getFullNameEn(),
+                user.getFullNameAr(),
                 user.getUsername(),
                 user.getEmail(),
                 user.getPhone(),

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
-import { useI18n, useT, type Dict } from '../../lib/i18n';
+import { useI18n, useT, Ltr, ltrText, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { Money } from '../../lib/Money';
 import { carColorOf, carColorLabel } from '../../lib/carColors';
@@ -28,7 +28,7 @@ const COLOR: Record<OrderStatus, string> = {
   PENDING: 'var(--pending)', ACCEPTED: 'var(--accepted)', PREPARING: 'var(--preparing)',
   READY: 'var(--ready)', COMPLETED: 'var(--faint)', DECLINED: 'var(--bad)', CANCELLED: 'var(--faint)',
 };
-const fmt = (iso?: string | null) => (iso ? new Date(iso).toLocaleString() : '—');
+const fmt = (iso?: string | null) => (iso ? ltrText(new Date(iso).toLocaleString()) : '—');
 const orderTypeLabel = (o: { orderType: string; carPlate?: string | null }, t: (key: string) => string) => {
   if (o.orderType === 'DINE_IN') return `🪑 ${t('table')}`;
   if (o.orderType === 'CAR') return `🚗 ${t('car')}${o.carPlate ? ` · ${o.carPlate}` : ''}`;
@@ -142,7 +142,7 @@ function OrderDetail({ id, onClose }: { id: number; onClose: () => void }) {
         <div className="sect"><h4>{t('items')}</h4>
           {o.items.map((i, n) => (
             <div className="kv" key={n}>
-              <span className="k"><span className="num">{i.quantity}×</span> {lang === 'ar' ? (i.nameAr || i.nameEn) : (i.nameEn || i.nameAr)}{i.note ? ` · ${i.note}` : ''}</span>
+              <span className="k"><span className="num"><Ltr>{i.quantity}×</Ltr></span> <bdi>{lang === 'ar' ? (i.nameAr || i.nameEn) : (i.nameEn || i.nameAr)}</bdi>{i.note ? <> · <bdi>{i.note}</bdi></> : ''}</span>
               <Money value={i.lineTotal} className="v num" />
             </div>
           ))}

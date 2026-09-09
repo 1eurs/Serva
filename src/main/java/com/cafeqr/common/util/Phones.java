@@ -16,12 +16,9 @@ public final class Phones {
         }
         StringBuilder sb = new StringBuilder(raw.length());
         for (char c : raw.toCharArray()) {
-            if (c >= '٠' && c <= '٩') {
-                sb.append((char) ('0' + (c - '٠')));
-            } else if (c >= '۰' && c <= '۹') {
-                sb.append((char) ('0' + (c - '۰')));
-            } else if (c >= '0' && c <= '9') {
-                sb.append(c);
+            char digit = Pasted.westernDigit(c);
+            if (digit >= '0' && digit <= '9') {
+                sb.append(digit);
             } else if (c == '+' && sb.isEmpty()) {
                 sb.append(c);
             }

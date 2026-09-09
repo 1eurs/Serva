@@ -1,6 +1,8 @@
 package com.cafeqr.users.domain;
 
 import com.cafeqr.common.domain.BaseEntity;
+import com.cafeqr.common.domain.BilingualNamed;
+import com.cafeqr.common.util.Pasted;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -18,10 +20,21 @@ import java.util.Set;
 
 @Entity
 @Table(name = "users")
-public class User extends BaseEntity {
+public class User extends BaseEntity implements BilingualNamed {
 
     @Column(name = "full_name", nullable = false)
     private String fullName;
+
+    /**
+     * The same name written in each script. Not a translation — a person has one name — but a
+     * console in English should not print it in Arabic, so whoever creates the account can give
+     * both. Either may be null and the reader falls back to the other.
+     */
+    @Column(name = "full_name_en", length = 150)
+    private String fullNameEn;
+
+    @Column(name = "full_name_ar", length = 150)
+    private String fullNameAr;
 
     /** Login identifier. Required and unique (case-insensitive). */
     @Column(name = "username", nullable = false, length = 60)
@@ -78,12 +91,74 @@ public class User extends BaseEntity {
         this.fullName = fullName;
     }
 
+    public String getFullNameEn() {
+        return fullNameEn;
+    }
+
+    public void setFullNameEn(String fullNameEn) {
+        this.fullNameEn = blankToNull(fullNameEn);
+        syncLegacyName();
+    }
+
+    public String getFullNameAr() {
+        return fullNameAr;
+    }
+
+    public void setFullNameAr(String fullNameAr) {
+        this.fullNameAr = blankToNull(fullNameAr);
+        syncLegacyName();
+    }
+
+    /** The name to print where only one will fit — an email greeting, an event-log snapshot. */
+    public String displayName() {
+        return fullNameAr != null ? fullNameAr : (fullNameEn != null ? fullNameEn : fullName);
+    }
+
+    /* Bilingual pair, addressed generically so Names can apply the shared create/update rules. */
+
+    @Override
+    public String getNameEn() {
+        return fullNameEn;
+    }
+
+    @Override
+    public void setNameEn(String nameEn) {
+        setFullNameEn(nameEn);
+    }
+
+    @Override
+    public String getNameAr() {
+        return fullNameAr;
+    }
+
+    @Override
+    public void setNameAr(String nameAr) {
+        setFullNameAr(nameAr);
+    }
+
+    /** Keeps the legacy single {@code full_name} column in step with the pair. */
+    private void syncLegacyName() {
+        String primary = fullNameAr != null ? fullNameAr : fullNameEn;
+        if (primary != null) {
+            this.fullName = primary;
+        }
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
     public String getUsername() {
         return username;
     }
 
+    /** Cleaned on the way in, the same way the login screen cleans what is typed at it. */
     public void setUsername(String username) {
-        this.username = username;
+        this.username = Pasted.identifier(username);
     }
 
     public String getEmail() {
@@ -91,7 +166,7 @@ public class User extends BaseEntity {
     }
 
     public void setEmail(String email) {
-        this.email = email;
+        this.email = Pasted.identifier(email);
     }
 
     public String getPhone() {

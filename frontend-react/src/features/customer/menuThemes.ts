@@ -56,6 +56,11 @@ export interface MenuThemeCustom {
   cardBadge: MenuCardBadgeKey;
   headerStyle: MenuHeaderStyleKey;
   /**
+   * Which layout renders the items. Separate from cardStyle on purpose: a card style
+   * paints the row, a layout replaces it. See LAYOUT_OPTIONS.
+   */
+  layout: MenuLayoutKey;
+  /**
    * Optional bespoke "skin" — a rich, hand-crafted occasion overlay (bunting, flag
    * bands, national emblem…) layered ON TOP of the palette via [data-menu-skin]. It
    * reaches detail the generic structural kit can't, while still living inside the JSON
@@ -66,10 +71,18 @@ export interface MenuThemeCustom {
 }
 
 /**
- * The "crazy" layer: emoji stickers floating over the screen's empty space, a
- * sticker pinned on every item card, and a festive greeting ribbon — enough for
- * an occasion (Mother's Day drink, matchday special) to take over the whole menu.
- * All optional: a regular cafe theme just leaves everything empty.
+ * The decor layer: emoji drifting over the screen's empty space, a sticker pinned on every
+ * item card, and a greeting ribbon across the top.
+ *
+ * Theme-owned, like the font and the motif — there is no owner-facing control for it and
+ * there should not be one. It was briefly offered as an "Occasion" picker and cut: a café's
+ * menu is a place of business, and one tap that scatters emoji across it is the kind of
+ * decoration that makes the whole product look like a toy. Oman National Day keeps its two
+ * flag glyphs because they belong to that theme's design, deliberately, not to a switch.
+ *
+ * `cardSticker` and the banner fields survive for documents saved while the old sticker
+ * editor existed, so those menus keep rendering what their owner set. Nothing writes them
+ * now. Everything here is optional; a regular café theme leaves it all empty.
  */
 export interface MenuThemeDecor {
   /** emoji floating over the empty spaces (up to 6 distinct, cycled across slots) */
@@ -125,6 +138,16 @@ export type MenuHeaderStyleKey = 'plain' | 'band' | 'side';
 export const CARD_STYLE_OPTIONS: MenuCardStyleKey[] = ['flat', 'outline', 'ticket', 'comic', 'glow'];
 export const CARD_BADGE_OPTIONS: MenuCardBadgeKey[] = ['none', 'disc', 'tab', 'ribbon'];
 export const HEADER_STYLE_OPTIONS: MenuHeaderStyleKey[] = ['plain', 'band', 'side'];
+
+/**
+ * The menu's information architecture — a different axis from everything above. The kit
+ * keys decorate a row; the layout decides what a row *is*. Rules live in menu-layouts.css
+ * under [data-menu-layout] and read only palette tokens, so every look inherits them.
+ * 'list' is the original layout (its rules are plain customer.css), so a legacy document
+ * without the field renders exactly as before.
+ */
+export type MenuLayoutKey = 'list' | 'gallery';
+export const LAYOUT_OPTIONS: MenuLayoutKey[] = ['list', 'gallery'];
 
 /** Bespoke occasion skins (rich CSS overlays under [data-menu-skin] in menu-themes.css). */
 export const MENU_SKINS = ['omannational'] as const;
@@ -198,16 +221,26 @@ export const MENU_THEMES: MenuTheme[] = [
 export const DEFAULT_THEME = 'onyx';
 export const CUSTOM_THEME = 'custom';
 
+/**
+ * The starting look, and what "Reset" restores. It is deliberately the Onyx palette the
+ * customer app already falls back to when a café has saved nothing (see resolveThemeId), so
+ * "default" means one thing in the editor and on the phone.
+ *
+ * The structural fields below (background, motif, cardStyle, cardBadge, headerStyle) are
+ * fixed at their plainest value and have no control on the Look screen: the editor is five
+ * direct choices, not a design tool. They stay in the schema because documents saved when
+ * those pickers existed still render, and stripping the fields would repaint a live menu.
+ */
 export const DEFAULT_CUSTOM_THEME: MenuThemeCustom = {
-  canvas: '#F2ECE3',
-  paper: '#FFF9F0',
-  surface: '#F0E1D1',
-  text: '#2B2118',
-  muted: '#766759',
-  accent: '#2F8F6B',
-  accent2: '#E6A93F',
-  cartBg: '#1D2A24',
-  motifColor: '#2F8F6B',
+  canvas: '#0E0F12',
+  paper: '#0E0F12',
+  surface: '#1A1D22',
+  text: '#F3F5F0',
+  muted: '#A6ADA9',
+  accent: '#10B981',
+  accent2: '#34D399',
+  cartBg: '#F3F5F0',
+  motifColor: '#10B981',
   motifOpacity: 0.15,
   background: 'soft',
   motif: 'none',
@@ -216,32 +249,9 @@ export const DEFAULT_CUSTOM_THEME: MenuThemeCustom = {
   cardStyle: 'flat',
   cardBadge: 'none',
   headerStyle: 'plain',
+  layout: 'list',
   decor: DEFAULT_DECOR,
 };
-
-/**
- * Ready-made looks. Each preset is just a prefilled MenuThemeCustom document —
- * picking one loads it into the editor and saving stores the JSON. Adding a new
- * preset (seasonal, AI-generated, …) is purely additive: no CSS, no backend change.
- */
-export interface MenuThemePreset {
-  id: string;
-  labelAr: string; labelEn: string;
-  descAr: string; descEn: string;
-  config: MenuThemeCustom;
-}
-
-export const THEME_PRESETS: MenuThemePreset[] = [
-  // The one ready theme. The bespoke `skin: 'omannational'` overlay (menu-themes.css)
-  // layers bunting, flag bands, the national emblem and a waving flag on top of this
-  // palette; the JSON still drives colours, the light star motif and decor.
-  { id: 'omannational', labelAr: 'العيد الوطني', labelEn: 'Oman National Day', descAr: 'عُماني · احتفال', descEn: 'Omani · celebration',
-    config: { name: 'Oman National Day', canvas: '#EFDDC4', paper: '#FFF8EC', surface: '#F6E7CC', text: '#3A1A12', muted: '#8A6044',
-      accent: '#C8102E', accent2: '#00843D', cartBg: '#7E1023', motifColor: '#C8102E', motifOpacity: 0.12,
-      background: 'arches', motif: 'star', font: 'reemkufi', radius: 'soft',
-      cardStyle: 'flat', cardBadge: 'none', headerStyle: 'plain', skin: 'omannational',
-      decor: { floaters: ['🇴🇲', '🎆'], floaterOpacity: 0.14, cardSticker: '', bannerAr: '', bannerEn: '' } } },
-];
 
 /** Shared motif list — the single source of truth for both the picker UI and validation. */
 export const MOTIF_OPTIONS: MenuThemeCustom['motif'][] =
@@ -327,6 +337,10 @@ export function parseCustomTheme(json?: string | null): MenuThemeCustom {
         next.headerStyle = value as MenuHeaderStyleKey;
         return;
       }
+      if (key === 'layout' && typeof value === 'string' && (LAYOUT_OPTIONS as string[]).includes(value)) {
+        next.layout = value as MenuLayoutKey;
+        return;
+      }
       if (key === 'skin' && typeof value === 'string' && (MENU_SKINS as readonly string[]).includes(value)) {
         next.skin = value;
         return;
@@ -389,6 +403,7 @@ export function menuStructuralAttrs(custom: MenuThemeCustom): Record<string, str
     'data-card-style': custom.cardStyle,
     'data-card-badge': custom.cardBadge,
     'data-header-style': custom.headerStyle,
+    'data-menu-layout': custom.layout,
   };
   if (custom.skin && (MENU_SKINS as readonly string[]).includes(custom.skin)) {
     attrs['data-menu-skin'] = custom.skin;
@@ -562,6 +577,37 @@ function alphaBlend(fg: string, bg: string, alpha: number): string {
   const g = Math.round(f.g * alpha + b.g * (1 - alpha));
   const bl = Math.round(f.b * alpha + b.b * (1 - alpha));
   return `#${toHex(r)}${toHex(g)}${toHex(bl)}`;
+}
+
+/**
+ * The two colours an owner actually picks. Everything else about a look is decided by the
+ * chosen theme, and both of these stay inside the contrast guard — which is why the old
+ * `text` picker is gone: it was the one control in the product that could ship an
+ * unreadable menu, because hand-picking text set `textCustom` and switched the guard off.
+ */
+export type BasicColorKey = 'background' | 'accent';
+
+export function basicColorOf(custom: MenuThemeCustom, key: BasicColorKey): string {
+  return key === 'background' ? custom.paper : custom.accent;
+}
+
+export function applyBasicColor(custom: MenuThemeCustom, key: BasicColorKey, value: string): MenuThemeCustom {
+  if (key === 'background') {
+    // Cards still have to separate from the page they sit on, so the card surface is the
+    // background lifted (deepened on a dark pick) rather than a second thing to choose.
+    // The hand-pick flags come off with it: a document that opted out of the guard must not
+    // carry a dark theme's ink onto a light page the owner just chose.
+    const dark = relLuminance(value) < 0.4;
+    return {
+      ...custom, canvas: value, paper: value,
+      surface: mix(value, dark ? '#ffffff' : '#000000', 0.07),
+      textCustom: false, mutedCustom: false,
+    };
+  }
+  // A companion tone for gradients and arches, same hue, lighter. cartBg is deliberately
+  // left alone: the cart bar carries an accent-coloured button, and painting both the same
+  // colour would erase it.
+  return { ...custom, accent: value, accent2: mix(value, '#ffffff', 0.28), motifColor: value };
 }
 
 export function readableOn(hex: string): string {

@@ -8,8 +8,14 @@ public final class InsightResponses {
     private InsightResponses() {
     }
 
+    /**
+     * @param daysLeft     null when there is not yet enough trading to project from — the UI
+     *                     must say it is still learning rather than invent a day
+     * @param observedDays days of trading the rate rests on, so the UI can be honest about it
+     */
     public record Cover(Long stockItemId, String nameEn, String nameAr, String baseUnit,
-                        BigDecimal onHand, BigDecimal dailyUsage, BigDecimal daysLeft) {}
+                        BigDecimal onHand, BigDecimal dailyUsage, BigDecimal daysLeft,
+                        int observedDays) {}
 
     public record Waste(Long stockItemId, String nameEn, String nameAr, String baseUnit,
                         BigDecimal quantityBase, BigDecimal value) {}

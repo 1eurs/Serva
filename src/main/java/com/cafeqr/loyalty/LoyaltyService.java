@@ -10,6 +10,7 @@ import com.cafeqr.loyalty.domain.LoyaltyTxnStatus;
 import com.cafeqr.loyalty.domain.LoyaltyTxnType;
 import com.cafeqr.loyalty.dto.LoyaltyMemberResponse;
 import com.cafeqr.loyalty.dto.LoyaltyPortalEntryResponse;
+import com.cafeqr.loyalty.dto.LoyaltyBranchActivityResponse;
 import com.cafeqr.loyalty.dto.LoyaltyProgramRequest;
 import com.cafeqr.loyalty.dto.LoyaltyProgramResponse;
 import com.cafeqr.loyalty.dto.LoyaltySummaryResponse;
@@ -17,6 +18,8 @@ import com.cafeqr.loyalty.repository.LoyaltyMemberRepository;
 import com.cafeqr.loyalty.repository.LoyaltyProgramRepository;
 import com.cafeqr.loyalty.repository.LoyaltyTransactionRepository;
 import com.cafeqr.menus.domain.MenuItem;
+import com.cafeqr.branches.BranchService;
+import com.cafeqr.branches.dto.BranchResponse;
 import com.cafeqr.menus.repository.MenuItemRepository;
 import com.cafeqr.orders.domain.Order;
 import com.cafeqr.orders.domain.OrderItem;
@@ -25,14 +28,17 @@ import com.cafeqr.restaurants.domain.Restaurant;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Stamp-card loyalty: café configuration, per-(restaurant, phone) balances, and the order-flow
@@ -55,6 +61,7 @@ public class LoyaltyService {
     private final LoyaltyTransactionRepository txnRepository;
     private final MenuItemRepository menuItemRepository;
     private final RestaurantService restaurantService;
+    private final BranchService branchService;
     private final AccessGuard accessGuard;
 
     public LoyaltyService(LoyaltyProgramRepository programRepository,
@@ -62,13 +69,46 @@ public class LoyaltyService {
                           LoyaltyTransactionRepository txnRepository,
                           MenuItemRepository menuItemRepository,
                           RestaurantService restaurantService,
+                          BranchService branchService,
                           AccessGuard accessGuard) {
         this.programRepository = programRepository;
         this.memberRepository = memberRepository;
         this.txnRepository = txnRepository;
         this.menuItemRepository = menuItemRepository;
         this.restaurantService = restaurantService;
+        this.branchService = branchService;
         this.accessGuard = accessGuard;
+    }
+
+    /**
+     * Stamps issued and rewards handed over per branch, between {@code from} and {@code to}.
+     *
+     * <p>A branch-scoped user sees only their own branch; a restaurant-wide one sees every
+     * branch, or a single one by passing {@code branchId}. Same rule as the analytics screens.
+     */
+    @Transactional(readOnly = true)
+    public List<LoyaltyBranchActivityResponse> branchActivity(Long requestedBranchId,
+                                                              Instant from, Instant to) {
+        Long restaurantId = requireCafeScope();
+        Long scoped = accessGuard.scopedBranchId();
+        Long branchScope = scoped != null ? scoped : requestedBranchId;
+        if (branchScope != null) {
+            branchService.getEntityInRestaurant(restaurantId, branchScope);
+            accessGuard.requireBranchAccess(restaurantId, branchScope);
+        }
+        Map<Long, BranchResponse> branches = branchService.listByRestaurant(restaurantId).stream()
+                .collect(Collectors.toMap(BranchResponse::id, b -> b));
+        List<LoyaltyBranchActivityResponse> out = new ArrayList<>();
+        for (Object[] row : txnRepository.activityByBranch(restaurantId, branchScope, from, to)) {
+            Long branchId = row[0] == null ? null : ((Number) row[0]).longValue();
+            BranchResponse branch = branchId == null ? null : branches.get(branchId);
+            out.add(new LoyaltyBranchActivityResponse(branchId,
+                    branch == null ? null : branch.nameEn(),
+                    branch == null ? null : branch.nameAr(),
+                    ((Number) row[1]).longValue(),
+                    ((Number) row[2]).longValue()));
+        }
+        return out;
     }
 
     // ============================================================ dashboard (café config)
@@ -188,7 +228,7 @@ public class LoyaltyService {
                             .map(i -> new LoyaltyPortalEntryResponse.RewardItemName(i.getNameEn(), i.getNameAr()))
                             .toList();
             out.add(new LoyaltyPortalEntryResponse(
-                    r.getSlug(), r.getName(), r.getLogoUrl(),
+                    r.getSlug(), r.getName(), r.getNameEn(), r.getNameAr(), r.getLogoUrl(),
                     program.getStampsRequired(), program.getRewardLabel(), rewardItems,
                     m.getStamps(), m.getAvailableRewards(), m.getUpdatedAt(),
                     program.getCardColor(), program.getCardBg(), program.getStampIcon(), program.getCardMotif()));
@@ -286,6 +326,7 @@ public class LoyaltyService {
 
                 LoyaltyTransaction earn = new LoyaltyTransaction();
                 earn.setRestaurantId(order.getRestaurantId());
+                earn.setBranchId(order.getBranchId());
                 earn.setPhone(phone);
                 earn.setOrderId(order.getId());
                 earn.setType(LoyaltyTxnType.EARN);
@@ -350,6 +391,7 @@ public class LoyaltyService {
     private LoyaltyTransaction redemptionTxn(Order order, String phone) {
         LoyaltyTransaction txn = new LoyaltyTransaction();
         txn.setRestaurantId(order.getRestaurantId());
+        txn.setBranchId(order.getBranchId());
         txn.setPhone(phone);
         txn.setOrderId(order.getId());
         txn.setType(LoyaltyTxnType.REDEEM);

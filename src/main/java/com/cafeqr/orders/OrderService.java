@@ -1,6 +1,7 @@
 package com.cafeqr.orders;
 
 import com.cafeqr.auth.security.AccessGuard;
+import com.cafeqr.auth.security.SecurityUtils;
 import com.cafeqr.branches.BranchService;
 import com.cafeqr.branches.domain.Branch;
 import com.cafeqr.common.exception.BadRequestException;
@@ -13,6 +14,8 @@ import com.cafeqr.customers.CustomerService;
 import com.cafeqr.loyalty.LoyaltyService;
 import com.cafeqr.menus.MenuService;
 import com.cafeqr.otp.OtpService;
+import com.cafeqr.payments.PaymentService;
+import com.cafeqr.payments.domain.PaymentMethod;
 import com.cafeqr.menus.domain.MenuItem;
 import com.cafeqr.orders.domain.Order;
 import com.cafeqr.orders.domain.OrderItem;
@@ -24,6 +27,7 @@ import com.cafeqr.orders.dto.CreateStaffOrderRequest;
 import com.cafeqr.orders.dto.OrderResponse;
 import com.cafeqr.orders.dto.OrderSummaryResponse;
 import com.cafeqr.orders.dto.OrderTrackingResponse;
+import com.cafeqr.orders.print.PrintJobService;
 import com.cafeqr.orders.realtime.OrderEvent;
 import com.cafeqr.orders.realtime.OrderStreamService;
 import com.cafeqr.orders.repository.OrderRepository;
@@ -77,6 +81,8 @@ public class OrderService {
     private final EventLogService eventLogService;
     private final LoyaltyService loyaltyService;
     private final StockConsumptionService stockConsumptionService;
+    private final PaymentService paymentService;
+    private final PrintJobService printJobService;
     private final ObjectMapper objectMapper;
 
     public OrderService(OrderRepository orderRepository,
@@ -93,6 +99,8 @@ public class OrderService {
                         EventLogService eventLogService,
                         LoyaltyService loyaltyService,
                         StockConsumptionService stockConsumptionService,
+                        PaymentService paymentService,
+                        PrintJobService printJobService,
                         ObjectMapper objectMapper) {
         this.orderRepository = orderRepository;
         this.restaurantService = restaurantService;
@@ -108,6 +116,8 @@ public class OrderService {
         this.eventLogService = eventLogService;
         this.loyaltyService = loyaltyService;
         this.stockConsumptionService = stockConsumptionService;
+        this.paymentService = paymentService;
+        this.printJobService = printJobService;
         this.objectMapper = objectMapper;
     }
 
@@ -160,7 +170,15 @@ public class OrderService {
         order.setCarColor(normalizeCarColor(request));
         order.setCustomerNote(request.customerNote());
         order.setOrderType(request.orderType());
-        order.setStatus(OrderStatus.PENDING);
+        // Counter mode: the ticket prints at the counter the moment the order lands and the
+        // kitchen starts from it, so there is no Accept step — the order opens as an open tab
+        // (ACCEPTED, unpaid) and a Collect tap at the counter moves it on. Unknown payment is
+        // the normal case here; READY is reserved for paid.
+        boolean counter = branch.isCounterMode();
+        order.setStatus(counter ? OrderStatus.ACCEPTED : OrderStatus.PENDING);
+        if (counter) {
+            order.setAcceptedAt(Instant.now());
+        }
 
         BigDecimal subtotal = addItems(order, restaurant, branch, request.items());
 
@@ -177,9 +195,16 @@ public class OrderService {
         // Reserve a loyalty reward redemption if requested (adjusts the saved order's total).
         loyaltyService.applyRedemption(saved, request.redeemReward(), request.redeemItemId());
 
+        if (counter) {
+            // Opened accepted, so it draws stock now — same moment a tapped Accept would.
+            stockConsumptionService.onOrderAccepted(saved, restaurant);
+            // Counter mode prints the ticket on arrival, and the queue is what makes that
+            // survive the print station being asleep, reloading or off the Wi-Fi.
+            printJobService.enqueueIfEnabled(saved);
+        }
         notifyAndStream(saved, NotificationType.NEW_ORDER, "order.created",
                 "New order " + saved.getOrderNumber() + " received");
-        eventLogService.recordOrderEvent(saved, OrderStatus.PENDING, null);
+        eventLogService.recordOrderEvent(saved, saved.getStatus(), counter ? "Counter mode (auto-accepted)" : null);
         events.publishEvent(new PresenceChangedEvent(saved.getBranchId())); // bump live QR activity
         return OrderTrackingResponse.from(saved);
     }
@@ -226,8 +251,19 @@ public class OrderService {
         order.setCustomerPhone(request.customerPhone() == null || request.customerPhone().isBlank()
                 ? null : Phones.normalize(request.customerPhone()));
         order.setCustomerNote(blankToNull(request.customerNote()));
-        order.setStatus(OrderStatus.ACCEPTED);
-        order.setAcceptedAt(Instant.now());
+        // Counter mode: the kitchen works off the ticket printed at the counter, so the board
+        // is only the hand-over list — and payment is what moves an order along it. Paid at
+        // the counter: skip "in progress", open READY (it clears itself later). Not paid yet:
+        // open ACCEPTED as an open tab; a Collect tap on the board pays it and moves it on.
+        // READY must never mean "we haven't been paid". Stock moves either way — both states
+        // count as accepted to the stock rule.
+        boolean paid = Boolean.TRUE.equals(request.paid());
+        Instant now = Instant.now();
+        order.setStatus(branch.isCounterMode() && paid ? OrderStatus.READY : OrderStatus.ACCEPTED);
+        order.setAcceptedAt(now);
+        if (order.getStatus() == OrderStatus.READY) {
+            order.setReadyAt(now);
+        }
 
         BigDecimal subtotal = addItems(order, restaurant, branch, request.items());
         BigDecimal vatAmount = computeVat(restaurant, subtotal);
@@ -239,9 +275,18 @@ public class OrderService {
         order.setTrackingToken(Tokens.random(18));
 
         Order saved = orderRepository.save(order);
-        // A staff order opens as ACCEPTED, so it draws stock the moment it is taken.
+        // A staff order opens accepted (or ready), so it draws stock the moment it is taken.
         stockConsumptionService.onOrderAccepted(saved, restaurant);
-        eventLogService.recordOrderEvent(saved, OrderStatus.ACCEPTED, "Manual order (staff)");
+        eventLogService.recordOrderEvent(saved, saved.getStatus(), "Manual order (staff)");
+        if (paid) {
+            paymentService.markPaid(saved.getId(),
+                    request.paymentMethod() != null ? request.paymentMethod() : PaymentMethod.CARD);
+        }
+        // Same arrival ticket as a QR order — enqueued after payment so the station's slip
+        // reads PAID rather than racing it.
+        if (branch.isCounterMode()) {
+            printJobService.enqueueIfEnabled(saved);
+        }
         notifyAndStream(saved, NotificationType.NEW_ORDER, "order.created",
                 "New manual order " + saved.getOrderNumber());
         events.publishEvent(new PresenceChangedEvent(saved.getBranchId()));
@@ -343,14 +388,28 @@ public class OrderService {
 
     @Transactional
     public OrderResponse complete(Long orderId) {
-        Order order = loadGuarded(orderId);
+        return complete(loadGuarded(orderId));
+    }
+
+    /**
+     * Counter-mode sweep: a paid order that has sat in READY long enough has plainly been
+     * handed over, so finish it without anyone tapping Done. Runs with no caller, hence no
+     * access guard — the sweep only ever passes orders it selected itself.
+     */
+    @Transactional
+    public OrderResponse completeUnattended(Long orderId) {
+        return complete(loadWithItems(orderId));
+    }
+
+    private OrderResponse complete(Order order) {
         transition(order, OrderStatus.COMPLETED);
         order.setCompletedAt(Instant.now());
         loyaltyService.onOrderCompleted(order); // earn a stamp + confirm any reserved reward
         eventLogService.recordOrderEvent(order, OrderStatus.COMPLETED, null);
-        // Receipt printing is device-local: the tablet that completes the order prints it via
-        // RawBT (see frontend printer.ts). The print-jobs queue slice is dormant — kept in
-        // case cross-device printing returns, but nothing enqueues into it anymore.
+        // No enqueue here on purpose. Outside counter mode the receipt prints on the device
+        // that completed the order, which is the fast path and needs no server round-trip;
+        // only a device that cannot print at all (an iPad, a laptop) hands the job to the
+        // branch's print station, and it does that explicitly through POST /print-jobs.
         notifyAndStream(order, NotificationType.ORDER_COMPLETED, "order.completed",
                 "Order " + order.getOrderNumber() + " completed");
         return OrderResponse.from(order);
@@ -379,11 +438,12 @@ public class OrderService {
     public SseEmitter streamForDashboard(Long branchId) {
         Long branchScope = resolveBranchScope(branchId);
         Long restaurantScope = accessGuard.scopedRestaurantId();
+        Long viewer = SecurityUtils.currentUser().getUserId();
         if (branchScope != null) {
-            return streamService.subscribe(OrderStreamService.branchChannel(branchScope));
+            return streamService.subscribe(OrderStreamService.branchChannel(branchScope), viewer);
         }
         if (restaurantScope != null) {
-            return streamService.subscribe(OrderStreamService.restaurantChannel(restaurantScope));
+            return streamService.subscribe(OrderStreamService.restaurantChannel(restaurantScope), viewer);
         }
         throw new BadRequestException("Platform admin must specify a branchId to stream");
     }

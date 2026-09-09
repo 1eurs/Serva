@@ -1,45 +1,50 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, upload, ApiError } from '../../lib/api';
-import { useAuth, canUsePremiumThemes } from '../../lib/auth';
-import { useI18n, useT, pick, type Dict } from '../../lib/i18n';
+import { useAuth } from '../../lib/auth';
+import { useI18n, useT, pick, nameOf, Ltr, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { useConfirm } from '../../lib/confirm';
 import { omr, estimateVat, discountPercent } from '../../lib/format';
-import type { CategoryResponse, MenuItemResponse, Restaurant } from '../../lib/types';
-import RecipeEditor from './RecipeEditor';
+import type { BranchResponse, CategoryResponse, Lang, MenuItemResponse, MenuItemSoldOut, Restaurant, StockMode } from '../../lib/types';
+import { sellable } from '../../lib/types';
+import RecipeEditor from './stock/RecipeEditor';
 import { ensureGoogleFonts } from '../../lib/fonts';
 import { MenuDecorLayer } from '../customer/MenuDecor';
+import { parseMenuInfo, houseFacts } from '../customer/menuInfo';
+import { HouseCardToggle } from './RestaurantProfile';
 import {
   ALL_MENU_FONT_SPECS,
-  CARD_BADGE_OPTIONS,
-  CARD_STYLE_OPTIONS,
   CUSTOM_THEME,
   DEFAULT_CUSTOM_THEME,
   FONT_OPTIONS,
   FONT_STACKS,
-  HEADER_STYLE_OPTIONS,
-  MOTIF_OPTIONS,
+  LAYOUT_OPTIONS,
   RADIUS_OPTIONS,
-  THEME_PRESETS,
+  applyBasicColor,
+  basicColorOf,
   customThemeVars,
   menuStructuralAttrs,
   parseCustomTheme,
   serializeCustomTheme,
+  type BasicColorKey,
+  type MenuLayoutKey,
   type MenuThemeCustom,
-  type MenuThemePreset,
 } from '../customer/menuThemes';
 import '../customer/customer.css';
 import '../customer/menu-themes.css';
+import '../customer/menu-layouts.css';
 import './look-studio.css';
 
 const DICT: Dict = {
   ar: { addCat: '＋ قسم', addItem: '＋ صنف', editCat: 'تعديل القسم', newCat: 'قسم جديد', editItem: 'تعديل الصنف', newItem: 'صنف جديد',
         nameAr: 'الاسم (عربي)', nameEn: 'الاسم (إنجليزي)', descAr: 'الوصف (عربي)', descEn: 'الوصف (إنجليزي)',
+        soldOutOf: 'نفد {name}', soldOutNone: 'نفد', soldOutLimit: 'خلص حدّه اليومي',
+        soldOutWhy: 'المخزون أوقفه، لا أنت. يرجع للبيع أول ما تسجّل توريد.',
         price: 'السعر', prep: 'دقائق التحضير', category: 'القسم', available: 'متوفر الآن', image: 'الصورة', uploadImg: 'رفع صورة', uploading: 'جارٍ الرفع…', removeImg: 'حذف الصورة',
         addPhoto: 'إضافة صورة', cover: 'الغلاف', photosHint: 'الصورة الأولى هي الغلاف',
         options: 'الخيارات', optionsHint: 'مثل: الحجم (كبير/صغير) أو نوع الحليب', addGroup: '＋ مجموعة خيارات', groupNameAr: 'اسم المجموعة (ع)', groupNameEn: 'اسم المجموعة (EN)',
-        single: 'اختيار واحد', multi: 'متعدد', requiredOpt: 'إلزامي', addOption: '＋ خيار', optNameAr: 'الخيار (ع)', optNameEn: 'الخيار (EN)', priceDelta: 'فرق السعر', stockRecipe: 'المخزون والوصفة',
+        single: 'اختيار واحد', multi: 'متعدد', requiredOpt: 'إلزامي', addOption: '＋ خيار', optNameAr: 'الخيار (ع)', optNameEn: 'الخيار (EN)', priceDelta: 'فرق السعر', stockRecipe: 'وش تاخذ البيعة',
         save: 'حفظ', cancel: 'إلغاء', del: 'حذف', cur: 'ر.ع', noItems: 'لا أصناف بعد',
         discount: 'الخصم', discNone: 'بدون', discPercent: 'نسبة %', discFixed: 'سعر العرض',
         discPercentVal: 'نسبة الخصم %', discNewPrice: 'السعر بعد الخصم', discStarts: 'يبدأ (اختياري)', discEnds: 'ينتهي (اختياري)',
@@ -48,29 +53,23 @@ const DICT: Dict = {
         deleteCatTitle: 'حذف القسم', deleteItemTitle: 'حذف الصنف', deleteConfirm: 'حذف الآن', deleting: 'جارٍ الحذف…',
         categoryHasItems: 'هذا القسم فيه أصناف. احذف الأصناف أولاً ثم ارجع لحذف القسم.',
         empty: 'لا توجد أقسام — ابدأ بإضافة قسم', items: 'أصناف',
-        lookTitle: 'شكل قائمة العملاء', lookSub: 'صمّم شاشة الطلب كهوية صغيرة للمقهى: ألوان واضحة، رسمة خفيفة، وسلة بارزة.',
-        custom: 'لوحة التحكم', presets: 'الثيمات الجاهزة', preview: 'فتح المعاينة', saveLook: 'حفظ الشكل', saved: 'تم الحفظ', shuffle: 'خلط سريع', resetLook: 'رجوع للأصل',
-        studioKicker: 'استوديو القائمة', motifStudio: 'تصميم القائمة', colorStudio: 'الألوان المهمة', phonePreview: 'المعاينة الحية',
-        fineTune: 'ضبط دقيق', advanced: 'إعدادات متقدمة', grpTypography: 'الخط والحواف', grpCards: 'البطاقات والترويسة', grpMotif: 'الرسمة والملصقات',
+        lookTitle: 'شكل قائمة العملاء',
+        preview: 'فتح المعاينة', saveLook: 'حفظ الشكل', saved: 'تم الحفظ', resetLook: 'رجوع للأصل',
+        colorStudio: 'ألوان مقهاك', col_background: 'الخلفية', col_accent: 'اللون المميز', phonePreview: 'المعاينة الحية',
+        colorHint: 'لونان فقط: الخلفية واللون المميز. الباقي يُشتق منهما بحيث يبقى النص مقروءاً دائماً.',
+        houseEmptyPreview: 'البطاقة مفعّلة لكن لا يوجد نص بعد — اكتبه في صفحة «المقهى».',
+        fontLbl: 'الخط', cornersLbl: 'الحواف', r_sharp: 'حادة', r_soft: 'ناعمة', r_round: 'دائرية',
+        ft_system: 'الافتراضي', ft_markazi: 'مركزي', ft_baloo: 'بالو', ft_tajawal: 'تجوال', ft_elmessiri: 'المسيري', ft_reemkufi: 'ريم كوفي', ft_sora: 'سورا',
         unsavedBadge: 'تغييرات غير محفوظة', resetConfirmTitle: 'إعادة الضبط الافتراضي؟', resetConfirmMsg: 'سيتم فقد كل التعديلات غير المحفوظة والرجوع للتصميم الافتراضي.',
         sampleCat: 'المشروبات', sampleCat2: 'الحلويات', sampleCat3: 'الفطور',
         sampleItem: 'لاتيه عماني', sampleItem2: 'كيكة تمر', sampleItem3: 'شاي كرك', sampleItem4: 'كرواسون زعتر', sampleItem5: 'قهوة باردة',
         sampleDesc: 'حليب، قهوة عربية، هيل', sampleDesc2: 'تمر، طحينة، رشة بحرية', sampleDesc3: 'شاي أسود، حليب، زعفران', samplePrice: '٢.٤٠', viewCart: 'عرض السلة',
-        canvas: 'الخلفية الخارجية', paper: 'سطح الهاتف', surface: 'البطاقات', text: 'النص', muted: 'النص الثانوي', accent: 'اللون الأساسي', accent2: 'لون مساعد',
-        motifColor: 'لون الرسمة', cartBg: 'شريط السلة',
-        motif: 'الرسمة الخفيفة', motifOpacity: 'وضوح الرسمة', mt_none: 'بدون', mt_bean: 'بن', mt_cup: 'كوب', mt_palm: 'نخلة', mt_star: 'نجمة',
-        mt_crescent: 'هلال', mt_leaf: 'ورقة', mt_drop: 'قطرة', mt_geo: 'هندسي',
-        fontLbl: 'الخط', cornersLbl: 'الحواف', r_sharp: 'حادة', r_soft: 'ناعمة', r_round: 'دائرية',
-        ft_system: 'الافتراضي', ft_markazi: 'مركزي', ft_baloo: 'بالو', ft_tajawal: 'تجوال', ft_elmessiri: 'المسيري', ft_reemkufi: 'ريم كوفي', ft_sora: 'سورا',
-        cardStyleLbl: 'شكل البطاقة', cs_flat: 'مسطّحة', cs_outline: 'مُحدّدة', cs_ticket: 'تذكرة', cs_comic: 'كوميك', cs_glow: 'توهّج',
-        cardBadgeLbl: 'شارة الزاوية', cb_none: 'بدون', cb_disc: 'قرص', cb_tab: 'لسان', cb_ribbon: 'شريط',
-        headerStyleLbl: 'ترويسة القسم', hs_plain: 'بسيطة', hs_band: 'شريط', hs_side: 'جانبي',
-        jsonTitle: 'كود الثيم (JSON)', jsonHint: 'الصق ثيماً جاهزاً (مثلاً من مولّد ذكاء اصطناعي) ثم اضغط تحميل، أو انسخ الحالي لتعديله لاحقاً.',
-        jsonLoad: 'تحميل', jsonCopy: 'نسخ', jsonCopied: 'تم النسخ ✓', jsonBad: 'JSON غير صالح', jsonPlace: 'الصق JSON هنا…',
+        layoutLbl: 'شكل عرض الأصناف', lay_list: 'قائمة', lay_gallery: 'معرض',
+        lay_listHint: 'سطر مضغوط لكل صنف مع صورة صغيرة — الأنسب للقوائم الطويلة.',
+        lay_galleryHint: 'صورة كبيرة لكل صنف — الأنسب للقوائم القصيرة المصوّرة جيداً.',
+        galleryGate: 'من الأصناف لديها صورة.',
+        galleryGateLow: 'الأصناف بلا صورة ستظهر كحرف ملوّن. صوّرها أولاً أو ابقَ على «قائمة».',
         cartTitle: 'سلّتك', subtotal: 'المجموع الفرعي', vatLbl: 'الضريبة', totalLbl: 'الإجمالي', place: 'إرسال الطلب', tableLbl: 'طاولة',
-        stickersLbl: 'الملصقات والتهنئة', stickerFree: 'ملصقات مخصصة (إيموجي)', cardStickerLbl: 'ملصق على الأصناف',
-        stickerOpacity: 'وضوح الملصقات', bannerArLbl: 'شريط التهنئة (عربي)', bannerEnLbl: 'شريط التهنئة (إنجليزي)',
-        sp_none: 'بدون', sp_coffee: 'قهوة', sp_roses: 'ورود', sp_footy: 'كورة', sp_oman: 'عُمان', sp_party: 'احتفال', sp_night: 'ليل',
         itemNote: 'ملاحظة على الصنف…', custName: 'الاسم (اختياري)', custPhone: 'الجوال (اختياري)',
         orderNote: 'ملاحظة على الطلب', orderNotePh: 'مثال: بدون سكر…', finalNote: 'يُحتسب الإجمالي النهائي من المقهى عند تأكيد الطلب.',
         trackTitle: 'تتبّع الطلب', orderNo: 'رقم الطلب', thanks: 'شكراً لك', backMenu: 'العودة للقائمة',
@@ -78,10 +77,12 @@ const DICT: Dict = {
         st_PENDING: 'أرسلنا طلبك', st_ACCEPTED: 'قبِله المقهى', st_PREPARING: 'يُحضَّر الآن', st_READY: 'جاهز!' },
   en: { addCat: '＋ Category', addItem: '＋ Item', editCat: 'Edit category', newCat: 'New category', editItem: 'Edit item', newItem: 'New item',
         nameAr: 'Name (Arabic)', nameEn: 'Name (English)', descAr: 'Description (Arabic)', descEn: 'Description (English)',
+        soldOutOf: 'Out of {name}', soldOutNone: 'Sold out', soldOutLimit: "Hit today's limit",
+        soldOutWhy: 'Stock took this off sale, not you. It comes back the moment you record a delivery.',
         price: 'Price', prep: 'Prep minutes', category: 'Category', available: 'Available now', image: 'Photo', uploadImg: 'Upload photo', uploading: 'Uploading…', removeImg: 'Remove photo',
         addPhoto: 'Add photo', cover: 'Cover', photosHint: 'First photo is the cover',
         options: 'Options', optionsHint: 'e.g. Size (large/small) or milk type', addGroup: '＋ Option group', groupNameAr: 'Group name (AR)', groupNameEn: 'Group name (EN)',
-        single: 'Pick one', multi: 'Multiple', requiredOpt: 'Required', addOption: '＋ Option', optNameAr: 'Option (AR)', optNameEn: 'Option (EN)', priceDelta: 'Price +/-', stockRecipe: 'Stock & recipe',
+        single: 'Pick one', multi: 'Multiple', requiredOpt: 'Required', addOption: '＋ Option', optNameAr: 'Option (AR)', optNameEn: 'Option (EN)', priceDelta: 'Price +/-', stockRecipe: 'What a sale takes',
         save: 'Save', cancel: 'Cancel', del: 'Delete', cur: 'OMR', noItems: 'No items yet',
         discount: 'Discount', discNone: 'None', discPercent: '% off', discFixed: 'Sale price',
         discPercentVal: 'Percent off', discNewPrice: 'New price', discStarts: 'Starts (optional)', discEnds: 'Ends (optional)',
@@ -90,29 +91,23 @@ const DICT: Dict = {
         deleteCatTitle: 'Delete category', deleteItemTitle: 'Delete item', deleteConfirm: 'Delete now', deleting: 'Deleting…',
         categoryHasItems: 'This category still has items. Delete the items first, then come back to delete the category.',
         empty: 'No categories — add one to start', items: 'items',
-        lookTitle: 'Customer menu look', lookSub: 'Design the ordering screen as a tiny brand system: readable colors, a light motif, and a strong cart bar.',
-        custom: 'Control board', presets: 'Ready themes', preview: 'Open preview', saveLook: 'Save look', saved: 'Saved', shuffle: 'Quick mix', resetLook: 'Reset default',
-        studioKicker: 'Menu studio', motifStudio: 'Menu design', colorStudio: 'Core colors', phonePreview: 'Live preview',
-        fineTune: 'Fine-tune', advanced: 'Advanced', grpTypography: 'Typography & shape', grpCards: 'Cards & header', grpMotif: 'Motif & stickers',
+        lookTitle: 'Customer menu look',
+        preview: 'Open preview', saveLook: 'Save look', saved: 'Saved', resetLook: 'Reset default',
+        colorStudio: "Your café's colours", col_background: 'Background', col_accent: 'Accent', phonePreview: 'Live preview',
+        colorHint: 'Two colours only: the page and your accent. The rest is derived from them, so the text stays readable whatever you pick.',
+        houseEmptyPreview: 'The card is on, but nothing is written yet — add the words on the Café page.',
+        fontLbl: 'Font', cornersLbl: 'Corners', r_sharp: 'Sharp', r_soft: 'Soft', r_round: 'Round',
+        ft_system: 'Default', ft_markazi: 'Markazi', ft_baloo: 'Baloo', ft_tajawal: 'Tajawal', ft_elmessiri: 'El Messiri', ft_reemkufi: 'Reem Kufi', ft_sora: 'Sora',
         unsavedBadge: 'Unsaved changes', resetConfirmTitle: 'Reset to default?', resetConfirmMsg: 'This clears every unsaved change and restores the starting look.',
         sampleCat: 'Drinks', sampleCat2: 'Desserts', sampleCat3: 'Breakfast',
         sampleItem: 'Omani latte', sampleItem2: 'Date cake', sampleItem3: 'Karak tea', sampleItem4: 'Zaatar croissant', sampleItem5: 'Cold brew',
         sampleDesc: 'Milk, Arabic coffee, cardamom', sampleDesc2: 'Dates, tahini, sea salt', sampleDesc3: 'Black tea, milk, saffron', samplePrice: '2.40', viewCart: 'View cart',
-        canvas: 'Outer background', paper: 'Phone surface', surface: 'Cards', text: 'Text', muted: 'Secondary text', accent: 'Primary', accent2: 'Secondary',
-        motifColor: 'Motif color', cartBg: 'Cart bar',
-        motif: 'Light motif', motifOpacity: 'Motif strength', mt_none: 'None', mt_bean: 'Beans', mt_cup: 'Cup', mt_palm: 'Palm', mt_star: 'Star',
-        mt_crescent: 'Crescent', mt_leaf: 'Leaf', mt_drop: 'Drop', mt_geo: 'Geometric',
-        fontLbl: 'Font', cornersLbl: 'Corners', r_sharp: 'Sharp', r_soft: 'Soft', r_round: 'Round',
-        ft_system: 'Default', ft_markazi: 'Markazi', ft_baloo: 'Baloo', ft_tajawal: 'Tajawal', ft_elmessiri: 'El Messiri', ft_reemkufi: 'Reem Kufi', ft_sora: 'Sora',
-        cardStyleLbl: 'Card style', cs_flat: 'Flat', cs_outline: 'Outline', cs_ticket: 'Ticket', cs_comic: 'Comic', cs_glow: 'Glow',
-        cardBadgeLbl: 'Corner badge', cb_none: 'None', cb_disc: 'Disc', cb_tab: 'Tab', cb_ribbon: 'Ribbon',
-        headerStyleLbl: 'Section header', hs_plain: 'Plain', hs_band: 'Band', hs_side: 'Side bar',
-        jsonTitle: 'Theme code (JSON)', jsonHint: 'Paste a ready theme (e.g. from an AI generator) and hit Load, or copy the current one to tweak later.',
-        jsonLoad: 'Load', jsonCopy: 'Copy', jsonCopied: 'Copied ✓', jsonBad: 'Invalid JSON', jsonPlace: 'Paste JSON here…',
+        layoutLbl: 'How items are shown', lay_list: 'List', lay_gallery: 'Gallery',
+        lay_listHint: 'A compact row per item with a small photo — best for long menus.',
+        lay_galleryHint: 'A big photo per item — best for short, well-photographed menus.',
+        galleryGate: 'of your items have a photo.',
+        galleryGateLow: 'Items without one show a coloured initial. Shoot them first, or stay on List.',
         cartTitle: 'Your cart', subtotal: 'Subtotal', vatLbl: 'VAT', totalLbl: 'Total', place: 'Place order', tableLbl: 'Table',
-        stickersLbl: 'Stickers & greeting', stickerFree: 'Custom stickers (emoji)', cardStickerLbl: 'Sticker on items',
-        stickerOpacity: 'Sticker strength', bannerArLbl: 'Greeting ribbon (Arabic)', bannerEnLbl: 'Greeting ribbon (English)',
-        sp_none: 'None', sp_coffee: 'Coffee', sp_roses: 'Roses', sp_footy: 'Footy', sp_oman: 'Oman', sp_party: 'Party', sp_night: 'Night',
         itemNote: 'Note for this item…', custName: 'Name (optional)', custPhone: 'Phone (optional)',
         orderNote: 'Order note', orderNotePh: 'e.g. no sugar…', finalNote: 'Final total is confirmed by the cafe when your order is accepted.',
         trackTitle: 'Track order', orderNo: 'Order', thanks: 'Thank you', backMenu: 'Back to menu',
@@ -155,59 +150,43 @@ const localInputToIso = (local: string): string | null => {
   return isNaN(d.getTime()) ? null : d.toISOString();
 };
 
-type CustomColorKey = 'canvas' | 'paper' | 'surface' | 'text' | 'muted' | 'accent' | 'accent2' | 'motifColor' | 'cartBg';
-
-const MENU_COLOR_FIELDS: { key: CustomColorKey; label: string }[] = [
-  // 'canvas' (outer background) intentionally omitted: it's only visible around the phone, so on a
-  // real device it does nothing. It still backs the background gradient and tracks paper on shuffle.
-  { key: 'paper', label: 'paper' },
-  { key: 'surface', label: 'surface' },
-  { key: 'text', label: 'text' },
-  { key: 'muted', label: 'muted' },
-  { key: 'accent', label: 'accent' },
-  { key: 'accent2', label: 'accent2' },
-  { key: 'motifColor', label: 'motifColor' },
-  { key: 'cartBg', label: 'cartBg' },
+/**
+ * The whole colour surface an owner gets: their brand's accent and the page it sits on.
+ * Everything else a look is made of — font, corners, motif, card style, badge, header —
+ * belongs to the theme, so a café cannot land halfway between two designs. Both picks run
+ * through applyBasicColor, which keeps the WCAG guard on; the old third pick (text) is
+ * gone because it was the one control that could switch that guard off.
+ */
+const BASIC_COLOR_FIELDS: { key: BasicColorKey; label: string }[] = [
+  { key: 'background', label: 'col_background' },
+  { key: 'accent', label: 'col_accent' },
 ];
-const MOTIF_MARKS: Record<MenuThemeCustom['motif'], string> = {
-  none: '—', bean: '◖', cup: '☕', palm: '♧', star: '✦', crescent: '☾', leaf: '❧', drop: '❍', geo: '❖',
-};
-const CARD_STYLE_MARKS: Record<MenuThemeCustom['cardStyle'], string> = {
-  flat: '▭', outline: '▢', ticket: '✂', comic: '✸', glow: '✦',
-};
-const CARD_BADGE_MARKS: Record<MenuThemeCustom['cardBadge'], string> = {
-  none: '—', disc: '⬤', tab: '▬', ribbon: '◤',
-};
-const HEADER_STYLE_MARKS: Record<MenuThemeCustom['headerStyle'], string> = {
-  plain: '—', band: '▰', side: '▏',
-};
 
-// Only one ready theme is offered (Oman National Day). Set false to hide the row.
-const SHOW_READY_THEMES = true;
+// Below this share of photographed items, Gallery starts showing more coloured initials
+// than photographs — the point where it becomes a worse menu than List, not a prettier one.
+const GALLERY_PHOTO_FLOOR = 0.6;
 
-// One-tap sticker sets; "custom stickers" input below them accepts any emoji.
-const STICKER_PACKS: { key: string; floaters: string[]; cardSticker: string }[] = [
-  { key: 'none', floaters: [], cardSticker: '' },
-  { key: 'coffee', floaters: ['☕', '🫘', '🥐'], cardSticker: '☕' },
-  { key: 'roses', floaters: ['🌹', '💐', '🌷', '🤍'], cardSticker: '🌹' },
-  { key: 'footy', floaters: ['⚽', '🏆', '🇴🇲'], cardSticker: '⚽' },
-  { key: 'oman', floaters: ['🇴🇲', '❤️', '🤍', '💚'], cardSticker: '🇴🇲' },
-  { key: 'party', floaters: ['🎉', '✨', '🎈'], cardSticker: '🎉' },
-  { key: 'night', floaters: ['🌙', '⭐', '🏮'], cardSticker: '🌙' },
-];
+/**
+ * What took the item off sale, in the words that tell an owner what to do about it.
+ *
+ * The ingredient is the fix, so the ingredient is what the badge says: "Out of Fresh milk"
+ * sends someone to the fridge, where "Sold out" only sends them back to this screen. Both of
+ * the blocker's names travel with the row so the badge can render in one language.
+ *
+ * Counting the item itself is the exception. A SIMPLE item is backed by a good named after
+ * it, so naming the blocker there prints "Out of Latte" on the row headed Latte — the plain
+ * fact is the whole story.
+ */
+const soldOutLabel = (off: MenuItemSoldOut, stockMode: StockMode | null | undefined,
+                      t: (k: string) => string, lang: Lang): string => {
+  if (off.reason === 'DAILY_LIMIT_REACHED') return t('soldOutLimit');
+  const name = stockMode === 'SIMPLE' ? '' : nameOf({ nameEn: off.blockerNameEn, nameAr: off.blockerNameAr }, lang);
+  return name ? t('soldOutOf').replace('{name}', name) : t('soldOutNone');
+};
 
 type DeleteTarget =
   | { type: 'category'; id: number; name: string; itemCount: number }
   | { type: 'item'; id: number; name: string };
-
-/** Split typed emoji into whole graphemes (flags/ZWJ sequences stay intact). */
-function splitGraphemes(s: string): string[] {
-  // Intl.Segmenter is missing from our TS lib target but present in all modern browsers
-  type Segmenter = new (locale?: string, opts?: { granularity: string }) => { segment(input: string): Iterable<{ segment: string }> };
-  const Seg = (Intl as unknown as { Segmenter?: Segmenter }).Segmenter;
-  if (Seg) return [...new Seg(undefined, { granularity: 'grapheme' }).segment(s)].map((g) => g.segment);
-  return Array.from(s);
-}
 
 export default function MenuManager({ branchId }: { branchId?: number | null }) {
   const { user } = useAuth();
@@ -218,7 +197,15 @@ export default function MenuManager({ branchId }: { branchId?: number | null }) 
   const qc = useQueryClient();
 
   const catsQ = useQuery({ queryKey: ['menu-cats', rid], queryFn: () => api.get<CategoryResponse[]>(`/api/menu/categories?restaurantId=${rid}`) });
-  const itemsQ = useQuery({ queryKey: ['menu-items', rid], queryFn: () => api.get<MenuItemResponse[]>(`/api/menu/items?restaurantId=${rid}`) });
+  /* The branch is passed for the figures, not to filter the list: the menu is one menu, but
+     "sold out" and "left today" are facts about one shop's shelf. Without it the server can
+     only infer the branch, which it cannot do for a cafe with two — so a two-shop owner's
+     switches would sit on a menu that says nothing about either shop. */
+  const itemsQ = useQuery({
+    queryKey: ['menu-items', rid, branchId],
+    queryFn: () => api.get<MenuItemResponse[]>(
+      `/api/menu/items?restaurantId=${rid}${branchId != null ? `&displayBranchId=${branchId}` : ''}`),
+  });
   const cats = useMemo(() => [...(catsQ.data ?? [])].sort((a, b) => a.displayOrder - b.displayOrder), [catsQ.data]);
   const itemsByCat = useMemo(() => {
     const m = new Map<number, MenuItemResponse[]>();
@@ -272,8 +259,11 @@ export default function MenuManager({ branchId }: { branchId?: number | null }) 
                 <div className="mitems">
                   {items.map((it) => {
                     const ds = discountState(it);
+                    // Off through the shelf rather than a decision — the case the switch must not
+                    // pretend it can undo.
+                    const stockOff = !!it.soldOut && it.available;
                     return (
-                    <div className={'mitem' + (it.available ? '' : ' off')} key={it.id}>
+                    <div className={'mitem' + (sellable(it) ? '' : ' off')} key={it.id}>
                       <div className="c-thumb" style={{ ...thumb(it), width: 54, height: 54, flex: '0 0 54px', borderRadius: 12 }}>
                         {!it.imageUrl && <span className="glyph" style={{ fontSize: 20 }}>{pick(it, 'name', lang).charAt(0)}</span>}
                       </div>
@@ -282,6 +272,7 @@ export default function MenuManager({ branchId }: { branchId?: number | null }) 
                           {ds && <span className={'mitem-disc ' + (ds.active ? 'on' : ds.scheduled ? 'sched' : 'ended')}>
                             {ds.active ? `−${discountPercent(it.price, ds.sale)}%` : ds.scheduled ? t('discScheduled') : t('discEnded')}
                           </span>}
+                          {it.soldOut && <span className="mitem-out">{soldOutLabel(it.soldOut, it.stockMode, t, lang)}</span>}
                         </div>
                         <div className="mitem-sub">{it.nameEn}{it.preparationTimeMinutes ? ` · ⏱ ${it.preparationTimeMinutes}m` : ''}</div>
                       </div>
@@ -290,7 +281,14 @@ export default function MenuManager({ branchId }: { branchId?: number | null }) 
                         <span className={ds?.active ? 'mitem-sale' : ''}>{omr(ds ? ds.sale : it.price)}</span>
                         {' '}<span style={{ fontSize: 10, color: 'var(--muted)' }}>{t('cur')}</span>
                       </div>
-                      <button className={'switch' + (it.available ? ' on' : '')} title={t('available')} onClick={() => toggleAvail.mutate(it)}><span /></button>
+                      {/* The switch answers "can a customer order this right now", and the shelf
+                          gets a vote in that as much as the owner does. A stock-off one cannot
+                          be flipped: the only thing the click could write is available=false,
+                          the one decision the owner did not make. It explains itself instead. */}
+                      <button className={'switch' + (sellable(it) ? ' on' : '') + (stockOff ? ' locked' : '')}
+                        aria-disabled={stockOff || undefined}
+                        title={stockOff ? `${soldOutLabel(it.soldOut!, it.stockMode, t, lang)} — ${t('soldOutWhy')}` : t('available')}
+                        onClick={() => (stockOff ? toast(t('soldOutWhy')) : toggleAvail.mutate(it))}><span /></button>
                       <button className="iconbtn" title={t('editItem')} onClick={() => setItemModal(it)}>✎</button>
                       <button className="iconbtn danger" title={t('del')} onClick={() => setDeleteTarget({ type: 'item', id: it.id, name: pick(it, 'name', lang) })}>🗑</button>
                     </div>
@@ -335,24 +333,27 @@ export function MenuLookManager({ branchId }: { branchId?: number }) {
   const toast = useToast();
   const qc = useQueryClient();
   const confirm = useConfirm();
-  // The whole look is one JSON document (draft); presets only prefill it. activeId
-  // remembers which preset the draft came from ('custom' once the owner tweaks it).
+  // The look is one JSON document and nothing else — no preset id standing behind it. The
+  // `theme` column is still written (CUSTOM_THEME) so the customer app keeps its legacy
+  // fallback, but every choice on this screen lives in the document.
   const [draft, setDraft] = useState<MenuThemeCustom>(DEFAULT_CUSTOM_THEME);
-  const [activeId, setActiveId] = useState<string>(CUSTOM_THEME);
   // Snapshot of what's actually saved on the server, so we can tell the owner their
-  // draft has unsaved edits (dirty = draft/activeId drifted from this pair).
-  const [savedSnapshot, setSavedSnapshot] = useState<{ activeId: string; json: string }>(
-    { activeId: CUSTOM_THEME, json: serializeCustomTheme(DEFAULT_CUSTOM_THEME) },
-  );
-  const dirty = activeId !== savedSnapshot.activeId || serializeCustomTheme(draft) !== savedSnapshot.json;
+  // draft has unsaved edits.
+  const [savedJson, setSavedJson] = useState<string>(serializeCustomTheme(DEFAULT_CUSTOM_THEME));
+  const dirty = serializeCustomTheme(draft) !== savedJson;
 
-  // The editor shows every selectable display font (picker chips + live preview),
-  // so it needs the full set — venues' menus load only their own font.
+  // The font picker names each face in its own type, so the editor needs the full set —
+  // a venue's live menu still loads only the one font it actually uses.
   useEffect(() => { ensureGoogleFonts(ALL_MENU_FONT_SPECS); }, []);
 
   const restaurantQ = useQuery({ queryKey: ['restaurant', rid], queryFn: () => api.get<Restaurant>(`/api/restaurants/${rid}`) });
   const catsQ = useQuery({ queryKey: ['menu-cats', rid], queryFn: () => api.get<CategoryResponse[]>(`/api/menu/categories?restaurantId=${rid}`) });
   const itemsQ = useQuery({ queryKey: ['menu-items', rid], queryFn: () => api.get<MenuItemResponse[]>(`/api/menu/items?restaurantId=${rid}`) });
+  // Shares the cache key the dashboard shell already fills, so this is normally a cache
+  // hit. The house card's hours/area chips are read from the branch, and the preview has
+  // to show the real ones or it is not a preview.
+  const branchesQ = useQuery({ queryKey: ['branches', rid], queryFn: () => api.get<BranchResponse[]>(`/api/restaurants/${rid}/branches`) });
+  const branch = branchesQ.data?.find((b) => b.id === branchId) ?? branchesQ.data?.[0];
   const cats = useMemo(() => [...(catsQ.data ?? [])].sort((a, b) => a.displayOrder - b.displayOrder), [catsQ.data]);
   const itemsByCat = useMemo(() => {
     const m = new Map<number, MenuItemResponse[]>();
@@ -362,11 +363,11 @@ export function MenuLookManager({ branchId }: { branchId?: number }) {
   }, [itemsQ.data]);
 
   const saveTheme = useMutation({
-    mutationFn: () => api.patch<Restaurant>(`/api/restaurants/${rid}/theme`, { theme: activeId, themeCustomJson: serializeCustomTheme(draft) }),
+    mutationFn: () => api.patch<Restaurant>(`/api/restaurants/${rid}/theme`, { theme: CUSTOM_THEME, themeCustomJson: serializeCustomTheme(draft) }),
     onSuccess: (r) => {
       qc.setQueryData(['restaurant', rid], r);
       toast(t('saved'));
-      setSavedSnapshot({ activeId: r.theme ?? activeId, json: r.themeCustomJson ?? serializeCustomTheme(draft) });
+      setSavedJson(r.themeCustomJson ?? serializeCustomTheme(draft));
     },
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
@@ -374,23 +375,12 @@ export function MenuLookManager({ branchId }: { branchId?: number }) {
   useEffect(() => {
     const r = restaurantQ.data;
     if (!r) return;
-    const preset = THEME_PRESETS.find((p) => p.id === r.theme);
-    let nextDraft: MenuThemeCustom;
-    let nextActiveId: string;
-    if (r.themeCustomJson) {
-      nextDraft = parseCustomTheme(r.themeCustomJson);
-      nextActiveId = r.theme ?? CUSTOM_THEME;
-    } else if (preset) {
-      // legacy preset save (id only, no JSON) — seed the editor from the preset document
-      nextDraft = { ...preset.config };
-      nextActiveId = preset.id;
-    } else {
-      nextDraft = DEFAULT_CUSTOM_THEME;
-      nextActiveId = CUSTOM_THEME;
-    }
+    // A café that saved under the old picker keeps whatever its document holds — including
+    // the motif or card style it chose then, which still renders and simply has no control
+    // here now. One that never configured anything starts on the default document.
+    const nextDraft = r.themeCustomJson ? parseCustomTheme(r.themeCustomJson) : DEFAULT_CUSTOM_THEME;
     setDraft(nextDraft);
-    setActiveId(nextActiveId);
-    setSavedSnapshot({ activeId: nextActiveId, json: serializeCustomTheme(nextDraft) });
+    setSavedJson(serializeCustomTheme(nextDraft));
   }, [restaurantQ.data?.id, restaurantQ.data?.theme, restaurantQ.data?.themeCustomJson]);
 
   // An owner can sink real time into a look; warn before a tab close / reload throws
@@ -411,10 +401,6 @@ export function MenuLookManager({ branchId }: { branchId?: number }) {
     if (previewUrl) window.open(previewUrl, '_blank', 'noopener,noreferrer');
   };
 
-  // Premium "Pro look" tier unlocks the advanced studio (structural kits, occasion decor,
-  // theme JSON). Granted per café by a platform admin; admins themselves always have it.
-  const premium = !!restaurantQ.data?.premiumLook || canUsePremiumThemes(user);
-
   const resetDraft = async () => {
     const ok = await confirm({
       title: t('resetConfirmTitle'),
@@ -424,7 +410,6 @@ export function MenuLookManager({ branchId }: { branchId?: number }) {
       danger: true,
     });
     if (!ok) return;
-    setActiveId(CUSTOM_THEME);
     setDraft(DEFAULT_CUSTOM_THEME);
   };
 
@@ -432,18 +417,15 @@ export function MenuLookManager({ branchId }: { branchId?: number }) {
     <div className="tables-wrap look-page">
       <LookPanel
         draft={draft}
-        activeId={activeId}
         saving={saveTheme.isPending}
         dirty={dirty}
-        premium={premium}
         previewUrl={previewUrl}
         restaurant={restaurantQ.data}
+        branch={branch}
         cats={cats}
         itemsByCat={itemsByCat}
         onPreview={openPreview}
-        onChange={(next) => { setActiveId(CUSTOM_THEME); setDraft(next); }}
-        onPresetPick={(preset) => { setActiveId(preset.id); setDraft({ ...preset.config }); }}
-        onRandomize={() => { setActiveId(CUSTOM_THEME); setDraft(randomCustomTheme(draft, premium)); }}
+        onChange={setDraft}
         onReset={resetDraft}
         onSave={() => saveTheme.mutate()}
         t={t}
@@ -452,329 +434,156 @@ export function MenuLookManager({ branchId }: { branchId?: number }) {
   );
 }
 
-/**
- * A native-feeling disclosure (button + aria-expanded/aria-controls + conditionally
- * rendered panel) used to tuck "Fine-tune" and "Advanced" out of the way until an
- * owner asks for them. Children unmount while closed so their inputs never trap tab
- * focus or fire hidden onChange handlers.
- */
-function Disclosure({ id, title, subtitle, defaultOpen, children }:
-  { id: string; title: string; subtitle?: string; defaultOpen?: boolean; children: ReactNode }) {
-  const [open, setOpen] = useState(!!defaultOpen);
-  const panelId = `${id}-panel`;
+/* A miniature of each layout, drawn from the panel's own tokens so it reads under both
+   dashboard skins and in RTL. Deliberately a drawing and not a screenshot: it has to stay
+   truthful when the menu themes change. */
+function LayoutThumb({ kind }: { kind: MenuLayoutKey }) {
   return (
-    <div className={'look-disclosure' + (open ? ' open' : '')}>
-      <button
-        type="button"
-        className="look-disclosure-trigger"
-        aria-expanded={open}
-        aria-controls={panelId}
-        onClick={() => setOpen((o) => !o)}
-      >
-        <span className="look-disclosure-label">
-          <b>{title}</b>
-          {subtitle && <small>{subtitle}</small>}
-        </span>
-        <span className="look-disclosure-chevron" aria-hidden="true">⌄</span>
-      </button>
-      {open && <div className="look-disclosure-body" id={panelId}>{children}</div>}
-    </div>
+    <svg className="look-layout-thumb" viewBox="0 0 64 48" aria-hidden="true" focusable="false">
+      <rect x="0" y="0" width="64" height="48" rx="5" className="lt-bg" />
+      {kind === 'list'
+        ? [0, 1, 2].map((i) => (
+            <g key={i} transform={`translate(7 ${7 + i * 12})`}>
+              <rect width="9" height="9" rx="2" className="lt-photo" />
+              <rect x="13" y="0.5" width="25" height="3" rx="1.5" className="lt-line" />
+              <rect x="13" y="5.5" width="13" height="3" rx="1.5" className="lt-dim" />
+            </g>
+          ))
+        : [0, 1].map((i) => (
+            <g key={i} transform={`translate(7 ${6 + i * 19})`}>
+              <rect width="50" height="11" rx="2" className="lt-photo" />
+              <rect x="0" y="13" width="22" height="3" rx="1.5" className="lt-line" />
+            </g>
+          ))}
+    </svg>
   );
 }
 
-function LookPanel({ draft, activeId, saving, dirty, premium, previewUrl, restaurant, cats, itemsByCat, onPreview, onChange, onPresetPick, onRandomize, onReset, onSave, t }:
+function LookPanel({ draft, saving, dirty, previewUrl, restaurant, branch, cats, itemsByCat, onPreview, onChange, onReset, onSave, t }:
   {
     draft: MenuThemeCustom;
-    activeId: string;
     saving: boolean;
     dirty: boolean;
-    premium: boolean;
     previewUrl: string | null;
     restaurant?: Restaurant;
+    branch?: BranchResponse;
     cats: CategoryResponse[];
     itemsByCat: Map<number, MenuItemResponse[]>;
     onPreview: () => void;
     onChange: (custom: MenuThemeCustom) => void;
-    onPresetPick: (preset: MenuThemePreset) => void;
-    onRandomize: () => void;
     onReset: () => void;
     onSave: () => void;
     t: (k: string) => string;
   }) {
-  const { lang } = useI18n();
-  // Import/export the whole look as a JSON document — the same shape an AI generator
-  // emits. Paste → Load runs it through parseCustomTheme (sanitised, contrast-safe);
-  // Copy serialises the current draft so owners can save or hand it back to a model.
-  const [jsonText, setJsonText] = useState('');
-  const [jsonErr, setJsonErr] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const copyJson = () => {
-    const s = serializeCustomTheme(draft);
-    setJsonText(s);
-    setCopied(true);
-    navigator.clipboard?.writeText(s).catch(() => {});
-    setTimeout(() => setCopied(false), 1500);
-  };
-  const loadJson = () => {
-    try {
-      const parsed = JSON.parse(jsonText);
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not an object');
-      onChange(parseCustomTheme(jsonText));
-      setJsonErr(false);
-    } catch {
-      setJsonErr(true);
-    }
-  };
+  // How much of the live menu is actually photographed — the one fact that decides
+  // whether Gallery is an upgrade or a downgrade for this cafe.
+  const photoCoverage = useMemo(() => {
+    let total = 0;
+    let withPhoto = 0;
+    itemsByCat.forEach((items) => items.forEach((i) => {
+      if (!i.available) return;
+      total += 1;
+      if (i.imageUrl) withPhoto += 1;
+    }));
+    return { total, withPhoto, share: total === 0 ? 0 : withPhoto / total };
+  }, [itemsByCat]);
   return (
     <div className="look-studio">
       {/* The stage is a fixed neutral canvas — it follows neither the dashboard theme nor
-          the generated menu theme. Only the phone inside reflects the menu's colours. */}
+          the menu's own colours. Only the phone inside reflects those. */}
       <section className="look-stage">
-        <LivePreview draft={draft} restaurant={restaurant} cats={cats} itemsByCat={itemsByCat} />
+        <LivePreview draft={draft} restaurant={restaurant} branch={branch} cats={cats} itemsByCat={itemsByCat} />
       </section>
 
       <section className="look-controls">
-        {SHOW_READY_THEMES && (
+        {/* Five controls, each one field, each answered by the phone on the left. No named
+            looks to choose between: "Sikka" and "Majlis" mean nothing to someone who owns a
+            café, and a gallery of them is a quiz standing in front of the two colours they
+            actually came here to set. */}
         <div className="look-control-block look-presets-block">
-          <div className="look-control-title">{t('presets')}</div>
-          <div className="look-theme-row">
-            {THEME_PRESETS.map((preset) => (
-              <button className={activeId === preset.id ? 'on' : ''} key={preset.id} type="button" onClick={() => onPresetPick(preset)}>
-                <span className="look-theme-swatch" style={{ background: `linear-gradient(135deg, ${preset.config.paper} 0 48%, ${preset.config.accent} 48% 73%, ${preset.config.accent2} 73%)` }} />
-                <b>{lang === 'ar' ? preset.labelAr : preset.labelEn}</b>
-                <small>{lang === 'ar' ? preset.descAr : preset.descEn}</small>
+          <div className="look-control-title">{t('colorStudio')}</div>
+          <div className="look-colors">
+            {BASIC_COLOR_FIELDS.map((field) => (
+              <label className="look-color" key={field.key}>
+                <input
+                  type="color"
+                  value={basicColorOf(draft, field.key)}
+                  aria-label={t(field.label)}
+                  onChange={(e) => onChange(applyBasicColor(draft, field.key, e.target.value))}
+                />
+                <span className="look-color-chip" aria-hidden="true" style={{ background: basicColorOf(draft, field.key) }} />
+                <span>{t(field.label)}</span>
+              </label>
+            ))}
+          </div>
+          <p className="look-note">{t('colorHint')}</p>
+        </div>
+
+        {/* Each font names itself in its own face: the only way to choose type is to see it,
+            and the Arabic name is the specimen that matters on an Arabic menu. */}
+        <div className="look-control-block">
+          <div className="look-control-title">{t('fontLbl')}</div>
+          <div className="look-font-row">
+            {FONT_OPTIONS.map((f) => (
+              <button className={'look-font' + (draft.font === f ? ' on' : '')} key={f}
+                type="button" aria-pressed={draft.font === f}
+                style={{ fontFamily: FONT_STACKS[f] }}
+                onClick={() => onChange({ ...draft, font: f })}>
+                {t('ft_' + f)}
               </button>
             ))}
           </div>
         </div>
-        )}
 
-        <div className="look-controls-head">
-          <div>
-            <span>{t('custom')}</span>
-            <h4>{t('motifStudio')}</h4>
+        <div className="look-control-block">
+          <div className="look-control-title">{t('cornersLbl')}</div>
+          <div className="look-radius-row">
+            {RADIUS_OPTIONS.map((r) => (
+              <button className={'look-radius' + (draft.radius === r ? ' on' : '')} key={r}
+                type="button" aria-pressed={draft.radius === r}
+                onClick={() => onChange({ ...draft, radius: r })}>
+                <span className={'look-radius-mark r-' + r} aria-hidden="true" />
+                <b>{t('r_' + r)}</b>
+              </button>
+            ))}
           </div>
         </div>
 
-        <Disclosure id="look-finetune" title={t('fineTune')}>
-          <div className="look-finetune-group">
-            <div className="look-group-title">{t('grpTypography')}</div>
-            <div className="look-control-block look-motif-block">
-              <div className="look-control-title">{t('fontLbl')}</div>
-              <div className="look-motif-row">
-                {FONT_OPTIONS.map((font) => (
-                  <button className={draft.font === font ? 'on' : ''} key={font} type="button" onClick={() => onChange({ ...draft, font })}>
-                    <span style={{ fontFamily: FONT_STACKS[font] }}>أب</span>
-                    <b>{t('ft_' + font)}</b>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="look-control-block look-motif-block">
-              <div className="look-control-title">{t('cornersLbl')}</div>
-              <div className="look-motif-row">
-                {RADIUS_OPTIONS.map((radius) => (
-                  <button className={draft.radius === radius ? 'on' : ''} key={radius} type="button" onClick={() => onChange({ ...draft, radius })}>
-                    <span>{radius === 'sharp' ? '▭' : radius === 'soft' ? '▢' : '◯'}</span>
-                    <b>{t('r_' + radius)}</b>
-                  </button>
-                ))}
-              </div>
-            </div>
+        {/* Layout last of the four, because it is the one that changes the *shape* of the
+            page rather than repainting it. Drawn as miniatures rather than listed by name —
+            "list" and "gallery" mean nothing until you see the rows and the photos. */}
+        <div className="look-control-block">
+          <div className="look-control-title">{t('layoutLbl')}</div>
+          <div className="look-layout-row">
+            {LAYOUT_OPTIONS.map((lay) => (
+              <button className={'look-layout-card' + (draft.layout === lay ? ' on' : '')} key={lay}
+                type="button" aria-pressed={draft.layout === lay}
+                onClick={() => onChange({ ...draft, layout: lay })}>
+                <LayoutThumb kind={lay} />
+                <b>{t('lay_' + lay)}</b>
+                <small>{t('lay_' + lay + 'Hint')}</small>
+              </button>
+            ))}
           </div>
-
-          {premium && (
-          <div className="look-finetune-group">
-            <div className="look-group-title">{t('grpCards')}</div>
-            <div className="look-control-block look-motif-block">
-              <div className="look-control-title">{t('cardStyleLbl')}</div>
-              <div className="look-motif-row">
-                {CARD_STYLE_OPTIONS.map((cs) => (
-                  <button className={draft.cardStyle === cs ? 'on' : ''} key={cs} type="button" onClick={() => onChange({ ...draft, cardStyle: cs })}>
-                    <span>{CARD_STYLE_MARKS[cs]}</span>
-                    <b>{t('cs_' + cs)}</b>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="look-control-block look-motif-block">
-              <div className="look-control-title">{t('cardBadgeLbl')}</div>
-              <div className="look-motif-row">
-                {CARD_BADGE_OPTIONS.map((cb) => (
-                  <button className={draft.cardBadge === cb ? 'on' : ''} key={cb} type="button" onClick={() => onChange({ ...draft, cardBadge: cb })}>
-                    <span>{CARD_BADGE_MARKS[cb]}</span>
-                    <b>{t('cb_' + cb)}</b>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="look-control-block look-motif-block">
-              <div className="look-control-title">{t('headerStyleLbl')}</div>
-              <div className="look-motif-row">
-                {HEADER_STYLE_OPTIONS.map((hs) => (
-                  <button className={draft.headerStyle === hs ? 'on' : ''} key={hs} type="button" onClick={() => onChange({ ...draft, headerStyle: hs })}>
-                    <span>{HEADER_STYLE_MARKS[hs]}</span>
-                    <b>{t('hs_' + hs)}</b>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+          {/* Gallery lives or dies on photography: an owner picking it with half the menu
+              unshot gets a page of coloured initials. Say so here, with their real count,
+              rather than letting them find out on a customer's phone. */}
+          {draft.layout === 'gallery' && photoCoverage.total > 0 && (
+            <p className={'look-layout-note' + (photoCoverage.share < GALLERY_PHOTO_FLOOR ? ' warn' : '')}>
+              <b className="num">{photoCoverage.withPhoto}/{photoCoverage.total}</b> {t('galleryGate')}
+              {photoCoverage.share < GALLERY_PHOTO_FLOOR && ' ' + t('galleryGateLow')}
+            </p>
           )}
+        </div>
 
-          <div className="look-finetune-group">
-            <div className="look-group-title">{t('grpMotif')}</div>
-            <div className="look-control-block look-motif-block">
-              <div className="look-control-title">{t('motif')}</div>
-              <div className="look-motif-row">
-                {MOTIF_OPTIONS.map((motif) => (
-                  <button className={draft.motif === motif ? 'on' : ''} key={motif} type="button" onClick={() => onChange({ ...draft, motif })}>
-                    <span>{MOTIF_MARKS[motif]}</span>
-                    <b>{t('mt_' + motif)}</b>
-                  </button>
-                ))}
-              </div>
-              <label className="look-range">
-                <span>{t('motifOpacity')}</span>
-                <input
-                  type="range"
-                  min="0.04"
-                  max="0.3"
-                  step="0.01"
-                  disabled={draft.motif === 'none'}
-                  value={draft.motifOpacity}
-                  aria-label={t('motifOpacity')}
-                  onChange={(e) => onChange({ ...draft, motifOpacity: Number(e.target.value) })}
-                />
-              </label>
-            </div>
-
-            {premium && (
-            <div className="look-control-block look-motif-block">
-              <div className="look-control-title">{t('stickersLbl')}</div>
-              <div className="look-motif-row">
-                {STICKER_PACKS.map((pack) => {
-                  const on = JSON.stringify(draft.decor.floaters) === JSON.stringify(pack.floaters) && draft.decor.cardSticker === pack.cardSticker;
-                  return (
-                    <button className={on ? 'on' : ''} key={pack.key} type="button"
-                      onClick={() => onChange({ ...draft, decor: { ...draft.decor, floaters: [...pack.floaters], cardSticker: pack.cardSticker } })}>
-                      <span>{pack.floaters[0] ?? '—'}</span>
-                      <b>{t('sp_' + pack.key)}</b>
-                    </button>
-                  );
-                })}
-              </div>
-              <label className="look-range">
-                <span>{t('stickerOpacity')}</span>
-                <input
-                  type="range"
-                  min="0.06"
-                  max="0.6"
-                  step="0.02"
-                  disabled={draft.decor.floaters.length === 0}
-                  value={draft.decor.floaterOpacity}
-                  aria-label={t('stickerOpacity')}
-                  onChange={(e) => onChange({ ...draft, decor: { ...draft.decor, floaterOpacity: Number(e.target.value) } })}
-                />
-              </label>
-              <div className="row2">
-                <div className="field">
-                  <label>{t('stickerFree')}</label>
-                  <input
-                    value={draft.decor.floaters.join(' ')}
-                    placeholder="🌹 💐 🌷"
-                    onChange={(e) => onChange({ ...draft, decor: { ...draft.decor, floaters: splitGraphemes(e.target.value).filter((g) => g.trim()).slice(0, 6) } })}
-                  />
-                </div>
-                <div className="field">
-                  <label>{t('cardStickerLbl')}</label>
-                  <input
-                    value={draft.decor.cardSticker}
-                    placeholder="🌹"
-                    onChange={(e) => onChange({ ...draft, decor: { ...draft.decor, cardSticker: splitGraphemes(e.target.value).filter((g) => g.trim()).pop() ?? '' } })}
-                  />
-                </div>
-              </div>
-              <div className="row2">
-                <div className="field">
-                  <label>{t('bannerArLbl')}</label>
-                  <input
-                    dir="rtl"
-                    value={draft.decor.bannerAr}
-                    placeholder="كل عام وكل أم بخير 🌹"
-                    onChange={(e) => onChange({ ...draft, decor: { ...draft.decor, bannerAr: e.target.value.slice(0, 80) } })}
-                  />
-                </div>
-                <div className="field">
-                  <label>{t('bannerEnLbl')}</label>
-                  <input
-                    dir="ltr"
-                    value={draft.decor.bannerEn}
-                    placeholder="Happy Mother's Day 🌹"
-                    onChange={(e) => onChange({ ...draft, decor: { ...draft.decor, bannerEn: e.target.value.slice(0, 80) } })}
-                  />
-                </div>
-              </div>
-            </div>
-            )}
-          </div>
-
-          <div className="look-finetune-group">
-            <div className="look-group-title">{t('colorStudio')}</div>
-            <div className="look-control-block">
-              <div className="look-colors">
-                {MENU_COLOR_FIELDS.map((field) => (
-                  <label className="look-color" key={field.key}>
-                    <input
-                      type="color"
-                      value={draft[field.key]}
-                      aria-label={t(field.label)}
-                      onChange={(e) => {
-                        // Picking text / secondary by hand marks it custom so it renders as chosen
-                        // (not auto-corrected). Quick mix / Reset clear the flag and restore the guard.
-                        const extra = field.key === 'text' ? { textCustom: true }
-                          : field.key === 'muted' ? { mutedCustom: true } : {};
-                        onChange({ ...draft, [field.key]: e.target.value, ...extra });
-                      }}
-                    />
-                    <span className="look-color-chip" aria-hidden="true" style={{ background: draft[field.key] }} />
-                    <span>{t(field.label)}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Disclosure>
-
-        {premium && (
-        <Disclosure id="look-advanced" title={t('advanced')}>
-          <div className="look-control-block">
-            <div className="look-control-title">{t('jsonTitle')}</div>
-            <p className="look-json-hint">{t('jsonHint')}</p>
-            <textarea
-              className="look-json-box"
-              dir="ltr"
-              spellCheck={false}
-              placeholder={t('jsonPlace')}
-              value={jsonText}
-              onChange={(e) => { setJsonText(e.target.value); setJsonErr(false); }}
-            />
-            {jsonErr && <div className="look-json-err">{t('jsonBad')}</div>}
-            <div className="look-actions" style={{ marginTop: 10 }}>
-              <button className="btn sm ghost" type="button" onClick={copyJson}>{copied ? t('jsonCopied') : t('jsonCopy')}</button>
-              <button className="btn sm" type="button" disabled={!jsonText.trim()} onClick={loadJson}>{t('jsonLoad')}</button>
-            </div>
-          </div>
-        </Disclosure>
-        )}
+        {/* Whether the café's note shows above the categories — a decision about this page,
+            so the switch is here. The words themselves are a fact about the café and are
+            written on the Café page; this block says so. */}
+        <HouseCardToggle />
 
         <div className="look-savebar">
           {dirty && <span className="look-dirty-badge" role="status">{t('unsavedBadge')}</span>}
           <div className="look-actions">
-            <button className="btn sm ghost" type="button" onClick={onRandomize}>{t('shuffle')}</button>
             <button className="btn sm ghost" type="button" onClick={onReset}>{t('resetLook')}</button>
             <button className="btn sm ghost" type="button" disabled={!previewUrl} onClick={onPreview}>↗ {t('preview')}</button>
             <button className="btn sm" type="button" disabled={saving} onClick={onSave}>{t('saveLook')}</button>
@@ -819,8 +628,8 @@ const PREVIEW_FLOW = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY'] as const;
  * (fake) order and watch the tracking screen step through the statuses.
  * It always renders from the JSON draft, so what you see is exactly what saves.
  */
-function LivePreview({ draft, restaurant, cats, itemsByCat }:
-  { draft: MenuThemeCustom; restaurant?: Restaurant; cats: CategoryResponse[]; itemsByCat: Map<number, MenuItemResponse[]> }) {
+function LivePreview({ draft, restaurant, branch, cats, itemsByCat }:
+  { draft: MenuThemeCustom; restaurant?: Restaurant; branch?: BranchResponse; cats: CategoryResponse[]; itemsByCat: Map<number, MenuItemResponse[]> }) {
   // The preview carries its OWN language: its EN/ع toggle flips only the phone, never the
   // surrounding dashboard. It just starts from whatever language the dashboard is in.
   const { lang: dashLang } = useI18n();
@@ -920,7 +729,17 @@ function LivePreview({ draft, restaurant, cats, itemsByCat }:
     setStepIdx(0);
   };
 
-  const cafeName = restaurant?.name ?? t('lookTitle');
+  const cafeName = nameOf(restaurant, lang) || t('lookTitle');
+
+  // The house card, exactly as the real menu builds it: the note for THIS language plus the
+  // fact chips read live off the profile. Flipping "Show the card" has to move something on
+  // the phone or the switch is a claim the preview refuses to back up.
+  const house = useMemo(() => parseMenuInfo(restaurant?.menuInfoJson), [restaurant?.menuInfoJson]);
+  const houseNote = lang === 'ar' ? house.noteAr : house.noteEn;
+  const facts = useMemo(() => houseFacts(branch, restaurant), [branch, restaurant]);
+  // The real menu hides an empty card — nothing written, nothing to show. In the editor that
+  // silence reads as a broken switch, so the preview says why instead, and where to fix it.
+  const houseEmpty = house.show && !houseNote && facts.length === 0;
 
   return (
     <div className="look-preview">
@@ -958,6 +777,29 @@ function LivePreview({ draft, restaurant, cats, itemsByCat }:
                   ))}
                 </nav>
                 <main className="c-scroll" ref={scrollRef}>
+                  {house.show && !houseEmpty && (
+                    <section className="c-house">
+                      {houseNote && <p className="c-house-note">{houseNote}</p>}
+                      {facts.length > 0 && (
+                        /* Chips, never links: the real menu makes phone and Instagram
+                           tappable, but a tel: or an outbound tab fired from inside the
+                           dashboard preview would be an accident, not a preview. */
+                        <div className="c-house-facts">
+                          {facts.map((f) => (
+                            <span className="c-fact" key={f.key}>
+                              <span aria-hidden="true">{f.icon}</span>
+                              {f.ltr ? <Ltr>{f.text}</Ltr> : <bdi>{f.text}</bdi>}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  )}
+                  {houseEmpty && (
+                    <section className="c-house look-house-empty">
+                      <p className="c-house-note">{t('houseEmptyPreview')}</p>
+                    </section>
+                  )}
                   {sections.map((s) => (
                     <section className="c-cat" data-cat={s.id} key={s.id}>
                       <div className="c-cat-head"><h2>{s.name}</h2><span className="c-rule" />{lang === 'ar' && s.sub && <span className="en">{s.sub}</span>}</div>
@@ -978,7 +820,7 @@ function LivePreview({ draft, restaurant, cats, itemsByCat }:
                                   {it.salePrice != null && <span className="c-was num">{omr(it.price)}</span>}
                                   <span className={'num' + (it.salePrice != null ? ' c-sale' : '')}>{omr(previewUnit(it))}</span>
                                   <span className="cur">{t('cur')}</span>
-                                  {it.salePrice != null && <span className="c-off">−{discountPercent(it.price, it.salePrice)}%</span>}
+                                  {it.salePrice != null && <span className="c-off"><Ltr>−{discountPercent(it.price, it.salePrice)}%</Ltr></span>}
                                 </div>
                                 {qty > 0
                                   ? <div className="c-qty">
@@ -1070,7 +912,7 @@ function LivePreview({ draft, restaurant, cats, itemsByCat }:
                   <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {placed.lines.map((l) => (
                       <div className="c-totals" style={{ marginBottom: 0, padding: '11px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} key={l.it.id}>
-                        <span><span className="num">{l.qty}×</span> {l.it.name}</span>
+                        <span><span className="num"><Ltr>{l.qty}×</Ltr></span> {l.it.name}</span>
                         <span className="num">{omr(previewUnit(l.it) * l.qty)} {t('cur')}</span>
                       </div>
                     ))}
@@ -1087,134 +929,6 @@ function LivePreview({ draft, restaurant, cats, itemsByCat }:
       </div>
     </div>
   );
-}
-
-// Hand-tuned, legible palettes. "Quick mix" picks one of these and only varies the
-// accent hue a little plus the motif/background — so the text/background pairing is
-// always a designed, readable combination instead of a random (often muddy) one.
-type PaletteRecipe = Pick<MenuThemeCustom, 'paper' | 'surface' | 'text' | 'muted' | 'accent' | 'accent2' | 'cartBg'>;
-
-const PALETTE_RECIPES: PaletteRecipe[] = [
-  { paper: '#FBF5EC', surface: '#F1E3D1', text: '#2C1B12', muted: '#7A5B45', accent: '#C8862B', accent2: '#A8531C', cartBg: '#2B1A12' }, // warm café
-  { paper: '#F2F8F2', surface: '#DEEEE2', text: '#143F2B', muted: '#4C7059', accent: '#2FBF71', accent2: '#2E9BD8', cartBg: '#103923' }, // fresh mint
-  { paper: '#FFF1F4', surface: '#FBDFE7', text: '#5A2233', muted: '#8C5366', accent: '#FF5C89', accent2: '#FF9F3D', cartBg: '#4B1730' }, // sweet rose
-  { paper: '#F1F6F4', surface: '#DCEAE6', text: '#0B3B47', muted: '#4F6F75', accent: '#1F8FA6', accent2: '#E2674A', cartBg: '#07333D' }, // coastal teal
-  { paper: '#FBEEE0', surface: '#F2DBC4', text: '#4A1C0E', muted: '#7F523D', accent: '#D7521E', accent2: '#E8A23D', cartBg: '#3C160B' }, // souq spice
-  { paper: '#F7F2E6', surface: '#E8E2CC', text: '#213B24', muted: '#5C6B45', accent: '#6D8C3B', accent2: '#C8833A', cartBg: '#213B24' }, // garden olive
-  { paper: '#EEF6F8', surface: '#DBE9EE', text: '#123846', muted: '#516F7B', accent: '#227D9A', accent2: '#E0A43B', cartBg: '#123846' }, // tile blue
-  { paper: '#F5F2FB', surface: '#E7E0F4', text: '#2E2247', muted: '#675B82', accent: '#7C5CD8', accent2: '#E08BB8', cartBg: '#241A3C' }, // lavender
-  { paper: '#F0F6FB', surface: '#DDE9F3', text: '#15324A', muted: '#566F84', accent: '#2E86C8', accent2: '#F2A33C', cartBg: '#122A40' }, // sky citrus
-  { paper: '#15120D', surface: '#241D14', text: '#F3ECDD', muted: '#B6A888', accent: '#D4AF6C', accent2: '#B07A36', cartBg: '#F0D89E' }, // dark gold
-  { paper: '#10251E', surface: '#1B342B', text: '#F2E8D0', muted: '#A6BBAD', accent: '#C79A43', accent2: '#2EA37A', cartBg: '#F2E8D0' }, // dark emerald
-  { paper: '#101417', surface: '#1A2024', text: '#EAF7F6', muted: '#9FB2B5', accent: '#32D6C8', accent2: '#FF6D9E', cartBg: '#EAF7F6' }, // neon night
-  { paper: '#0E0F12', surface: '#1A1D22', text: '#F3F5F0', muted: '#A6ADA9', accent: '#10B981', accent2: '#34D399', cartBg: '#F3F5F0' }, // onyx green
-];
-
-function randomCustomTheme(current: MenuThemeCustom, premium: boolean): MenuThemeCustom {
-  // avoid landing on the same palette twice in a row
-  const pool = PALETTE_RECIPES.filter((r) => r.paper.toLowerCase() !== current.paper.toLowerCase());
-  const recipe = (pool.length ? pool : PALETTE_RECIPES)[Math.floor(Math.random() * (pool.length ? pool.length : PALETTE_RECIPES.length))];
-  const shift = Math.floor(Math.random() * 26) - 13; // ±13° keeps the accents harmonious but fresh
-  const accent = rotateHue(recipe.accent, shift);
-  const accent2 = rotateHue(recipe.accent2, shift);
-  const motif = MOTIF_OPTIONS[1 + Math.floor(Math.random() * (MOTIF_OPTIONS.length - 1))];
-  return {
-    // Start from the default look, not the current draft: Quick mix wipes the theme
-    // first so it produces a fresh, clean combination instead of layering a new palette
-    // on top of accumulated font/radius/background/decor/skin edits.
-    ...DEFAULT_CUSTOM_THEME,
-    decor: { ...DEFAULT_CUSTOM_THEME.decor },
-    canvas: recipe.paper,
-    paper: recipe.paper,
-    surface: recipe.surface,
-    text: ensureContrast(recipe.text, recipe.paper, 7),     // body text — guarantee strong legibility
-    muted: ensureContrast(recipe.muted, recipe.paper, 3.4), // secondary text — keep it readable too
-    accent,
-    accent2,
-    motif,
-    motifColor: Math.random() > 0.4 ? accent : accent2,
-    motifOpacity: Number((0.1 + Math.random() * 0.12).toFixed(2)),
-    cartBg: recipe.cartBg,
-    // Structural kit is premium — only let "Quick mix" roam the layout space for cafés
-    // that have it; free-tier stays on the default flat card/plain header (from the reset above).
-    ...(premium ? {
-      cardStyle: CARD_STYLE_OPTIONS[Math.floor(Math.random() * CARD_STYLE_OPTIONS.length)],
-      cardBadge: CARD_BADGE_OPTIONS[Math.floor(Math.random() * CARD_BADGE_OPTIONS.length)],
-      headerStyle: HEADER_STYLE_OPTIONS[Math.floor(Math.random() * HEADER_STYLE_OPTIONS.length)],
-    } : {}),
-  };
-}
-
-// Push a foreground colour away from the background until it clears a WCAG contrast
-// ratio, so even an edited recipe can never produce unreadable text.
-function ensureContrast(fg: string, bg: string, min: number): string {
-  if (contrastRatio(fg, bg) >= min) return fg;
-  const { h, s } = hexToHsl(fg);
-  const darkBg = relLuminance(bg) < 0.4;
-  for (let i = 0; i <= 100; i += 4) {
-    const cand = hslToHex(h, s, darkBg ? i : 100 - i); // dark bg → lighten fg; light bg → darken fg
-    if (contrastRatio(cand, bg) >= min) return cand;
-  }
-  return darkBg ? '#FFFFFF' : '#0B0B0B';
-}
-
-function contrastRatio(a: string, b: string): number {
-  const la = relLuminance(a);
-  const lb = relLuminance(b);
-  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
-}
-
-function relLuminance(hex: string): number {
-  const clean = hex.replace('#', '');
-  const lin = (v: number) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
-  return 0.2126 * lin(parseInt(clean.slice(0, 2), 16)) + 0.7152 * lin(parseInt(clean.slice(2, 4), 16)) + 0.0722 * lin(parseInt(clean.slice(4, 6), 16));
-}
-
-function rotateHue(hex: string, deg: number): string {
-  const { h, s, l } = hexToHsl(hex);
-  return hslToHex((h + deg + 360) % 360, s, l);
-}
-
-function hexToHsl(hex: string): { h: number; s: number; l: number } {
-  const clean = hex.replace('#', '');
-  const r = parseInt(clean.slice(0, 2), 16) / 255;
-  const g = parseInt(clean.slice(2, 4), 16) / 255;
-  const b = parseInt(clean.slice(4, 6), 16) / 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const d = max - min;
-  const l = (max + min) / 2;
-  let h = 0;
-  let s = 0;
-  if (d) {
-    s = d / (1 - Math.abs(2 * l - 1));
-    if (max === r) h = ((g - b) / d) % 6;
-    else if (max === g) h = (b - r) / d + 2;
-    else h = (r - g) / d + 4;
-    h *= 60;
-    if (h < 0) h += 360;
-  }
-  return { h, s: s * 100, l: l * 100 };
-}
-
-function hslToHex(h: number, s: number, l: number): string {
-  const sat = s / 100;
-  const light = l / 100;
-  const c = (1 - Math.abs(2 * light - 1)) * sat;
-  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-  const m = light - c / 2;
-  let r = 0; let g = 0; let b = 0;
-  if (h < 60) [r, g, b] = [c, x, 0];
-  else if (h < 120) [r, g, b] = [x, c, 0];
-  else if (h < 180) [r, g, b] = [0, c, x];
-  else if (h < 240) [r, g, b] = [0, x, c];
-  else if (h < 300) [r, g, b] = [x, 0, c];
-  else [r, g, b] = [c, 0, x];
-  return `#${toHex255((r + m) * 255)}${toHex255((g + m) * 255)}${toHex255((b + m) * 255)}`;
-}
-
-function toHex255(value: number): string {
-  return Math.round(value).toString(16).padStart(2, '0');
 }
 
 function CategoryEditor({ rid, cat, onClose, onDone }: { rid: number; cat: CategoryResponse | null; onClose: () => void; onDone: () => void }) {
@@ -1410,7 +1124,7 @@ function ItemEditor({ rid, cats, item, defaultCat, branchId, onClose, onDone }:
                   <label>{t('discResult')}</label>
                   <div className="disc-now num">
                     {discountSale != null
-                      ? <>{omr(discountSale)} {t('cur')}{f.discountType === 'PERCENT' && discountSale < priceNum && <span className="mitem-disc on">−{discountPercent(priceNum, discountSale)}%</span>}</>
+                      ? <>{omr(discountSale)} {t('cur')}{f.discountType === 'PERCENT' && discountSale < priceNum && <span className="mitem-disc on"><Ltr>−{discountPercent(priceNum, discountSale)}%</Ltr></span>}</>
                       : '—'}
                   </div>
                 </div>

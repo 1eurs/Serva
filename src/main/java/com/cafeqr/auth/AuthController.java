@@ -108,7 +108,7 @@ public class AuthController {
     @PatchMapping("/me")
     public ApiResponse<UserResponse> updateProfile(@Valid @RequestBody UpdateProfileRequest request) {
         UserResponse user = authService.updateProfile(SecurityUtils.currentUser().getUserId(),
-                request.fullName(), request.phone());
+                request.fullName(), request.fullNameEn(), request.fullNameAr(), request.phone());
         return ApiResponse.ok("Profile updated", user);
     }
 }
