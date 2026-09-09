@@ -61,9 +61,27 @@
 
     <string name="running">Printing</string>
     <string name="not_running">Not printing</string>
+    <string name="paused">Paused</string>
     <string name="running_detail">Tickets for %1$s print here automatically. You can turn the screen off.</string>
     <string name="status_meta">Printer %1$s · this device %2$s</string>
+    <string name="pause_collecting">Pause collecting</string>
+    <string name="resume_collecting">Resume collecting</string>
+    <string name="cloud_ok">Collecting from %1$s · last pull %2$s</string>
+    <string name="cloud_never">Collecting from %1$s · never pulled</string>
+    <string name="cloud_waiting">Connecting to %1$s…</string>
+    <string name="cloud_down">Cannot reach Serva</string>
+    <string name="printer_answering">Printer %1$s is answering</string>
+    <string name="printer_waiting">Printer %1$s · waiting for the first ticket</string>
+    <string name="printer_silent">Printer %1$s is not answering</string>
+    <string name="last_pull_just_now">just now</string>
+    <string name="last_pull_never">never</string>
+    <string name="last_pull_minutes">%1$d min ago</string>
+    <string name="last_pull_hours">%1$d h ago</string>
+    <string name="cancel_scan">Cancel</string>
+    <string name="back">Back</string>
+    <string name="needed">Fill this in</string>
     <string name="change_setup">Change setup</string>
-    <string name="allow_background">Allow running in the background</string>
+    <string name="stay_alive">Leave this tablet on a charger. Keep the Serva notification. Do not swipe the app away, and do not tap Force stop.</string>
+    <string name="allow_background">Stop Android from sleeping this app</string>
     <string name="not_a_cafe_account">That account is not attached to a café. Use a staff login for this branch.</string>
 </resources>

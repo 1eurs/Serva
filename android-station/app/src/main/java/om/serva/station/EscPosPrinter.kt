@@ -111,23 +111,38 @@ object EscPosPrinter {
     }.getOrDefault(false)
 
     /**
+     * Cheap controllers drop the tail of a job if the socket closes on the last byte.
+     * Scale a little with size; stay well under a second — this is TCP, not Bluetooth.
+     */
+    private fun drainMsFor(bytes: Int): Long = (150L + bytes / 80L).coerceIn(150L, 800L)
+
+    /**
      * Sends a job. Throws when the printer will not take it, and — where the printer supports
      * the status channel — when it would take it and produce nothing, which is the failure
      * that otherwise looks exactly like success.
+     *
+     * One socket for status and the job: printers that only accept a single connection refuse
+     * or stall if we probe, hang up, then come back with the bytes.
      */
     @Throws(IOException::class)
     fun send(host: String, port: Int, bytes: ByteArray, timeoutMs: Int = 15_000) {
-        status(host, port)?.problem()?.let { throw IOException("Printer is $it") }
         Socket().use { socket ->
             socket.tcpNoDelay = true
-            socket.soTimeout = timeoutMs
             socket.connect(InetSocketAddress(host, port), timeoutMs)
-            socket.getOutputStream().apply {
-                write(bytes)
-                flush()
+            val out = socket.getOutputStream()
+            // Clones that ignore DLE EOT would otherwise block on read() for the full job
+            // timeout — 15s of silence before every ticket. Cap the status wait; restore
+            // the long timeout for the write.
+            socket.soTimeout = 1_200
+            statusOver(out, socket.getInputStream(), waitMs = 1_200)?.problem()?.let {
+                throw IOException("Printer is $it")
             }
+            socket.soTimeout = timeoutMs
+            out.write(bytes)
+            out.flush()
             // Half-close so the printer sees end-of-job rather than waiting on the socket.
             socket.shutdownOutput()
+            Thread.sleep(drainMsFor(bytes.size))
         }
     }
 }

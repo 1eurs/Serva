@@ -34,16 +34,47 @@
             </LinearLayout>
             <TextView android:id="@+id/statusDetail" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:layout_marginTop="10dp" style="@style/Serva.Body" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:layout_marginTop="14dp">
+                <View android:id="@+id/cloudDot" android:layout_width="8dp" android:layout_height="8dp"
+                    android:background="@drawable/dot_faint" />
+                <TextView android:id="@+id/cloudHealth" android:layout_width="0dp" android:layout_weight="1"
+                    android:layout_height="wrap_content" android:layout_marginStart="8dp"
+                    android:textColor="@color/muted" android:textSize="14sp" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:layout_marginTop="8dp">
+                <View android:id="@+id/printerHealthDot" android:layout_width="8dp" android:layout_height="8dp"
+                    android:background="@drawable/dot_faint" />
+                <TextView android:id="@+id/printerHealth" android:layout_width="0dp" android:layout_weight="1"
+                    android:layout_height="wrap_content" android:layout_marginStart="8dp"
+                    android:textColor="@color/muted" android:textSize="14sp" />
+            </LinearLayout>
             <TextView android:id="@+id/statusMeta" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:layout_marginTop="14dp"
                 android:textColor="@color/faint" android:textSize="13sp" />
+            <TextView android:id="@+id/stayAlive" style="@style/Serva.Body"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="12dp" android:text="@string/stay_alive" />
+            <androidx.appcompat.widget.AppCompatButton android:id="@+id/pause"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="16dp" style="@style/Serva.Button.Primary"
+                android:text="@string/pause_collecting" />
+            <androidx.appcompat.widget.AppCompatButton android:id="@+id/statusTest"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" style="@style/Serva.Button.Ghost"
+                android:text="@string/send_test" />
+            <androidx.appcompat.widget.AppCompatButton android:id="@+id/change"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" style="@style/Serva.Button.Ghost"
+                android:text="@string/change_setup" />
+            <androidx.appcompat.widget.AppCompatButton android:id="@+id/battery" android:visibility="gone"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" style="@style/Serva.Button.Primary"
+                android:text="@string/allow_background" />
         </LinearLayout>
-        <androidx.appcompat.widget.AppCompatButton android:id="@+id/battery" android:visibility="gone"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="8dp" style="@style/Serva.Button.Primary" android:text="@string/allow_background" />
-        <androidx.appcompat.widget.AppCompatButton android:id="@+id/change" android:visibility="gone"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="8dp" style="@style/Serva.Button.Ghost" android:text="@string/change_setup" />
 
         <!-- ============ 1 · SIGN IN ============ -->
         <LinearLayout android:id="@+id/step1" android:layout_width="match_parent"
@@ -79,6 +110,9 @@
                 android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="@string/branch_body" />
             <LinearLayout android:id="@+id/branchList" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginTop="8dp" />
+            <androidx.appcompat.widget.AppCompatButton android:id="@+id/back2" style="@style/Serva.Button.Ghost"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="18dp" android:text="@string/back" />
         </LinearLayout>
 
         <!-- ============ 3 · PRINTER ============ -->
@@ -95,6 +129,10 @@
             <androidx.appcompat.widget.AppCompatButton android:id="@+id/scan" style="@style/Serva.Button.Primary"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_marginTop="18dp" android:text="@string/scan_again" />
+            <androidx.appcompat.widget.AppCompatButton android:id="@+id/cancelScan" style="@style/Serva.Button.Ghost"
+                android:visibility="gone"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" android:text="@string/cancel_scan" />
             <androidx.appcompat.widget.AppCompatButton android:id="@+id/manual" style="@style/Serva.Button.Ghost"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_marginTop="8dp" android:text="@string/enter_manually" />
@@ -114,6 +152,9 @@
                     android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:layout_marginTop="10dp" android:text="@string/use_this_address" />
             </LinearLayout>
+            <androidx.appcompat.widget.AppCompatButton android:id="@+id/back3" style="@style/Serva.Button.Ghost"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="18dp" android:text="@string/back" />
         </LinearLayout>
 
         <!-- ============ 4 · TEST ============ -->
@@ -147,6 +188,9 @@
             <TextView android:id="@+id/troubleshoot" android:visibility="gone" style="@style/Serva.Body"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_marginTop="14dp" android:text="@string/troubleshoot" />
+            <androidx.appcompat.widget.AppCompatButton android:id="@+id/back4" style="@style/Serva.Button.Ghost"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="18dp" android:text="@string/back" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

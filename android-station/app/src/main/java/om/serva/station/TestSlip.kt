@@ -16,6 +16,10 @@ object TestSlip {
         val out = ByteArrayOutputStream()
         fun esc(vararg b: Int) = out.write(b.map { it.toByte() }.toByteArray())
         fun line(text: String) { out.write(text.toByteArray(Charsets.US_ASCII)); out.write(0x0A) }
+        // Thermal text mode cannot shape Arabic (or anything else outside ASCII) — the
+        // printer would render `?`. A generic stand-in beats mojibake on the setup slip.
+        fun asciiOr(value: String, fallback: String): String =
+            if (value.all { it.code < 128 }) value.take(28) else fallback
 
         esc(0x1B, 0x40)              // ESC @   initialise
         esc(0x1B, 0x61, 0x01)        // ESC a 1 centre
@@ -26,12 +30,12 @@ object TestSlip {
         line("Print station connected")
         line("")
         esc(0x1B, 0x61, 0x00)        // ESC a 0 left
-        line("Branch:  ${branchName.take(28)}")
+        line("Branch:  ${asciiOr(branchName, "this branch")}")
         // The address, because a café can easily have two printers answering on the network
         // — a counter one and a kitchen one — and the scan cannot tell them apart. Whichever
         // machine this slip came out of is the one that address belongs to.
-        line("Printer: ${printerHost.take(28)}")
-        line("Device:  ${stationId.take(28)}")
+        line("Printer: ${asciiOr(printerHost, "this printer")}")
+        line("Device:  ${asciiOr(stationId, "this station")}")
         line("")
         esc(0x1B, 0x61, 0x01)
         line("If this came out of the printer")

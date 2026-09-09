@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -43,13 +44,20 @@ class StationService : Service() {
         private const val CHANNEL = "serva-station"
         private const val NOTIFICATION_ID = 1
         private const val POLL_MS = 5_000L
+        private const val PAUSED_STATUS = "Paused — tickets will wait until you resume"
 
         fun start(context: Context) {
-            val intent = Intent(context, StationService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
-            else context.startService(intent)
+            val app = context.applicationContext
+            val intent = Intent(app, StationService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) app.startForegroundService(intent)
+            else app.startService(intent)
+            KeepAlive.arm(app)
         }
-        fun stop(context: Context) = context.stopService(Intent(context, StationService::class.java))
+        fun stop(context: Context) {
+            val app = context.applicationContext
+            KeepAlive.disarm(app)
+            app.stopService(Intent(app, StationService::class.java))
+        }
     }
 
     private val supervisor = SupervisorJob()
@@ -59,6 +67,7 @@ class StationService : Service() {
     private lateinit var api: Api
     private var renderer: Renderer? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: WifiManager.WifiLock? = null
 
     /** Whatever this station prints through — a network socket or a Bluetooth link. */
     private val printer: PrinterLink? get() = prefs.printerLink(this)
@@ -94,11 +103,13 @@ class StationService : Service() {
         // every few seconds on the counter is worse, and Android's rules about which service
         // types need which permissions have changed in three of the last four releases.
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(NOTIFICATION_ID, notification(prefs.lastStatus),
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            val notif = notification(prefs.lastStatus)
+            // specialUse exists only from Android 14. Passing it on 10–13 throws, the catch
+            // below used to stopSelf(), and the station died on the tablets cafés actually own.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(NOTIFICATION_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
             } else {
-                startForeground(NOTIFICATION_ID, notification(prefs.lastStatus))
+                startForeground(NOTIFICATION_ID, notif)
             }
         } catch (e: Exception) {
             Log.e(TAG, "could not go foreground", e)
@@ -110,47 +121,124 @@ class StationService : Service() {
             update("Not set up yet — open Serva Station")
             return START_STICKY
         }
-        // A partial wake lock keeps the CPU alive with the screen off. The tablet is on a
-        // charger at the counter; this is what lets the screen go dark and still print.
-        if (wakeLock == null) {
-            wakeLock = (getSystemService(Context.POWER_SERVICE) as PowerManager)
-                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "serva:station")
-                .also { it.setReferenceCounted(false); it.acquire() }
-        }
+        holdLocks()
+        KeepAlive.arm(this)
+        if (prefs.paused) update(PAUSED_STATUS)
         if (loop?.isActive != true) loop = scope.launch { run() }
         // START_STICKY: if Android reclaims the process, bring it back.
         return START_STICKY
     }
 
-    private suspend fun run() {
-        val r = Renderer(applicationContext, prefs)
-        renderer = r
-        if (!r.start()) {
-            update("Could not load the receipt renderer — check the internet connection")
-            delay(15_000)
-            if (scope.isActive) StationService.start(this)   // try the whole thing again
-            return
+    /**
+     * CPU + Wi-Fi, both held for the life of the service.
+     *
+     * A partial wake lock keeps the CPU alive with the screen off. That is not enough: many
+     * tablets drop Wi-Fi the moment the screen sleeps, and then every pull is "Offline" until
+     * someone taps the tablet. The Wi-Fi lock is what stops that.
+     */
+    private fun holdLocks() {
+        if (wakeLock == null) {
+            wakeLock = (getSystemService(Context.POWER_SERVICE) as PowerManager)
+                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "serva:station")
+                .also { it.setReferenceCounted(false); it.acquire() }
         }
-        // Say something true about the printer before the first ticket needs it, so the
-        // status screen answers "is it going to work?" and not just "did it work?".
-        val printerUp = runCatching { printer?.probe() ?: false }.getOrDefault(false)
-        update(if (printerUp) "Collecting for ${prefs.branchName.ifBlank { "branch ${prefs.branchId}" }}"
-               else "Printer ${prefs.printerLabel} is not answering — collecting anyway, will print when it is back")
+        if (wifiLock == null) {
+            val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            fun take(mode: Int) = wm.createWifiLock(mode, "serva:station-wifi").apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+            wifiLock = runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                    take(WifiManager.WIFI_MODE_FULL_LOW_LATENCY)
+                else
+                    @Suppress("DEPRECATION") take(WifiManager.WIFI_MODE_FULL_HIGH_PERF)
+            }.recoverCatching {
+                @Suppress("DEPRECATION") take(WifiManager.WIFI_MODE_FULL_HIGH_PERF)
+            }.onFailure { Log.w(TAG, "could not hold Wi-Fi lock", it) }.getOrNull()
+        }
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        // Swiping the app off Recents must not take the printer with it. stopWithTask=false
+        // is the flag; this is the restart if an OEM ignores the flag.
+        if (prefs.configured && !prefs.paused) {
+            KeepAlive.arm(this)
+            StationService.start(this)
+        }
+    }
+
+    private suspend fun run() {
+        var announcedPause = false
         while (scope.isActive) {
-            runCatching { tick() }.onFailure { update("Offline: ${it.message ?: "unknown error"}") }
+            if (prefs.paused) {
+                if (!announcedPause) {
+                    update(PAUSED_STATUS)
+                    announcedPause = true
+                }
+                delay(POLL_MS)
+                continue
+            }
+            announcedPause = false
+
+            if (!ensureRenderer()) {
+                delay(15_000)
+                continue
+            }
+
+            runCatching { tick() }.onFailure { e ->
+                prefs.cloudOk = false
+                update(describeFailure(e))
+            }
             delay(POLL_MS)
         }
     }
 
+    /**
+     * Load or rebuild the receipt page in this coroutine. Never re-enters [onStartCommand]:
+     * that used to see the still-running loop and leave a dead foreground service.
+     */
+    private fun ensureRenderer(): Boolean {
+        val current = renderer
+        if (current != null && !current.gone) return true
+        current?.stop()
+        val r = Renderer(applicationContext, prefs)
+        renderer = r
+        if (!r.start()) {
+            val why = r.startError ?: "check the internet connection"
+            update("Could not load the receipt renderer — $why")
+            r.stop()
+            renderer = null
+            return false
+        }
+        renderFailures = 0
+        // Say something true about the printer before the first ticket needs it, so the
+        // status screen answers "is it going to work?" and not just "did it work?".
+        val printerUp = runCatching { printer?.probe() ?: false }.getOrDefault(false)
+        prefs.printerOk = printerUp
+        update(if (printerUp) "Collecting for ${prefs.branchName.ifBlank { "branch ${prefs.branchId}" }}"
+               else "Printer ${prefs.printerLabel} is not answering — collecting anyway, will print when it is back")
+        return true
+    }
+
     /** The renderer's page was killed or is wedged: rebuild it rather than fail every ticket. */
     private fun healRenderer() {
-        val r = renderer ?: return
         update("Restarting the receipt renderer")
-        if (r.restart()) { renderFailures = 0; update("Collecting again") }
+        val r = renderer
+        if (r != null && r.restart()) {
+            renderFailures = 0
+            update("Collecting again")
+            return
+        }
+        r?.stop()
+        renderer = null
     }
 
     private fun tick() {
         val jobs = api.pull()
+        prefs.cloudOk = true
+        prefs.lastPullAt = System.currentTimeMillis()
         if (jobs.length() == 0) return
         for (i in 0 until jobs.length()) {
             val job = jobs.getJSONObject(i)
@@ -162,8 +250,12 @@ class StationService : Service() {
                 continue
             }
 
-            val r = renderer
-            if (r == null || r.gone) { healRenderer(); continue }
+            var r = renderer
+            if (r == null || r.gone) {
+                healRenderer()
+                r = renderer
+                if (r == null || r.gone) continue
+            }
             val bytes = try {
                 r.render(job).also { renderFailures = 0 }
             } catch (e: Exception) {
@@ -176,11 +268,14 @@ class StationService : Service() {
             try {
                 val link = printer ?: throw IllegalStateException("No printer is set up on this device")
                 link.send(bytes)
+                prefs.printerOk = true
+                prefs.lastPrintAt = System.currentTimeMillis()
                 printedAwaitingAck.add(id)
                 rememberUnacked()   // on disk before the ack leaves
                 update("Printed #${ticketNumber(job)}")
             } catch (e: Exception) {
                 Log.w(TAG, "printer refused job $id", e)
+                prefs.printerOk = false
                 // send() now fails loudly on an empty roll, which used to look like success.
                 val why = e.message?.takeIf { it.startsWith("Printer is") }
                 update(why ?: notAnswering())
@@ -188,6 +283,19 @@ class StationService : Service() {
             }
 
             runCatching { api.ack(id) }.onSuccess { printedAwaitingAck.remove(id); rememberUnacked() }
+        }
+    }
+
+    /** 401 after login+refresh both failed is a password, not an outage. */
+    private fun describeFailure(e: Throwable): String {
+        val apiEx = e as? Api.ApiException
+        return when {
+            apiEx != null && apiEx.status == 401 ->
+                "The staff password was rejected — open the app and sign in again"
+            apiEx != null && apiEx.status in 400..499 ->
+                apiEx.serverMessage?.takeIf { it.isNotBlank() }
+                    ?: "Serva refused the request (${apiEx.status})"
+            else -> "Offline: ${e.message ?: "unknown error"}"
         }
     }
 
@@ -229,6 +337,8 @@ class StationService : Service() {
         renderer?.stop()
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
+        wifiLock?.let { if (it.isHeld) it.release() }
+        wifiLock = null
         super.onDestroy()
     }
 }

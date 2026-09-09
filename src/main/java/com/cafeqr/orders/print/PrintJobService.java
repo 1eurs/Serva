@@ -139,7 +139,12 @@ public class PrintJobService {
                 .findFirstByBranchIdAndStatusAndCreatedAtAfterOrderByCreatedAtAsc(branchId, PrintJobStatus.PENDING, fresh)
                 .map(job -> Duration.between(job.getCreatedAt(), now).getSeconds())
                 .orElse(0L);
-        return new StationStatusResponse(seen, stations > 0, stations, pending, Math.max(0, oldest));
+        boolean appCollecting = printStationRepository
+                .findByBranchIdAndLastSeenAtAfter(branchId, now.minus(STATION_LIVE_WINDOW))
+                .stream()
+                .map(PrintStation::getStationId)
+                .anyMatch(id -> id != null && !id.startsWith("st-"));
+        return new StationStatusResponse(seen, stations > 0, stations, pending, Math.max(0, oldest), appCollecting);
     }
 
     /**
@@ -178,8 +183,9 @@ public class PrintJobService {
             if (printJobRepository.claim(job.getId(), stationId, now, leaseCutoff, PrintJobStatus.PENDING) == 0) {
                 continue; // another station is printing it, and its lease is still live
             }
-            orderRepository.findById(job.getOrderId())
-                    .ifPresent(order -> offered.add(PrintJobResponse.of(job, OrderResponse.from(order), receiptFor(order))));
+            orderRepository.findById(job.getOrderId()).ifPresentOrElse(
+                    order -> offered.add(PrintJobResponse.of(job, OrderResponse.from(order), receiptFor(order))),
+                    () -> job.setStatus(PrintJobStatus.EXPIRED)); // no order left to print — leave the pending index
         }
         return offered;
     }

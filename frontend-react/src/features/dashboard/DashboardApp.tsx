@@ -8,7 +8,7 @@ import { useI18n, useT, nameOf, personName, Ltr, ltrText, type Dict } from '../.
 import { useToast } from '../../lib/toast';
 import { useConfirm } from '../../lib/confirm';
 import { useOrderStream, type StreamStatus } from '../../lib/sse';
-import { isPrintStation, canPrintHere, getStationId, rememberPrinted, forgetPrinted, printedButUnacked } from '../../lib/printer';
+import { isPrintStation, setPrintStation, canPrintHere, getStationId, rememberPrinted, forgetPrinted, printedButUnacked } from '../../lib/printer';
 import { useOrderSound, SoundToggle, notify, closeNotify } from '../../lib/alerts';
 import { useWakeLock } from '../../lib/wakeLock';
 import { fmtElapsed } from '../../lib/format';
@@ -573,7 +573,19 @@ function Shell() {
      THIS tablet is the one that collects them. A device that cannot print itself is never a
      station — it would only hand its own jobs back to the queue it just pulled them from. */
   const station = selectedBranchQ.data;
-  const isStation = !!branchId && !!station?.printerEnabled && isPrintStation(branchId) && canPrintHere();
+  const stationPresenceQ = useQuery({
+    queryKey: ['print-station', branchId],
+    queryFn: () => api.get<StationStatus>(`/api/dashboard/print-jobs/station?branchId=${branchId}`),
+    enabled: !!branchId && !!station?.printerEnabled,
+    refetchInterval: 15_000,
+  });
+  const appCollecting = !!stationPresenceQ.data?.appCollecting;
+  // When the Serva Station app is polling, this browser must not. Otherwise an old
+  // "this tablet prints incoming tickets" switch races the app for jobs.
+  const isStation = !!branchId && !!station?.printerEnabled && isPrintStation(branchId) && canPrintHere() && !appCollecting;
+  useEffect(() => {
+    if (branchId && appCollecting && isPrintStation(branchId)) setPrintStation(branchId, false);
+  }, [branchId, appCollecting]);
   const stationId = useMemo(getStationId, []);
   const jobsQ = useQuery({
     queryKey: ['print-jobs', branchId, stationId],
@@ -645,18 +657,12 @@ function Shell() {
      in the café now watches for it: tickets waiting with no station polling puts a warning
      in the top bar on every phone and iPad on the floor. Quiet again by itself once a
      station picks the jobs up, or once they age out. */
-  const printerWatchQ = useQuery({
-    queryKey: ['print-station', branchId],
-    queryFn: () => api.get<StationStatus>(`/api/dashboard/print-jobs/station?branchId=${branchId}`),
-    enabled: !!branchId && !!station?.printerEnabled && !isStation,
-    refetchInterval: 30_000,
-  });
   /* Keyed on how long tickets have waited, not on whether a station is collecting — because
      a station whose printer has died is still collecting. It polls, claims and renders, and
      fails only at the socket, so "collecting" stays true while the café silently stops getting
      paper. A healthy station drains a ticket in seconds, so anything still waiting after 90
      is wrong whichever way it broke, and the wording says which. */
-  const watch = printerWatchQ.data;
+  const watch = stationPresenceQ.data;
   const printerAlarm = !isStation && watch && watch.oldestPendingSeconds > 90 ? watch.pending : 0;
   const alarmKey = watch?.collecting ? 'printerStuck' : 'printerAlarm';
   const calmStream = useCalmStream(alerts.stream);

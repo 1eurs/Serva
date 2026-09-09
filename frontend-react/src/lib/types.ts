@@ -296,6 +296,8 @@ export interface StationStatus {
   pending: number;
   /** Seconds the longest-waiting ticket has waited. The real health signal — see the DTO. */
   oldestPendingSeconds: number;
+  /** Serva Station app (or the Node process) is collecting — browsers should step aside. */
+  appCollecting?: boolean;
 }
 
 export interface Restaurant {

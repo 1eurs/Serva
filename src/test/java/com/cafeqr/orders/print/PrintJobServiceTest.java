@@ -63,6 +63,8 @@ class PrintJobServiceTest {
         service = new PrintJobService(printJobRepository, printStationRepository, orderRepository, branchService,
                 restaurantService, tableService, accessGuard);
         lenient().when(restaurantService.getEntity(1L)).thenReturn(cafe());
+        lenient().when(printStationRepository.findByBranchIdAndLastSeenAtAfter(any(), any()))
+                .thenReturn(List.of());
     }
 
     private static Order order() {
@@ -159,6 +161,22 @@ class PrintJobServiceTest {
 
         assertThat(offered).hasSize(1);
         assertThat(offered.get(0).receipt().tableNumber()).isNull(); // prints without the table line
+    }
+
+    @Test
+    void aPendingJobWhoseOrderIsGoneIsExpiredNotOffered() {
+        when(branchService.getEntity(5L)).thenReturn(branch(true));
+        PrintJob orphan = job(1L, Instant.now());
+        when(printJobRepository.findByBranchIdAndStatusOrderByIdAsc(5L, PrintJobStatus.PENDING))
+                .thenReturn(List.of(orphan));
+        lenient().when(printJobRepository.claim(eq(1L), eq("st-one"), any(), any(), eq(PrintJobStatus.PENDING)))
+                .thenReturn(1);
+        when(orderRepository.findById(7L)).thenReturn(Optional.empty());
+
+        List<PrintJobResponse> offered = service.pull(5L, "st-one");
+
+        assertThat(offered).isEmpty();
+        assertThat(orphan.getStatus()).isEqualTo(PrintJobStatus.EXPIRED);
     }
 
     @Test
@@ -259,6 +277,19 @@ class PrintJobServiceTest {
         assertThat(status.collecting()).isTrue();
         assertThat(status.stations()).isEqualTo(2L); // worth a warning, no longer a duplicate
         assertThat(status.pending()).isEqualTo(3L);
+        assertThat(status.appCollecting()).isFalse(); // both are browser tabs (st-…)
+    }
+
+    @Test
+    void statusSaysWhenTheStationAppIsTheOneCollecting() {
+        when(branchService.getEntity(5L)).thenReturn(branch(true));
+        when(printStationRepository.countByBranchIdAndLastSeenAtAfter(eq(5L), any())).thenReturn(1L);
+        when(printStationRepository.findFirstByBranchIdOrderByLastSeenAtDesc(5L)).thenReturn(Optional.empty());
+        PrintStation app = new PrintStation();
+        app.setStationId("android-ab12cd34ef56");
+        when(printStationRepository.findByBranchIdAndLastSeenAtAfter(eq(5L), any())).thenReturn(List.of(app));
+
+        assertThat(service.stationStatus(5L).appCollecting()).isTrue();
     }
 
     @Test

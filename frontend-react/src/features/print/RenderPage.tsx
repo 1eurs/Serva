@@ -115,11 +115,23 @@ export default function RenderPage() {
           if (!node) throw new Error('sheet not mounted');
           await (document.fonts?.ready ?? Promise.resolve());
           const { toCanvas } = await import('html-to-image');
-          const rect = node.getBoundingClientRect();
+          // An off-screen WebView sometimes reports 0×0 on the first paint. Dividing by
+          // width then produced Infinity, which allocated a canvas big enough to kill the
+          // station. Wait one beat, then refuse rather than OOM.
+          let rect = node.getBoundingClientRect();
+          if (rect.width < 8 || rect.height < 8) {
+            await new Promise((r) => setTimeout(r, 400));
+            rect = node.getBoundingClientRect();
+          }
+          if (rect.width < 8 || rect.height < 8) {
+            throw new Error('receipt did not lay out');
+          }
+          const ratio = rect.height / rect.width;
+          if (!Number.isFinite(ratio) || ratio <= 0) throw new Error('receipt layout was invalid');
           // Force the exact printable width rather than trusting devicePixelRatio, which
           // differs per device and produced inconsistent margins from one tablet to another.
           const canvasWidth = PAPER_DOTS[request.paperWidth];
-          const canvasHeight = Math.round(canvasWidth * (rect.height / rect.width));
+          const canvasHeight = Math.max(32, Math.min(8_000, Math.round(canvasWidth * ratio)));
           const fontCss = await receiptFontCss(node);
           const canvas = await toCanvas(node, {
             backgroundColor: '#fff', pixelRatio: 1, canvasWidth, canvasHeight,

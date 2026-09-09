@@ -11,8 +11,9 @@ pull  →  render  →  print  →  acknowledge
 It signs in as a normal staff user, claims jobs from the server for its own station id,
 renders each one by handing it to `/print/render` in a headless Chromium it keeps open, writes
 the resulting ESC/POS bytes to the printer's socket on port 9100, and acknowledges. Until it
-acknowledges, the job stays pending on the server and is offered again — so a crash costs a
-duplicate at worst, never a lost ticket.
+acknowledges, the job stays pending on the server and is offered again. Ids of jobs that
+printed but were not yet acknowledged are kept beside the config (`station.unacked.json`), so
+a crash between those two steps retries the ack and does not print the ticket a second time.
 
 Nothing here decides how a receipt looks. That is the server's page, which is the same React
 component the dashboard prints with, so a café changing its receipt style or switching to

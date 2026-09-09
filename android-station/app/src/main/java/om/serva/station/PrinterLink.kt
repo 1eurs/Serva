@@ -24,10 +24,13 @@ sealed interface PrinterLink {
     fun send(bytes: ByteArray)
 }
 
+/** One printer, one conversation. The service and a test slip must not share the socket. */
+private val printerIo = Any()
+
 class NetworkPrinter(private val host: String, private val port: Int) : PrinterLink {
     override val label: String get() = host
-    override fun probe(): Boolean = EscPosPrinter.probe(host, port)
-    override fun send(bytes: ByteArray) = EscPosPrinter.send(host, port, bytes)
+    override fun probe(): Boolean = synchronized(printerIo) { EscPosPrinter.probe(host, port) }
+    override fun send(bytes: ByteArray) = synchronized(printerIo) { EscPosPrinter.send(host, port, bytes) }
 }
 
 class BluetoothPrinterLink(
@@ -36,8 +39,8 @@ class BluetoothPrinterLink(
     private val name: String,
 ) : PrinterLink {
     override val label: String get() = name.ifBlank { address }
-    override fun probe(): Boolean = BluetoothPrinter.probe(context, address)
-    override fun send(bytes: ByteArray) = BluetoothPrinter.send(context, address, bytes)
+    override fun probe(): Boolean = synchronized(printerIo) { BluetoothPrinter.probe(context, address) }
+    override fun send(bytes: ByteArray) = synchronized(printerIo) { BluetoothPrinter.send(context, address, bytes) }
 }
 
 /**

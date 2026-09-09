@@ -5,6 +5,7 @@ import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 
 /**
  * The Serva API, as much of it as a print station needs: sign in, pull jobs, acknowledge.
@@ -16,7 +17,7 @@ class Api(private val prefs: Prefs) {
     private var accessToken: String? = null
     private var refreshToken: String? = null
 
-    class ApiException(val status: Int, message: String) : IOException(message)
+    class ApiException(val status: Int, message: String, val serverMessage: String? = null) : IOException(message)
 
     /** @return the signed-in user, which the auth response already carries. */
     fun login(): JSONObject {
@@ -26,7 +27,7 @@ class Api(private val prefs: Prefs) {
         val res = request("POST", "/api/auth/login", body.toString(), auth = false)
         val data = res.getJSONObject("data")
         accessToken = data.getString("accessToken")
-        refreshToken = data.optString("refreshToken", null)
+        refreshToken = if (data.isNull("refreshToken")) null else data.optString("refreshToken").takeIf { it.isNotBlank() }
         return data.optJSONObject("user") ?: JSONObject()
     }
 
@@ -39,7 +40,8 @@ class Api(private val prefs: Prefs) {
 
     /** Jobs this station now holds. The server has claimed each one for us for a short lease. */
     fun pull(): JSONArray {
-        val path = "/api/dashboard/print-jobs/pull?branchId=${prefs.branchId}&stationId=${prefs.stationId}"
+        val station = URLEncoder.encode(prefs.stationId, "UTF-8")
+        val path = "/api/dashboard/print-jobs/pull?branchId=${prefs.branchId}&stationId=$station"
         return authed("POST", path, "{}").optJSONArray("data") ?: JSONArray()
     }
 
@@ -66,7 +68,8 @@ class Api(private val prefs: Prefs) {
             val res = request("POST", "/api/auth/refresh", JSONObject().put("refreshToken", token).toString(), auth = false)
             val data = res.getJSONObject("data")
             accessToken = data.getString("accessToken")
-            refreshToken = data.optString("refreshToken", token)
+            refreshToken = if (data.isNull("refreshToken")) token
+                else data.optString("refreshToken").takeIf { it.isNotBlank() } ?: token
             true
         } catch (e: Exception) {
             false
@@ -78,7 +81,10 @@ class Api(private val prefs: Prefs) {
             requestMethod = method
             connectTimeout = 10_000
             readTimeout = 20_000
-            setRequestProperty("Content-Type", "application/json")
+            // A POST that follows a 301 to https becomes a GET; the pull then claims nothing
+            // and tickets sit in the queue looking like a dead printer.
+            instanceFollowRedirects = false
+            setRequestProperty("Content-Type", "application/json; charset=utf-8")
             setRequestProperty("Accept", "application/json")
             if (auth) accessToken?.let { setRequestProperty("Authorization", "Bearer $it") }
             doInput = true
@@ -89,11 +95,20 @@ class Api(private val prefs: Prefs) {
                 conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             }
             val status = conn.responseCode
+            if (status in 300..399) {
+                throw ApiException(status, "Serva redirected ($status). Use the https address.")
+            }
             val text = (if (status in 200..299) conn.inputStream else conn.errorStream)
                 ?.bufferedReader()?.use { it.readText() } ?: ""
             if (status !in 200..299) {
-                val message = runCatching { JSONObject(text).optString("message") }.getOrNull()
-                throw ApiException(status, "$method $path → $status ${message ?: ""}")
+                val serverMessage = runCatching {
+                    JSONObject(text).optString("message").takeIf { it.isNotBlank() }
+                }.getOrNull()
+                throw ApiException(
+                    status,
+                    "$method $path → $status ${serverMessage ?: ""}".trimEnd(),
+                    serverMessage,
+                )
             }
             return JSONObject(text)
         } finally {

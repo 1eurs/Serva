@@ -23,4 +23,6 @@ public interface PrintStationRepository extends JpaRepository<PrintStation, Long
     long countByBranchIdAndLastSeenAtAfter(Long branchId, Instant after);
 
     Optional<PrintStation> findFirstByBranchIdOrderByLastSeenAtDesc(Long branchId);
+
+    java.util.List<PrintStation> findByBranchIdAndLastSeenAtAfter(Long branchId, Instant after);
 }

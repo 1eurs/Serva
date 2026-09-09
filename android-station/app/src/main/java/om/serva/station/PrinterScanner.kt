@@ -30,6 +30,16 @@ object PrinterScanner {
     private const val PRINTER_PORT = 9100
 
     /**
+     * Frozen contract for the setup screen: tap Cancel during a sweep, and the next batch
+     * returns whatever has been found so far. [beginScan] clears the flag at the start of
+     * [scan] / [scanWider].
+     */
+    @Volatile var cancelled: Boolean = false
+        private set
+    fun cancel() { cancelled = true }
+    internal fun beginScan() { cancelled = false }
+
+    /**
      * Tried only when the usual port finds nothing, because each extra port costs another
      * full sweep. 9101/9102 are the second and third heads on multi-port models; 515 is LPD,
      * which a few older units still expose instead.
@@ -109,6 +119,7 @@ object PrinterScanner {
      */
     suspend fun scan(context: Context, onProgress: (Int, Int) -> Unit = { _, _ -> }): List<Found> =
         withContext(Dispatchers.IO) {
+            beginScan()
             // Ask the network before interrogating it address by address. mDNS answers in
             // seconds and — the part the sweep can never do — finds a printer whose address is
             // on a subnet this tablet is not on at all.
@@ -151,6 +162,7 @@ object PrinterScanner {
      */
     suspend fun scanWider(onProgress: (Int, Int) -> Unit = { _, _ -> }): List<Found> =
         withContext(Dispatchers.IO) {
+            beginScan()
             val alreadySwept = interfaceAddresses().flatMap { hostsFor(it) }.toSet()
             val hosts = COMMON_SUBNETS
                 .flatMap { prefix -> (1..254).map { "$prefix.$it" } }
@@ -165,13 +177,20 @@ object PrinterScanner {
      * Ask each candidate what it is. An answer proves a printer; silence is not disproof,
      * since plenty of cheap clones never implement the status channel.
      */
-    private fun confirm(hits: List<Found>): List<Found> =
-        hits.distinctBy { it.host }
-            .map { hit ->
-                val status = EscPosPrinter.status(hit.host, hit.port, timeoutMs = 1_200)
-                hit.copy(confirmed = status != null, paperOut = status?.paperOut == true)
+    private fun confirm(hits: List<Found>): List<Found> {
+        val unique = hits.distinctBy { it.host }
+        val out = ArrayList<Found>(unique.size)
+        for (hit in unique) {
+            if (cancelled) {
+                // Cancel skips the extra status round-trip, not the addresses already found.
+                out.addAll(unique.subList(out.size, unique.size))
+                break
             }
-            .sortedByDescending { it.confirmed }
+            val status = EscPosPrinter.status(hit.host, hit.port, timeoutMs = 1_200)
+            out += hit.copy(confirmed = status != null, paperOut = status?.paperOut == true)
+        }
+        return out.sortedByDescending { it.confirmed }
+    }
 
     private suspend fun sweep(
         hosts: List<String>, port: Int, doneBefore: Int, total: Int, onProgress: (Int, Int) -> Unit,
@@ -179,6 +198,7 @@ object PrinterScanner {
         val found = mutableListOf<Found>()
         var done = doneBefore
         for (batch in hosts.chunked(PARALLEL)) {
+            if (cancelled) break
             val results = coroutineScope {
                 batch.map { host ->
                     async(Dispatchers.IO) {

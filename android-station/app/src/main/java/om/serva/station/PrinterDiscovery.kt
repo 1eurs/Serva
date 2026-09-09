@@ -3,9 +3,6 @@ package om.serva.station
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
@@ -36,10 +33,17 @@ object PrinterDiscovery {
      * `_pdl-datastream` IS raw port 9100 — the thing this app prints to. The other two are
      * worth listening for anyway: a printer that advertises only IPP or LPD nearly always has
      * 9100 open too, and its ADDRESS is the part that cannot be guessed.
+     *
+     * NsdManager only likes one discoverServices at a time on many Android builds, so these
+     * run sequentially. Windows add up to ~3s; we stop after pdl-datastream if it already
+     * yielded hosts, because those are the real raw-9100 printers.
      */
-    private val SERVICE_TYPES = listOf("_pdl-datastream._tcp.", "_printer._tcp.", "_ipp._tcp.")
+    private val SERVICE_TYPES = listOf(
+        "_pdl-datastream._tcp." to 1_200L,
+        "_printer._tcp." to 900L,
+        "_ipp._tcp." to 900L,
+    )
 
-    private const val LISTEN_MS = 3_000L
     private const val RESOLVE_MS = 3_000L
 
     /** Resolving more than one service at a time fails outright on older Android. */
@@ -47,19 +51,20 @@ object PrinterDiscovery {
 
     /**
      * Addresses that answered an mDNS query, with the port each advertised.
-     *
-     * The three service types are listened for at the same time, not one after another: they
-     * are independent queries, and three sequential windows would put nine silent seconds in
-     * front of a café before the address sweep had even started.
      */
-    suspend fun find(context: Context, listenMs: Long = LISTEN_MS): List<Pair<String, Int>> {
+    suspend fun find(context: Context): List<Pair<String, Int>> {
         val nsd = context.getSystemService(Context.NSD_SERVICE) as? NsdManager ?: return emptyList()
-        val services = coroutineScope {
-            SERVICE_TYPES.map { type -> async { discover(nsd, type, listenMs) } }.awaitAll()
+        val services = mutableListOf<NsdServiceInfo>()
+        for ((type, listenMs) in SERVICE_TYPES) {
+            val found = runCatching { discover(nsd, type, listenMs) }.getOrDefault(emptyList())
+            services += found
+            if (type == "_pdl-datastream._tcp." && found.isNotEmpty()) break
         }
         val out = LinkedHashMap<String, Int>()
-        // Resolved one at a time even though discovery was concurrent — see [resolving].
-        for (service in services.flatten()) {
+        // One resolve at a time — see [resolving]. If the timeout fires we cannot unregister
+        // the listener, so the mutex stays held for the whole wait and the next resolve
+        // cannot start until this one has finished timing out.
+        for (service in services) {
             val resolved = resolve(nsd, service) ?: continue
             @Suppress("DEPRECATION") val address = resolved.host
             if (address !is Inet4Address) continue          // a station prints over IPv4
@@ -76,8 +81,8 @@ object PrinterDiscovery {
      * Listen for a fixed window and take what turned up.
      *
      * Deliberately not "wait until we have one": mDNS has no idea how many printers exist, so
-     * there is nothing to wait for. Three seconds is long enough for a printer on the same
-     * link and short enough to sit in front of during setup.
+     * there is nothing to wait for. A second or so is long enough for a printer on the same
+     * link; the three types together stay around three seconds.
      */
     private suspend fun discover(nsd: NsdManager, type: String, listenMs: Long): List<NsdServiceInfo> {
         val seen = mutableListOf<NsdServiceInfo>()

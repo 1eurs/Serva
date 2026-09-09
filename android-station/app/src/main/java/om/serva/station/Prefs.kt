@@ -86,12 +86,72 @@ class Prefs(context: Context) {
      * a job it was already printing be handed to "another" station and print twice.
      */
     val stationId: String
-        get() = p.getString("stationId", null) ?: ("android-" + UUID.randomUUID().toString().take(12))
-            .also { p.edit().putString("stationId", it).apply() }
+        get() {
+            p.getString("stationId", null)?.let { return it }
+            val minted = "android-" + UUID.randomUUID().toString().take(12)
+            // commit: apply() can lose the id if the process is killed on first start, and
+            // a new id on the next boot lets another station reprint jobs this one claimed.
+            p.edit().putString("stationId", minted).commit()
+            return minted
+        }
 
+    /** Credentials + a printer are stored. Does not mean the café confirmed a test slip. */
+    val hasAccount: Boolean
+        get() = username.isNotBlank() && branchId > 0
+
+    val hasPrinter: Boolean
+        get() = if (printerTransport == TRANSPORT_BLUETOOTH) printerBtAddress.isNotBlank()
+                else printerHost.isNotBlank()
+
+    /**
+     * The café confirmed a test slip and told us to start collecting.
+     *
+     * Frozen contract: BootReceiver and StationService start only when [configured] is true.
+     * Picking a printer during setup must NOT set this — otherwise a reboot mid-wizard starts
+     * collecting before anyone has seen paper come out.
+     *
+     * Installs from before this flag existed already had a printer stored; those keep running.
+     */
+    var setupComplete: Boolean
+        get() {
+            if (p.contains("setupComplete")) return p.getBoolean("setupComplete", false)
+            val legacy = hasAccount && hasPrinter
+            if (legacy) p.edit().putBoolean("setupComplete", true).apply()
+            return legacy
+        }
+        set(v) = p.edit().putBoolean("setupComplete", v).apply()
+
+    /**
+     * Collecting is switched off on purpose. Survives reboot. The service may still be started
+     * as a foreground placeholder, but it must not pull while this is true.
+     */
+    var paused: Boolean
+        get() = p.getBoolean("paused", false)
+        set(v) = p.edit().putBoolean("paused", v).apply()
+
+    /** Ready to collect: signed in, printer picked, test confirmed, not mid-wizard. */
     val configured: Boolean
-        get() = username.isNotBlank() && branchId > 0 &&
-            (if (printerTransport == TRANSPORT_BLUETOOTH) printerBtAddress.isNotBlank() else printerHost.isNotBlank())
+        get() = setupComplete && hasAccount && hasPrinter
+
+    /** Epoch ms of the last successful pull (including an empty one). 0 = never. */
+    var lastPullAt: Long
+        get() = p.getLong("lastPullAt", 0L)
+        set(v) = p.edit().putLong("lastPullAt", v).apply()
+
+    /** Epoch ms of the last job the printer accepted. 0 = never. */
+    var lastPrintAt: Long
+        get() = p.getLong("lastPrintAt", 0L)
+        set(v) = p.edit().putLong("lastPrintAt", v).apply()
+
+    /** Last pull reached Serva. Written by the service; the status screen only reads it. */
+    var cloudOk: Boolean
+        get() = p.getBoolean("cloudOk", false)
+        set(v) = p.edit().putBoolean("cloudOk", v).apply()
+
+    /** Last printer probe or send succeeded. Written by the service; the status screen only reads it. */
+    var printerOk: Boolean
+        get() = p.getBoolean("printerOk", false)
+        set(v) = p.edit().putBoolean("printerOk", v).apply()
 
     /**
      * Jobs the printer took that the server has not yet confirmed. Written before the ack
@@ -99,8 +159,19 @@ class Prefs(context: Context) {
      * would otherwise forget them and print the same ticket again.
      */
     var unackedJobs: Set<Long>
-        get() = p.getStringSet("unacked", emptySet())!!.mapNotNull { it.toLongOrNull() }.toSet()
-        set(v) = p.edit().putStringSet("unacked", v.map { it.toString() }.toSet()).apply()
+        get() {
+            // Copy: Android's getStringSet returns its live instance; mutating it (or putting
+            // it back) is the classic "I wrote the set and it vanished" bug.
+            val raw = HashSet(p.getStringSet("unacked", emptySet()) ?: emptySet())
+            return raw.mapNotNull { it.toLongOrNull() }.toSet()
+        }
+        set(v) {
+            val stored = HashSet(v.map { it.toString() })
+            // remove-then-put is the documented workaround: putStringSet alone can no-op when
+            // Android thinks the set object has not changed. commit(), not apply() — a kill
+            // between print and ack must not forget these, or the ticket reprints.
+            p.edit().remove("unacked").putStringSet("unacked", stored).commit()
+        }
 
     /** Last outcome, for the status screen — the app is unattended, so it has to keep a record. */
     var lastStatus: String

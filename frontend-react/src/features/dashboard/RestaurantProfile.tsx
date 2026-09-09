@@ -161,6 +161,7 @@ const DICT: Dict = {
     tapeStation: 'جهاز الطباعة', tapeCollecting: 'يستقبل', tapeNoStation: 'لا أحد يستقبل', tapeWaiting: 'بانتظار الطباعة',
     tapeManyStations: 'أكثر من جهاز',
     manyStationsNote: 'أكثر من جهاز يستقبل الطباعة في هذا الفرع. لن تُطبع التذكرة مرتين — كل تذكرة تذهب إلى جهاز واحد — لكن أبقِ المفتاح مفعّلاً على جهاز الكاونتر وحده حتى تخرج الورقة حيث تتوقعها.',
+    appCollectingNote: 'تطبيق Serva Station يطبع لهذا الفرع. هذا المتصفح لن يسحب التذاكر — لا حاجة لإطفاء أي مفتاح.',
     printStation: 'هذا الجهاز يطبع التذاكر الواردة', printStationSub: 'في وضع الكاونتر تُطبع التذكرة لحظة وصول الطلب — من رمز QR أو من شاشة الطلب الجديد — ليبدأ المطبخ منها، وعليها «مدفوع» أو «غير مدفوع». فعّل هذا على جهاز الكاونتر فقط؛ الجهاز الثاني يعني نسختين.',
     counterMode: 'وضع الكاونتر', counterShort: 'للمقاهي السريعة: تُطبع التذكرة لحظة وصول الطلب ويعمل المطبخ عليها، ولا حاجة لقبول طلبات QR. الطلب المدفوع يظهر في «جاهز» مباشرة ويختفي وحده بعد قليل، وغير المدفوع ينتظر في «قيد التنفيذ» حتى تُحصّل ثمنه.',
     cycMonthly: 'شهري', cycYearly: 'سنوي',
@@ -317,6 +318,7 @@ const DICT: Dict = {
     tapeStation: 'Print station', tapeCollecting: 'Collecting', tapeNoStation: 'Nobody collecting', tapeWaiting: 'Waiting to print',
     tapeManyStations: 'More than one device',
     manyStationsNote: 'More than one device is collecting prints for this branch. Tickets will not print twice, each goes to one device, but keep the switch on the counter device only so paper comes out where you expect it.',
+    appCollectingNote: 'The Serva Station app is printing for this branch. This browser will not collect tickets — you do not have to turn any switch off.',
     printStation: 'This device prints incoming tickets', printStationSub: 'In counter mode the ticket prints the moment an order arrives — from a QR code or the New order screen — so the kitchen starts from it, marked PAID or NOT PAID. Turn this on for the counter device only; a second device means two copies.',
     counterMode: 'Counter mode', counterShort: 'For quick-service cafés: the ticket prints the moment an order arrives and the kitchen works off it, and QR orders need no Accept. A paid order lands straight in Ready and leaves the board by itself after a while; an unpaid one waits in In progress until you collect.',
     cycMonthly: 'Monthly', cycYearly: 'Yearly',
@@ -785,6 +787,12 @@ export function BranchPrinterSection({ branchId }: { branchId?: number }) {
   // Whether the Serva Station app is polling this branch — the one observable fact in its
   // setup, read from the same liveness the watchdog uses.
   const stationCollecting = !!stationQ.data?.collecting;
+  const appCollecting = !!stationQ.data?.appCollecting;
+  useEffect(() => {
+    if (!branch || !appCollecting || !station) return;
+    setPrintStation(branch.id, false);
+    setStation(false);
+  }, [branch?.id, appCollecting, station]);
   const cleanterPrinter = health?.ok ? health.printer : null;
   const cleanterReady = !!cleanterPrinter?.connected;
   const lastCleanterFailure = lastAttempt?.app === 'cleanter' && lastAttempt.ok === false ? lastAttempt : null;
@@ -807,6 +815,12 @@ export function BranchPrinterSection({ branchId }: { branchId?: number }) {
     setApp(stuck);
     if (stuck !== next) { toast(t('printStationNoStorage')); return; }
     if (branch) { setPrinterVerified(branch.id, false); setVerified(false); }
+    // This browser is no longer the printer — the app is. Drop the old collector flag so
+    // the tab does not keep pulling jobs beside the app.
+    if (next === 'station' && branch) {
+      setPrintStation(branch.id, false);
+      setStation(false);
+    }
     setProbe('idle');
     toast(t('appSwitched'));
   };
@@ -890,7 +904,10 @@ export function BranchPrinterSection({ branchId }: { branchId?: number }) {
             </div>
           </div>
           <p className="stg-spec-note">{app === 'station' ? t(stationCollecting ? 's4Ok' : 's4Wait') : verified ? t(app === 'cleanter' ? 'c6Ok' : 'g5Ok') : t('asideSetup')}</p>
-          {printingOn && (stationQ.data?.stations ?? 0) > 1 && (
+          {printingOn && appCollecting && (
+            <p className="stg-spec-note">{t('appCollectingNote')}</p>
+          )}
+          {printingOn && !appCollecting && (stationQ.data?.stations ?? 0) > 1 && (
             <p className="stg-spec-note">{t('manyStationsNote')}</p>
           )}
         </Specimen>

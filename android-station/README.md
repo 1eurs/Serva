@@ -38,9 +38,34 @@ it last did.
    self-test that makes the printer print its own address.
 3. **Bluetooth instead?** Pair the printer once in Android's own Bluetooth settings, then tap
    **Use a Bluetooth printer** and pick it from the paired list. The app never scans for
-   unpaired devices, which is why it needs no location permission.
-4. Print the test slip, confirm paper came out, and save. The notification appears and the
-   station starts collecting. The screen can be turned off; leave the tablet on a charger.
+   unpaired devices, which is why it needs no location permission. Cheap printers that refuse
+   the standard serial-port UUID are retried over an insecure link, then on RFCOMM channel 1.
+4. Print the test slip, confirm paper came out, and save. Collecting does not start until that
+   confirmation — a reboot mid-setup will not quietly begin printing. Allow the battery
+   exemption when Android asks (that is what stops the tablet sleeping the app overnight).
+   The notification appears and the station starts pulling jobs from Serva. The screen can
+   be turned off; leave the tablet on a charger. Pause collecting from the status screen if
+   you need the printer for something else without wiping the setup.
+
+## Keeping it alive in the background
+
+The app is a foreground service: it holds a CPU wake lock and a Wi-Fi lock, restarts after
+reboot (including Xiaomi/HTC “quick boot”), restarts if someone swipes it off Recents, and
+nudges itself every ten minutes if a phone maker killed it anyway. That is the most Android
+will let an app do for itself. The café still has to:
+
+1. **Leave the tablet on a charger.** A counter tablet that is not plugged in will be
+   throttled no matter what the app requests.
+2. **Tap Allow** on “Stop Android from sleeping this app” (battery optimisation). The status
+   screen keeps the button until this is granted.
+3. **Do not swipe Serva Station off the recent-apps list, and never Force stop it.** Force
+   stop is the one thing Android will not let an app recover from until someone opens it.
+4. **Keep Wi-Fi set to always on** (not “Wi-Fi turns off when the screen is off”). Samsung
+   hides this under Connections → Wi-Fi → ⋮ → Intelligent Wi-Fi / Advanced.
+5. **On Xiaomi, Huawei, Oppo, Vivo:** also add Serva Station to the maker’s own Autostart /
+   “no battery restriction” list. Those overlays ignore Android’s exemption.
+6. Leave the Serva notification in the shade. Clearing it (or turning notifications off)
+   is how some builds decide the service is no longer wanted.
 
 Don't know a network printer's IP? Switch it off, hold FEED, switch it on. It prints its own
 settings slip. Ask whoever set up the WiFi to reserve that address, or printing stops the day
@@ -83,8 +108,9 @@ beyond AndroidX and coroutines.
   printer has not consumed). If slips come out cut short or garbled, those three constants
   are the dials.
 - **Bluetooth is untested on real hardware.** The LAN path has printed on a real printer; the
-  Bluetooth path has been reasoned through and compiled, and the first café to use it is the
-  test. For a printer that sits on a counter and never moves, prefer the network.
+  Bluetooth path has been reasoned through and compiled (including the insecure-SPP and
+  channel-1 fallbacks cheap clones need), and the first café to use it is the test. For a
+  printer that sits on a counter and never moves, prefer the network.
 - **The password is stored on the device.** Give a station its own staff account with the
   orders permission and nothing else.
 

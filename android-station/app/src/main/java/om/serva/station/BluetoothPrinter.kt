@@ -30,8 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * actually behave rather than from the spec:
  *
  *  1. **One connection at a time.** Most printers accept a single RFCOMM link and refuse the
- *     next until the first is closed. So status and the job share one connection here, where
- *     the TCP path happily opens two.
+ *     next until the first is closed. Status and the job share one connection.
  *  2. **Write in small pieces.** The radio is far faster than the printer's own UART, and a
  *     cheap controller with a small buffer answers a firehose by dropping the middle of the
  *     receipt — a garbled slip, not an error. Small writes with a breath between them cost
@@ -127,10 +126,18 @@ object BluetoothPrinter {
      */
     @Throws(IOException::class)
     fun send(context: Context, address: String, bytes: ByteArray) {
-        open(context, address).use { socket ->
-            val out = socket.outputStream
+        val socket = try {
+            open(context, address)
+        } catch (e: IOException) {
+            if (e is NotAllowed || e is NoAdapter || e is NotPaired) throw e
+            // Probe (or the last job) just hung up; some printers refuse the next connect for a beat.
+            Thread.sleep(400)
+            open(context, address)
+        }
+        socket.use { connected ->
+            val out = connected.outputStream
             // Same connection as the job: most of these printers only accept one link at a time.
-            EscPosPrinter.statusOver(out, socket.inputStream, STATUS_WAIT_MS)?.problem()?.let {
+            EscPosPrinter.statusOver(out, connected.inputStream, STATUS_WAIT_MS)?.problem()?.let {
                 throw IOException("Printer is $it")
             }
             var at = 0
@@ -154,14 +161,33 @@ object BluetoothPrinter {
             ?: throw NotPaired(address)
         // Discovery is a bandwidth hog and the documented cause of failed connects.
         runCatching { adapter.cancelDiscovery() }
-        val socket = device.createRfcommSocketToServiceRecord(SPP)
-        try {
-            socket.connectWithin(CONNECT_TIMEOUT_MS)
-        } catch (e: IOException) {
-            runCatching { socket.close() }
-            throw e
+        // Cheap clones often advertise the wrong UUID (or none). The standard SPP record
+        // fails first; insecure is the usual second try; channel 1 via the hidden API is
+        // the last one that still works on the printers this app actually meets.
+        var last: IOException? = null
+        for (attempt in 1..3) {
+            val socket = try {
+                when (attempt) {
+                    1 -> device.createRfcommSocketToServiceRecord(SPP)
+                    2 -> device.createInsecureRfcommSocketToServiceRecord(SPP)
+                    else -> device.javaClass
+                        .getMethod("createRfcommSocket", Integer.TYPE)
+                        .invoke(device, 1) as BluetoothSocket
+                }
+            } catch (e: Exception) {
+                val cause = (e as? java.lang.reflect.InvocationTargetException)?.targetException ?: e
+                last = cause as? IOException ?: IOException(cause)
+                continue
+            }
+            try {
+                socket.connectWithin(CONNECT_TIMEOUT_MS)
+                return socket
+            } catch (e: IOException) {
+                runCatching { socket.close() }
+                last = e
+            }
         }
-        return socket
+        throw last ?: IOException("Could not open a Bluetooth link to the printer")
     }
 
     /**
@@ -169,6 +195,7 @@ object BluetoothPrinter {
      * printer is off or out of range — long enough for the poll loop behind it to look wedged.
      * A watchdog thread closes the socket, which is the only thing that makes connect() return.
      */
+    @SuppressLint("MissingPermission")   // connect() is only reached from open(), which already checked allowed()
     private fun BluetoothSocket.connectWithin(timeoutMs: Int) {
         val settled = AtomicBoolean(false)
         val timedOut = AtomicBoolean(false)
