@@ -11,13 +11,13 @@ import { useOrderStream, type StreamStatus } from '../../lib/sse';
 import { isPrintStation, setPrintStation, canPrintHere, getStationId, rememberPrinted, forgetPrinted, printedButUnacked } from '../../lib/printer';
 import { useOrderSound, SoundToggle, notify, closeNotify } from '../../lib/alerts';
 import { useWakeLock } from '../../lib/wakeLock';
-import { fmtElapsed } from '../../lib/format';
+import { fmtElapsed, omr } from '../../lib/format';
 import { Money } from '../../lib/Money';
 import { carColorOf } from '../../lib/carColors';
 import { useSkin } from '../../lib/skin';
 import ReceiptCapture, { type PendingReceipt, type ReceiptOutput } from './ReceiptCapture';
 import { ReceiptPrinterProvider, useReceiptPrinter, type PrintOptions } from './receiptPrinter';
-import type { OrderResponse, OrderStatus, BranchResponse, TableResponse, Restaurant, QrActivity, QrCartItem, PrintJobResponse, EnqueueResponse, StationStatus } from '../../lib/types';
+import type { OrderResponse, OrderStatus, BranchResponse, TableResponse, Restaurant, QrActivity, QrCartItem, PrintJobResponse, EnqueueResponse, StationStatus, PaymentTender } from '../../lib/types';
 import { BRAND } from '../../lib/brand';
 import { ensureGoogleFonts, BOLD_FONTS } from '../../lib/fonts';
 import { useFeatures } from '../../lib/plan';
@@ -42,6 +42,9 @@ const DICT: Dict = {
         col_PENDING: 'جديد', col_ACCEPTED: 'قيد التنفيذ', col_PREPARING: 'قيد التحضير', col_READY: 'جاهز',
         table: 'طاولة', car: 'خدمة السيارة', note: 'ملاحظة', loyaltyReward: 'مكافأة ولاء',
         paymentTitle: 'كيف دفع العميل؟', paymentSub: 'اختر طريقة الدفع قبل إنهاء الطلب.', paymentCash: 'نقداً', paymentCard: 'بطاقة / فيزا',
+        paymentSplit: 'تقسيم', splitTitle: 'تقسيم الفاتورة', splitSub: 'سجّل حصة كل شخص وكيف دفعها.',
+        splitPeople: 'عدد الأشخاص', splitEach: 'لكل شخص', splitPerson: 'شخص', splitMore: 'أكثر',
+        splitRemaining: 'المتبقي', splitExtra: 'زيادة عن الإجمالي', splitSettle: 'تسجيل الدفع',
         accept: 'قبول', decline: 'رفض', startPrep: 'بدء التحضير', ready: 'جاهز', complete: 'اكتمل', cancel: 'إلغاء',
         collect: 'حصّل', done: 'تم', doneUnpaid: 'تم دون دفع',
         unpaid: 'تحديد كمدفوع', paid: 'مدفوع', confirm: 'تأكيد', back: 'رجوع',
@@ -75,6 +78,9 @@ const DICT: Dict = {
         col_PENDING: 'New', col_ACCEPTED: 'In progress', col_PREPARING: 'Preparing', col_READY: 'Ready',
         table: 'Table', car: 'Outdoor car', note: 'Note', loyaltyReward: 'Loyalty reward',
         paymentTitle: 'How did the customer pay?', paymentSub: 'Choose the payment method before completing the order.', paymentCash: 'Cash', paymentCard: 'Card / Visa',
+        paymentSplit: 'Split', splitTitle: 'Split the bill', splitSub: "Record each person's share and how they paid.",
+        splitPeople: 'People', splitEach: 'Each', splitPerson: 'Person', splitMore: 'More',
+        splitRemaining: 'Remaining', splitExtra: 'Over the total', splitSettle: 'Record payment',
         accept: 'Accept', decline: 'Decline', startPrep: 'Start preparing', ready: 'Ready', complete: 'Complete', cancel: 'Cancel',
         collect: 'Collect', done: 'Done', doneUnpaid: 'Done, unpaid',
         unpaid: 'Mark paid', paid: 'Paid', confirm: 'Confirm', back: 'Back',
@@ -1065,6 +1071,153 @@ function LiveActivityStrip({ activity, tokenToTable, t, lang }: {
   );
 }
 
+/* ---- Splitting one bill between the people at the table ----------------------------------
+   Cafés asked for this so five friends can each pay their own share, but what earns it a place
+   in the ledger is the drawer: one order used to mean one method, so a bill where three paid
+   cash and two paid card put the whole amount in a single bucket and the closing cash count
+   came out wrong by the difference. Every share is recorded with the method that person
+   actually handed over.
+
+   The tally stays on this device until the bill is covered, then one request writes every
+   share (POST /split). Nothing is written from a half-finished split, so a tablet that reloads
+   mid-way leaves the order exactly as it was — unpaid — rather than half-settled. */
+
+type Tender = 'CASH' | 'CARD';
+/** One person's share. Amounts are whole baisa (1/1000 OMR): three ways of 10.000 has to add
+ *  back up to 10.000 to the last baisa, and float thirds do not. */
+type Share = { baisa: number; paid: Tender | null; typed: boolean };
+
+const MAX_PEOPLE = 12;
+const blankShares = (n: number): Share[] => Array.from({ length: n }, () => ({ baisa: 0, paid: null, typed: false }));
+
+/** Spread what is still unclaimed over the shares nobody has paid or typed over, giving the
+ *  leftover baisa to the first few. Every share stays whole and they always sum to the bill. */
+function spread(totalBaisa: number, shares: Share[]): Share[] {
+  const free = shares.flatMap((s, i) => (s.paid || s.typed ? [] : [i]));
+  if (!free.length) return shares;
+  const claimed = shares.reduce((sum, s) => sum + (s.paid || s.typed ? s.baisa : 0), 0);
+  const rest = Math.max(0, totalBaisa - claimed);
+  const each = Math.floor(rest / free.length);
+  const over = rest - each * free.length;
+  return shares.map((s, i) => {
+    const k = free.indexOf(i);
+    return k < 0 ? s : { ...s, baisa: each + (k < over ? 1 : 0) };
+  });
+}
+
+/** Drop shares from the end to reach n, skipping any that are already paid. */
+function trimShares(shares: Share[], n: number): Share[] {
+  const out = [...shares];
+  for (let i = out.length - 1; i >= 0 && out.length > n; i--) if (!out[i].paid) out.splice(i, 1);
+  return out;
+}
+
+function SplitBill({ total, busy, t, onSettle, onBack }: {
+  total: number; busy: boolean; t: (key: string) => string;
+  onSettle: (tenders: PaymentTender[]) => void; onBack: () => void;
+}) {
+  const totalBaisa = Math.round(total * 1000);
+  const [shares, setShares] = useState<Share[]>(() => spread(totalBaisa, blankShares(2)));
+  // The row being typed in keeps its raw text, so a half-typed "3.1" is not reformatted away
+  // under the staff member's fingers.
+  const [typing, setTyping] = useState<{ at: number; text: string } | null>(null);
+
+  const paidCount = shares.filter((s) => s.paid).length;
+  // What would actually be sent. A share of zero is not a payment — it happens when one person
+  // is typed in for the whole bill and the other rows fall to nothing — so it never travels.
+  const tenders: PaymentTender[] = shares
+    .filter((s) => s.paid && s.baisa > 0)
+    .map((s) => ({ method: s.paid!, amount: s.baisa / 1000 }));
+  const covered = shares.reduce((sum, s) => sum + (s.paid ? s.baisa : 0), 0);
+  const left = totalBaisa - covered;
+  const evenShares = shares.filter((s) => !s.paid && !s.typed);
+  const even = evenShares.length ? Math.max(...evenShares.map((s) => s.baisa)) : 0;
+  const rounded = evenShares.some((s) => s.baisa !== even);
+  // Chips go to six, then grow one at a time — a table of nine is rare enough to be worth a tap.
+  const chipMax = Math.min(MAX_PEOPLE, Math.max(6, shares.length));
+
+  const setPeople = (n: number) => {
+    // A share someone has already paid cannot be taken away, so the floor is the paid count.
+    const next = Math.min(MAX_PEOPLE, Math.max(Math.max(paidCount, 2), n));
+    setShares((prev) => spread(totalBaisa, next >= prev.length
+      ? [...prev, ...blankShares(next - prev.length)]
+      : trimShares(prev, next)));
+    setTyping(null);
+  };
+
+  const tender = (at: number, method: Tender) => {
+    setShares((prev) => spread(totalBaisa, prev.map((s, i) =>
+      i === at ? { ...s, paid: s.paid === method ? null : method } : s)));
+    setTyping(null);
+  };
+
+  // Typing an amount pins that share; clearing the box hands it back to the even split.
+  const commit = () => {
+    if (!typing) return;
+    const { at, text } = typing;
+    const value = Number(text.replace(',', '.'));
+    const pinned = !!text.trim() && Number.isFinite(value) && value > 0;
+    setShares((prev) => spread(totalBaisa, prev.map((s, i) => (i !== at ? s
+      : pinned ? { ...s, typed: true, baisa: Math.round(value * 1000) } : { ...s, typed: false }))));
+    setTyping(null);
+  };
+
+  return (
+    <div className="split">
+      <div className="split-head">
+        <span className="split-label">{t('splitPeople')}</span>
+        <div className="split-chips">
+          {Array.from({ length: chipMax - 1 }, (_, i) => i + 2).map((n) => (
+            <button key={n} className={'split-chip num' + (n === shares.length ? ' on' : '')}
+              disabled={busy || n < paidCount} aria-pressed={n === shares.length}
+              onClick={() => setPeople(n)}><Ltr>{n}</Ltr></button>
+          ))}
+          {chipMax < MAX_PEOPLE && (
+            <button className="split-chip more" disabled={busy} title={t('splitMore')} aria-label={t('splitMore')}
+              onClick={() => setPeople(chipMax + 1)}>＋</button>
+          )}
+        </div>
+      </div>
+
+      {even > 0 && (
+        <div className="split-each">{t('splitEach')} {rounded ? '≈' : ''}<Money value={even / 1000} className="num" /></div>
+      )}
+
+      <div className="split-rows">
+        {shares.map((s, i) => (
+          <div className={'split-row' + (s.paid ? ' done' : '')} key={i}>
+            <span className="split-no num"><Ltr>{i + 1}</Ltr></span>
+            <input className="split-amt num" inputMode="decimal" dir="ltr" disabled={busy || !!s.paid}
+              aria-label={`${t('splitPerson')} ${i + 1}`}
+              value={typing?.at === i ? typing.text : omr(s.baisa / 1000)}
+              onFocus={(e) => { setTyping({ at: i, text: omr(s.baisa / 1000) }); e.currentTarget.select(); }}
+              onChange={(e) => setTyping({ at: i, text: e.target.value })}
+              onBlur={commit}
+              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
+            <button className={'split-pay cash' + (s.paid === 'CASH' ? ' on' : '')} disabled={busy}
+              aria-pressed={s.paid === 'CASH'} aria-label={`${t('splitPerson')} ${i + 1} · ${t('paymentCash')}`}
+              onClick={() => tender(i, 'CASH')}><span aria-hidden="true">💵</span></button>
+            <button className={'split-pay card' + (s.paid === 'CARD' ? ' on' : '')} disabled={busy}
+              aria-pressed={s.paid === 'CARD'} aria-label={`${t('splitPerson')} ${i + 1} · ${t('paymentCard')}`}
+              onClick={() => tender(i, 'CARD')}><span aria-hidden="true">▣</span></button>
+          </div>
+        ))}
+      </div>
+
+      <div className={'split-left' + (left === 0 ? ' ok' : left < 0 ? ' over' : '')} aria-live="polite">
+        <span>{left < 0 ? t('splitExtra') : t('splitRemaining')}</span>
+        <Money value={Math.abs(left) / 1000} className="num" />
+      </div>
+
+      <button className="btn split-settle" disabled={busy || left !== 0 || !tenders.length}
+        onClick={() => onSettle(tenders)}>
+        {t('splitSettle')}
+      </button>
+      <button className="btn ghost payment-cancel" disabled={busy} onClick={onBack}>{t('back')}</button>
+    </div>
+  );
+}
+
 function KdsBoard({ branchId, focusSignal }: { branchId?: number; focusSignal: number }) {
   const { user } = useAuth();
   const { lang } = useI18n();
@@ -1129,6 +1282,8 @@ function KdsBoard({ branchId, focusSignal }: { branchId?: number; focusSignal: n
   // 'ready' (Collect on an in-progress counter-mode order — paying is what moves it on), or nothing.
   type AfterPay = 'complete' | 'ready' | null;
   const [paymentPrompt, setPaymentPrompt] = useState<{ order: OrderResponse; after: AfterPay } | null>(null);
+  // Second step of the same modal: the bill is being divided between the people at the table.
+  const [splitting, setSplitting] = useState(false);
 
   const act = useMutation({
     mutationFn: ({ path, body }: { path: string; body?: unknown }) => api.patch<OrderResponse>(path, body),
@@ -1138,6 +1293,13 @@ function KdsBoard({ branchId, focusSignal }: { branchId?: number; focusSignal: n
   const pay = useMutation({
     mutationFn: ({ orderId, method }: { orderId: number; method: 'CASH' | 'CARD' }) =>
       api.post(`/api/payments/orders/${orderId}/mark-paid`, { method }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: liveKey }),
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
+  });
+  // A split settles in one request: every share, with the method that person actually paid with.
+  const split = useMutation({
+    mutationFn: ({ orderId, tenders }: { orderId: number; tenders: PaymentTender[] }) =>
+      api.post(`/api/payments/orders/${orderId}/split`, { tenders }),
     onSuccess: () => qc.invalidateQueries({ queryKey: liveKey }),
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
@@ -1162,17 +1324,29 @@ function KdsBoard({ branchId, focusSignal }: { branchId?: number; focusSignal: n
   const payOrder = (o: OrderResponse) => requestPayment(o, counterMode && inProgress(o) ? 'ready' : null);
   const requestPayment = (order: OrderResponse, after: AfterPay) => {
     if (restaurantQ.data?.paymentMethodSelectionEnabled) {
+      setSplitting(false);
       setPaymentPrompt({ order, after });
       return;
     }
     pay.mutate({ orderId: order.id, method: 'CARD' }, { onSuccess: () => afterPaid(order, after) });
   };
+  const closePayment = () => { setPaymentPrompt(null); setSplitting(false); };
   const recordPayment = (method: 'CASH' | 'CARD') => {
     if (!paymentPrompt) return;
     const { order, after } = paymentPrompt;
     pay.mutate({ orderId: order.id, method }, {
       onSuccess: () => {
-        setPaymentPrompt(null);
+        closePayment();
+        afterPaid(order, after);
+      },
+    });
+  };
+  const recordSplit = (tenders: PaymentTender[]) => {
+    if (!paymentPrompt) return;
+    const { order, after } = paymentPrompt;
+    split.mutate({ orderId: order.id, tenders }, {
+      onSuccess: () => {
+        closePayment();
         afterPaid(order, after);
       },
     });
@@ -1245,21 +1419,31 @@ function KdsBoard({ branchId, focusSignal }: { branchId?: number; focusSignal: n
 
       {paymentPrompt && (
         <div className="modal-bg" onClick={(e) => {
-          if (e.target === e.currentTarget && !pay.isPending) setPaymentPrompt(null);
+          if (e.target === e.currentTarget && !pay.isPending && !split.isPending) closePayment();
         }}>
           <div className="modal-card payment-method-modal" role="dialog" aria-modal="true" aria-labelledby="payment-method-title">
-            <h3 id="payment-method-title">{t('paymentTitle')}</h3>
-            <div className="ph">{t('paymentSub')} · <Ltr>#{paymentPrompt.order.dailyNumber}</Ltr></div>
+            <h3 id="payment-method-title">{t(splitting ? 'splitTitle' : 'paymentTitle')}</h3>
+            <div className="ph">{t(splitting ? 'splitSub' : 'paymentSub')} · <Ltr>#{paymentPrompt.order.dailyNumber}</Ltr></div>
             <Money value={paymentPrompt.order.total} className="payment-method-total num" />
-            <div className="payment-method-grid">
-              <button className="payment-method cash" disabled={pay.isPending} onClick={() => recordPayment('CASH')}>
-                <span aria-hidden="true">💵</span><b>{t('paymentCash')}</b>
-              </button>
-              <button className="payment-method card" disabled={pay.isPending} onClick={() => recordPayment('CARD')}>
-                <span aria-hidden="true">▣</span><b>{t('paymentCard')}</b>
-              </button>
-            </div>
-            <button className="btn ghost payment-cancel" disabled={pay.isPending} onClick={() => setPaymentPrompt(null)}>{t('back')}</button>
+            {splitting ? (
+              <SplitBill total={paymentPrompt.order.total} busy={split.isPending} t={t}
+                onSettle={recordSplit} onBack={() => setSplitting(false)} />
+            ) : (
+              <>
+                <div className="payment-method-grid">
+                  <button className="payment-method cash" disabled={pay.isPending} onClick={() => recordPayment('CASH')}>
+                    <span aria-hidden="true">💵</span><b>{t('paymentCash')}</b>
+                  </button>
+                  <button className="payment-method card" disabled={pay.isPending} onClick={() => recordPayment('CARD')}>
+                    <span aria-hidden="true">▣</span><b>{t('paymentCard')}</b>
+                  </button>
+                  <button className="payment-method split" disabled={pay.isPending} onClick={() => setSplitting(true)}>
+                    <span aria-hidden="true">👥</span><b>{t('paymentSplit')}</b>
+                  </button>
+                </div>
+                <button className="btn ghost payment-cancel" disabled={pay.isPending} onClick={closePayment}>{t('back')}</button>
+              </>
+            )}
           </div>
         </div>
       )}

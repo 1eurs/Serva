@@ -102,8 +102,8 @@ export default function Uses({ branchId, items, onClose }: {
                 if (!group.length) return null;
                 return (
                   <section key={g.key}>
-                    <h4 className={`stk-sec-hd${g.alert ? ' alert' : ''}`}>
-                      <span className="stk-band-label">{g.label}<i className="num">{group.length}</i></span>
+                    <h4 className={`stk-band-h${g.alert ? ' alert' : ''}`}>
+                      {g.label}<i className="num">{group.length}</i>
                     </h4>
                     {group.map(({ item, link }) => (
                       <UseRow key={item.id} t={t} item={item} link={link}

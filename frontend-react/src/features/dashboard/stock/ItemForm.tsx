@@ -39,9 +39,14 @@ type T = (k: string) => string;
  * broken; the half that makes them move lived behind a second tab nobody opened. Asked here,
  * while the ingredient is the thing they are already thinking about, it costs a few taps.
  */
-export default function ItemForm({ t, branchId, queryKey, item, categories, onClose }: {
+export default function ItemForm({
+  t, branchId, queryKey, item, categories, initialName, onClose,
+}: {
   t: T; branchId?: number; queryKey: unknown[];
-  item: StockItemRow | null; categories: string[]; onClose: () => void;
+  item: StockItemRow | null; categories: string[];
+  /** What was typed into the wall's search when it came back with nothing. */
+  initialName?: string;
+  onClose: () => void;
 }) {
   const qc = useQueryClient();
   const toast = useToast();
@@ -54,8 +59,12 @@ export default function ItemForm({ t, branchId, queryKey, item, categories, onCl
      has moved on underneath it. */
   type Form = Omit<StockItemPayload,
     'baseUnit' | 'purchaseUnitSize' | 'purchaseUnitLabel' | 'costPerBaseUnit'>;
+  /* Reached from a search that found nothing, the form opens on the word that was typed —
+     filed by its own script, because that is the only thing about it we actually know. */
+  const seedAr = !!initialName && /[\u0600-\u06FF]/.test(initialName);
   const [f, setF] = useState<Form>({
-    nameEn: item?.nameEn ?? '', nameAr: item?.nameAr ?? '',
+    nameEn: item?.nameEn ?? (initialName && !seedAr ? initialName : ''),
+    nameAr: item?.nameAr ?? (seedAr ? initialName : ''),
     kind: item?.kind ?? 'INGREDIENT',
     wastePct: item?.wastePct ?? 0,
     batchYieldBase: item?.batchYieldBase ?? null, category: item?.category ?? '',

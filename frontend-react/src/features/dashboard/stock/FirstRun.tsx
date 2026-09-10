@@ -1,12 +1,12 @@
 import { useI18n, pick } from '../../../lib/i18n';
 import type { BaseUnit, CoverRow, StockItemRow } from '../../../lib/types';
-import { Gauge, stateLabel } from './parts';
-import { LINE_AT, levelOf, qty, unitTag } from './units';
+import { stateLabel } from './parts';
+import { LINE_AT, axisPct, humanParts, levelOf } from './units';
 
 type T = (k: string) => string;
 
 /**
- * The shelf before anything is on it.
+ * The wall before anything is on it.
  *
  * <p>This is the only screen an owner sees before deciding whether stock is worth their
  * evening, and for a new café it is the common state rather than the edge case. It has one
@@ -31,40 +31,32 @@ export default function FirstRun({ t, onAdd }: { t: T; onAdd: () => void }) {
         </button>
       </header>
 
-      {/* Three rows of a real shelf, drawn by the same parts the real one uses, so what they
-          are being shown is what they will get. Labelled as a sample, because a screen that
-          shows made-up numbers without saying so is a screen that has lied once. */}
+      {/* Three real tiles, drawn by the same rules the real wall uses, so what they are being
+          shown is what they will get — including the line, which is the one thing about this
+          page that has to be understood before it is useful. Labelled as a sample, because a
+          screen that shows made-up numbers without saying so is a screen that has lied once. */}
       <figure className="stk-sample" aria-label={t('sampleAria')}>
         <figcaption className="stk-eyebrow">{t('sampleH')}</figcaption>
-        <div className="stk-list" aria-hidden>
-          <div className="stk-axis">
-            <span className="stk-row-track">
-              <i className="stk-row-rule" style={{ insetInlineStart: `${LINE_AT}%` }} />
-              <em className="stk-axis-cap" style={{ insetInlineStart: `${LINE_AT}%` }}>
-                {t('lineCap')}
-              </em>
-            </span>
-          </div>
-          <div className="stk-band">
-            {SAMPLE.map(({ item, days }) => {
-              const label = stateLabel(
-                item, days != null ? ({ daysLeft: days } as CoverRow) : undefined, t, lang);
-              return (
-                <div className="stk-row" data-state={levelOf(item)} key={item.id}>
-                  <span className="stk-row-name"><b>{pick(item, 'name', lang)}</b></span>
-                  <span className="stk-row-qty num">
-                    {qty(item.onHand, item.baseUnit)}<i>{unitTag(item.baseUnit, t)}</i>
-                  </span>
-                  <span className="stk-row-track">
-                    <i className="stk-row-rule" style={{ insetInlineStart: `${LINE_AT}%` }} />
-                    <Gauge item={item} rule={false} className="in-row" />
-                  </span>
-                  <span className="stk-row-state" data-tone={label.tone}>{label.text}</span>
-                </div>
-              );
-            })}
-          </div>
+        <div className="stk-wall" aria-hidden>
+          {SAMPLE.map(({ item, days }) => {
+            const label = stateLabel(
+              item, days != null ? ({ daysLeft: days } as CoverRow) : undefined, t, lang);
+            const pct = axisPct(item.onHand, item.reorderPoint);
+            const amount = humanParts(item.onHand, item.baseUnit, lang);
+            return (
+              <div className="stk-tile" data-state={levelOf(item)} key={item.id}>
+                <span className="stk-tile-fill" style={{ blockSize: `${pct ?? 0}%` }} />
+                <i className="stk-tile-water" style={{ insetBlockEnd: `${LINE_AT}%` }} />
+                <span className="stk-tile-name">{pick(item, 'name', lang)}</span>
+                <span className="stk-tile-qty">
+                  <b className="num">{amount.n}</b><i>{amount.u}</i>
+                </span>
+                <span className="stk-tile-state" data-tone={label.tone}>{label.text}</span>
+              </div>
+            );
+          })}
         </div>
+        <p className="stk-sample-cap">{t('lineCapLong')}</p>
       </figure>
 
       {/* The loop, as a promise. A real sequence in time, so it is numbered; the numbers stop

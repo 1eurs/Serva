@@ -58,6 +58,9 @@ export function stateLabel(item: StockItemRow, c: CoverRow | undefined, t: T, la
   /* Moving, but not enough trading behind it to name a day. Saying "fine" here would be the
      page vouching for a runway it has not got. */
   if (c) return { text: t('stLearning'), tone: 'new' };
+  /* Nobody has said when to buy more, so the tile has no line to fill to and stands empty.
+     Naming that is the difference between a blank tile and a broken-looking one. */
+  if (item.reorderPoint == null) return { text: t('stNoLine'), tone: 'new' };
   return { text: '', tone: 'ok' };
 }
 

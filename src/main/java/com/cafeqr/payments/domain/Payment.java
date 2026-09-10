@@ -39,6 +39,15 @@ public class Payment extends BaseEntity {
     @Column(name = "method", length = 20)
     private PaymentMethod method;
 
+    /**
+     * Groups the rows written by one settlement: a bill split five ways is five rows sharing the
+     * id of the first one saved. Null means this row settles its order alone — every plain
+     * mark-paid. Reporting sums a settlement, so a split counts once and an order marked paid
+     * twice still does not count twice.
+     */
+    @Column(name = "settlement_id")
+    private Long settlementId;
+
     public Long getOrderId() {
         return orderId;
     }
@@ -93,5 +102,13 @@ public class Payment extends BaseEntity {
 
     public void setMethod(PaymentMethod method) {
         this.method = method;
+    }
+
+    public Long getSettlementId() {
+        return settlementId;
+    }
+
+    public void setSettlementId(Long settlementId) {
+        this.settlementId = settlementId;
     }
 }

@@ -15,22 +15,14 @@ import type { Dict } from '../../../lib/i18n';
  */
 export const DICT: Dict = {
   ar: {
-    /* ---- the one job ---- */
-    jobEyebrow: 'الحين',
-    jobCount: 'عُدّ الرف',
-    jobCountNew: 'ما في صنف عنده رقم بعد. لفّة وحدة على الرف — دقيقة تقريباً — ويبدأ المخزون يشتغل.',
-    jobCountStale: 'آخر عدّة {when}. عدّة كل ليلة هي اللي تخلّي قائمة الطلب صحيحة.',
-    jobCountGo: 'ابدأ العد',
-    jobOrder: 'اطلب هذي الأصناف ({n})',
-    jobOrderSub: 'نزلت تحت حدّ الطلب، وما هي في الطريق.',
+    /* ---- سطر الوضع: كل اللي بقي من أربع بطاقات ---- */
+    toBuy: 'يحتاج طلب',
+    nothingToBuy: 'ما في شي يحتاج طلب',
+    orderCount: '{n} جاهزة للإرسال',
+    allOnWay: 'كل اللي تحت الخط في الطريق أصلاً.',
     jobOrderGo: 'انسخ للواتساب',
     jobOrderCopied: 'انتسخت — وسجّلناها كطلب مُرسَل',
     jobOrderFailed: 'ما قدرنا ننسخ. حدّد القائمة وانسخها يدوياً.',
-    jobOrderEst: 'تقريباً {v}',
-    jobUses: 'حدّد وش تستهلك مشروباتك',
-    jobUsesGo: 'اربط القائمة',
-    jobClear: 'ما في شي يحتاج طلب.',
-    jobClearSub: 'كل صنف فوق حدّ الطلب.',
 
     /* ---- الحلقة: الجملة اللي كان المنتج مدين فيها لصاحب المقهى ولا قالها ---- */
     loopDead: 'البيع ما ينزّل شي من الرف.',
@@ -39,9 +31,7 @@ export const DICT: Dict = {
 
     /* ---- سطر الإسناد: من وين جت الأرقام ---- */
     counted: 'آخر عدّة {when}', countedNever: 'ما انعدّ شي بعد',
-    onShelves: 'على الرفوف', onWay: '{n} في الطريق',
-    onWayNote: 'ما نعيد طلبها. أول ما تسجّل التوريد تنقفل لحالها.',
-    notComing: 'ما وصلت؟ رجّعها لقائمة الطلب', putBack: 'رجّعناها لقائمة الطلب',
+    onShelves: 'على الرفوف',
 
     /* ---- مخفي عن قائمة العملاء ---- */
     offTitle: '{n} من قائمتك مخفية عن العملاء',
@@ -56,16 +46,28 @@ export const DICT: Dict = {
     changeRule: 'المخزون هو اللي سواها — غيّر القاعدة',
     hiddenNow: 'الحين مخفي {n} من قائمتك', hiddenNone: 'ما في شي مخفي الحين.',
 
-    /* ---- الرف ---- */
-    shelf: 'الرف', lineCap: 'حدّ الطلب',
-    axisNote: 'كل شريط ينقاس على حدّ الطلب حقّه. الشريط اللي ما وصل الخط يحتاج شراء.',
+    /* ---- الجدار ---- */
+    lineCapLong: 'الخط المتقطّع هو حدّ الطلب. المربّع اللي ما امتلأ لين الخط يحتاج شراء.',
     search: 'ابحث في المخزون', addItem: 'صنف جديد',
-    fAll: 'الكل', fBelow: 'تحت الخط', fNew: 'ما انعدّ',
-    filters: 'تصفية الرف', uncategorised: 'بدون تصنيف', grpNew: 'ما انعدّ بعد',
-    noMatch: 'ما في صنف بهذا الاسم.', showAll: 'اعرض الكل',
+    grpNew: 'ما انعدّ بعد',
+    noMatch: 'ما في صنف بهذا الاسم.',
+    noMatchSub: 'ما في شي على رفك بهذا الاسم.',
+    addNamed: 'أضف «{name}» للمخزون',
+    showAll: 'اعرض الكل',
     stOut: 'نفد', stOrder: 'اطلبه', stDays: '{n} {d}',
     stLearning: 'يتعلّم', learningDays: 'بعد {n} {d} من البيع',
-    stNew: 'ما انعدّ',
+    stNew: 'ما انعدّ', stNoLine: 'ما له حدّ طلب',
+
+    /* ---- لوحة الإضافة: وصل شي، قول كم ---- */
+    addStock: 'أضف للمخزون', onShelf: 'على الرف',
+    howMuchArrived: 'كم وصل؟',
+    orPacks: 'أو اكتب عدد عبوات {pack}',
+    pricePer: 'سعر {pack}',
+    addPrice: 'أضف السعر',
+    landsOn: 'يصير على الرف {q}',
+    needAmount: 'اكتب كم وصل.',
+    addedNow: 'أضفنا {q}',
+    moreAbout: 'تفاصيل الصنف',
 
     /* ---- أول مرة ---- */
     firstEyebrow: 'ما في شي على الرف بعد',
@@ -76,12 +78,12 @@ export const DICT: Dict = {
     firstStep1: 'تعدّ الرف مرة كل ليلة — دقيقة.',
     firstStep2: 'كل طلب يخصم مكوّناته لحاله.',
     firstStep3: 'وقت ما ينزل صنف تحت خطّه، يدخل قائمة طلبك.',
-    sampleH: 'أرقام تجريبية', sampleAria: 'رف تجريبي',
+    sampleH: 'أرقام تجريبية', sampleAria: 'جدار تجريبي',
 
     /* ---- الأفعال ---- */
-    logDelivery: 'تسجيل توريد', logWaste: 'تسجيل هدر', recount: 'صحّح الرقم',
+    logWaste: 'تسجيل هدر', recount: 'صحّح الرقم',
     edit: 'تعديل الصنف', more: 'المزيد', done: 'تم',
-    chooseItem: 'اختر صنفاً…', needLine: 'اختر صنفاً واكتب الكمية.',
+    needLine: 'اختر صنفاً واكتب الكمية.',
     recountHint: 'اكتب اللي موجود فعلاً على الرف. الفرق ينسجّل في السجل كتصحيح.',
 
     /* ---- لوحة الصنف ---- */
@@ -124,8 +126,6 @@ export const DICT: Dict = {
 
     /* ---- التوريد والهدر ---- */
     quantity: 'الكمية', reason: 'السبب', note: 'ملاحظة', record: 'تسجيل',
-    addLine: 'صنف آخر', packs: 'عدد العبوات', costPer: 'سعر',
-    enterInUnit: 'أدخلها بالـ{u}', enterInPacks: 'أدخلها بالعبوات', lands: 'يدخل المخزون',
     SPILLED: 'انسكب', EXPIRED: 'منتهي', STAFF_MEAL: 'وجبة موظفين', COMP: 'مجاملة',
     TRAINING: 'تدريب', DAMAGED: 'تالف', OTHER: 'أخرى',
 
@@ -165,25 +165,17 @@ export const DICT: Dict = {
   },
 
   en: {
-    /* ---- the one job ----
-       The page shows exactly one of these at a time, chosen by where the café actually is.
-       Owners' first complaint was that they opened stock and could not tell what it wanted
-       from them; a screen that names one job cannot have that problem. */
-    jobEyebrow: 'Now',
-    jobCount: 'Count the shelf',
-    jobCountNew: 'Nothing on your shelf has a number yet. Walk round once — about a minute — and stock starts working.',
-    jobCountStale: 'Last counted {when}. A count each night is what keeps the order list right.',
-    jobCountGo: 'Start counting',
-    jobOrder: 'Order these {n}',
-    jobOrderSub: 'Below the line, and not already on the way.',
+    /* ---- the standing line ----
+       All that is left of four cards. Nothing in it is new — what to buy, when the shelf was
+       last counted, what it is worth — and two of the three are taps into the screen that
+       changes them, so the cards were folded back into their own headline rather than cut. */
+    toBuy: 'to buy',
+    nothingToBuy: 'Nothing to buy',
+    orderCount: '{n} ready to send',
+    allOnWay: 'Everything below the line is already on its way.',
     jobOrderGo: 'Copy for WhatsApp',
     jobOrderCopied: 'Copied — and logged as sent',
     jobOrderFailed: 'Could not copy. Select the list and copy it by hand.',
-    jobOrderEst: 'About {v}',
-    jobUses: 'Say what your drinks use',
-    jobUsesGo: 'Connect your menu',
-    jobClear: 'Nothing to order.',
-    jobClearSub: 'Everything is above its order line.',
 
     /* ---- the loop, said as a consequence rather than an instruction ---- */
     loopDead: 'Selling takes nothing off the shelf.',
@@ -194,9 +186,7 @@ export const DICT: Dict = {
        Owners said they did not trust the figures. A figure with no date on it is a figure
        nobody can check, so the page quotes its evidence next to itself. */
     counted: 'Counted {when}', countedNever: 'Never counted',
-    onShelves: 'on the shelves', onWay: '{n} on the way',
-    onWayNote: 'These are not asked for again. Logging the delivery closes them by itself.',
-    notComing: 'Not coming? Put it back on the list', putBack: 'Back on the order list',
+    onShelves: 'on the shelves',
 
     /* ---- hidden from the customer menu — the costliest thing stock does ---- */
     offTitle: '{n} off your menu right now',
@@ -211,16 +201,31 @@ export const DICT: Dict = {
     changeRule: 'Stock did this — change the rule',
     hiddenNow: 'Hiding {n} from your menu right now', hiddenNone: 'Nothing hidden right now.',
 
-    /* ---- the shelf ---- */
-    shelf: 'The shelf', lineCap: 'order line',
-    axisNote: 'Each bar is measured against that item’s own order line. A bar that has not reached the line needs buying.',
+    /* ---- the wall ---- */
+    lineCapLong: 'The dashed line is where you order more. A tile that has not filled up to it needs buying.',
     search: 'Search stock', addItem: 'New item',
-    fAll: 'All', fBelow: 'Below the line', fNew: 'Not counted',
-    filters: 'Filter the shelf', uncategorised: 'Uncategorised', grpNew: 'Not counted yet',
-    noMatch: 'No item by that name.', showAll: 'Show everything',
+    grpNew: 'Not counted yet',
+    noMatch: 'No item by that name.',
+    noMatchSub: 'Nothing on your shelf goes by that.',
+    addNamed: 'Add “{name}” to your stock',
+    showAll: 'Show everything',
     stOut: 'Out', stOrder: 'Order', stDays: '{n} {d}',
     stLearning: 'Learning', learningDays: 'after {n} {d} of sales',
-    stNew: 'Not counted',
+    stNew: 'Not counted', stNoLine: 'No order line',
+
+    /* ---- the add pad ----
+       Something arrived; say how much. Every amount here is a pack, because a pack is what
+       the invoice says and what the hand is holding — and the keys are labelled with what
+       lands rather than with a pack count, so nobody converts anything in their head. */
+    addStock: 'Add stock', onShelf: 'On the shelf',
+    howMuchArrived: 'How much arrived?',
+    orPacks: 'or type packs of {pack}',
+    pricePer: 'Price of one {pack}',
+    addPrice: 'Add what it cost',
+    landsOn: 'The shelf becomes {q}',
+    needAmount: 'Say how much arrived.',
+    addedNow: 'Added {q}',
+    moreAbout: 'More about this item',
 
     /* ---- first run ---- */
     firstEyebrow: 'Nothing on the shelf yet',
@@ -231,12 +236,12 @@ export const DICT: Dict = {
     firstStep1: 'You count the shelf once a night. A minute.',
     firstStep2: 'Every order takes its ingredients off by itself.',
     firstStep3: 'Anything that drops below its line lands on your order list.',
-    sampleH: 'Sample numbers', sampleAria: 'Sample shelf',
+    sampleH: 'Sample numbers', sampleAria: 'Sample wall',
 
     /* ---- the verbs ---- */
-    logDelivery: 'Log delivery', logWaste: 'Log waste', recount: 'Fix the number',
+    logWaste: 'Log waste', recount: 'Fix the number',
     edit: 'Edit item', more: 'More', done: 'Done',
-    chooseItem: 'Choose an item…', needLine: 'Pick an item and type how much arrived.',
+    needLine: 'Pick an item and type how much arrived.',
     recountHint: 'Set what is actually on the shelf. The difference is recorded in History as a correction.',
 
     /* ---- item panel ---- */
@@ -283,8 +288,6 @@ export const DICT: Dict = {
 
     /* ---- deliveries & waste ---- */
     quantity: 'Quantity', reason: 'Reason', note: 'Note', record: 'Record',
-    addLine: 'Another item', packs: 'Packs', costPer: 'Cost per',
-    enterInUnit: 'enter in {u} instead', enterInPacks: 'enter in packs instead', lands: 'lands on the shelf',
     SPILLED: 'Spilled', EXPIRED: 'Expired', STAFF_MEAL: 'Staff meal', COMP: 'Comped',
     TRAINING: 'Training', DAMAGED: 'Damaged', OTHER: 'Other',
 

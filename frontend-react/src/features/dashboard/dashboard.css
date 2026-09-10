@@ -473,9 +473,47 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
    widen a touch so paired fields sit side-by-side, and keep the actions reachable. */
 .modal-card.item-modal{max-width:600px;max-height:90vh;overflow-y:auto;display:flex;flex-direction:column}
 .payment-method-modal{max-width:430px}.payment-method-total{display:block;margin:14px 0 12px;font-size:24px;font-weight:900;color:var(--accent-text)}
-.payment-method-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.payment-method{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:112px;border:var(--bw) solid var(--keyline);border-radius:8px;background:var(--paper);color:var(--ink);font-family:var(--font-ar);cursor:pointer;box-shadow:var(--hard-sm);transition:transform .1s,box-shadow .1s}
-.payment-method span{font-size:30px}.payment-method b{font-size:14px}.payment-method.cash{background:var(--tint-warn)}.payment-method.card{background:var(--tint-ok)}
+/* Three ways to settle, so three columns: cash, card, and splitting the bill between the
+   people at the table. At 360px that still leaves an ~80px tile, which is thumb-sized. */
+.payment-method-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.payment-method{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-height:104px;padding:8px 4px;border:var(--bw) solid var(--keyline);border-radius:8px;background:var(--paper);color:var(--ink);font-family:var(--font-ar);cursor:pointer;box-shadow:var(--hard-sm);transition:transform .1s,box-shadow .1s}
+.payment-method span{font-size:27px;line-height:1}.payment-method b{font-size:13px;line-height:1.25;text-align:center}
+.payment-method.cash{background:var(--tint-warn)}.payment-method.card{background:var(--tint-ok)}
+.payment-method.split{background:var(--surface-2)}
+
+/* Splitting a bill: one row per person, each with their own amount and their own way of
+   paying. The remaining line is the whole point of the screen — it is what stops the counter
+   closing a bill that is only three-quarters collected — so it sits directly above the button
+   it gates, and the button stays dead until it reads zero. */
+.split-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:2px 0 12px}
+.split-label{font-size:12.5px;font-weight:700;color:var(--muted)}
+.split-chips{display:flex;gap:6px;flex-wrap:wrap}
+.split-chip{min-width:max(36px,var(--tap-sm));height:max(36px,var(--tap-sm));padding:0 6px;border:1px solid var(--line-2);border-radius:8px;background:var(--surface);color:var(--text);font-family:var(--font-ar);font-weight:800;font-size:14px;cursor:pointer}
+.split-chip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--keyline)}
+.split-chip.more{font-size:16px;color:var(--muted)}
+.split-chip:disabled{opacity:.35;cursor:not-allowed}
+.split-each{display:flex;align-items:center;gap:6px;margin-bottom:10px;font-size:13px;color:var(--muted)}
+.split-rows{display:flex;flex-direction:column;gap:max(8px,var(--tap-gap));max-height:44vh;overflow-y:auto;padding:2px}
+/* Cash and card sit next to each other and a mis-tap here books the wrong method, so both
+   ride the posture floor rather than a fixed px size, and keep a full gutter between them. */
+.split-row{display:grid;grid-template-columns:20px minmax(0,1fr) max(46px,var(--tap)) max(46px,var(--tap));align-items:center;gap:max(8px,var(--tap-gap))}
+.split-no{font-size:12.5px;font-weight:700;color:var(--faint);text-align:center}
+/* font-size rides --fs-field: under 16px iOS Safari force-zooms on focus and never zooms back. */
+.split-amt{width:100%;height:max(44px,var(--tap));padding:0 10px;border:1px solid var(--line-2);border-radius:8px;background:var(--surface);color:var(--text);font-family:var(--font-ar);font-weight:800;font-size:var(--fs-field)}
+.split-amt:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.split-row.done .split-amt{opacity:.75;border-style:dashed}
+.split-pay{height:max(44px,var(--tap));border:1px solid var(--line-2);border-radius:8px;background:var(--surface);font-size:18px;line-height:1;cursor:pointer;transition:background .1s,border-color .1s}
+.split-pay.on{font-weight:800}
+.split-pay.cash.on{background:var(--tint-warn);border-color:var(--edge-warn)}
+.split-pay.card.on{background:var(--tint-ok);border-color:var(--edge-ok)}
+.split-pay:disabled{opacity:.5;cursor:not-allowed}
+.split-left{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line-2);font-weight:800;font-size:15px}
+.split-left.ok{color:var(--accent-text)}
+.split-left.over{color:var(--bad)}
+.split-settle{width:100%;margin-top:12px}
+/* Locked for most of the split's life — the shares only add up at the very end — so it reads
+   as inert rather than as a washed-out primary anyone might still try to press. */
+.dash .payment-method-modal .split-settle:disabled{opacity:1;background:var(--surface-2);color:var(--faint);border-color:var(--line-2);box-shadow:none;transform:none;cursor:not-allowed}
 .payment-method:hover{transform:translate(-2px,-2px);box-shadow:var(--hard)}.payment-method:active{transform:translate(2px,2px);box-shadow:var(--hard-press)}.payment-method:disabled{opacity:.5;cursor:wait;transform:none}
 .payment-cancel{width:100%;margin-top:12px}
 .modal-card.item-modal .modal-actions{position:sticky;bottom:0;margin:18px -24px -24px;padding:14px 24px;

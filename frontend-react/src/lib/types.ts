@@ -8,7 +8,11 @@ export type Permission =
 export type OrderType = 'DINE_IN' | 'CAR';
 export type OrderStatus = 'PENDING' | 'ACCEPTED' | 'PREPARING' | 'READY' | 'COMPLETED' | 'DECLINED' | 'CANCELLED';
 export type PaymentStatus = 'UNPAID' | 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
-export type PaymentMethod = 'CASH' | 'CARD' | 'ONLINE' | 'OTHER';
+/** 'SPLIT' is an order-level answer only — the bill was settled by several people who did not
+ *  all pay the same way, so no one label fits. Each person's own method lives in the ledger. */
+export type PaymentMethod = 'CASH' | 'CARD' | 'ONLINE' | 'OTHER' | 'SPLIT';
+/** One person's share of a split bill — mirrors PaymentTender.java. */
+export interface PaymentTender { method: 'CASH' | 'CARD'; amount: number }
 export type SubscriptionStatus = 'PENDING_PAYMENT' | 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELLED' | 'EXPIRED';
 export type SubscriptionPaymentMethod = 'BANK_TRANSFER';
 

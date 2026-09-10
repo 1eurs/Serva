@@ -34,7 +34,8 @@ const LABELS: Record<ReceiptLanguage, {
     subtotal: 'المجموع / Subtotal', vat: 'الضريبة / VAT', total: 'الإجمالي / Total', payment: 'الدفع / Payment',
     notPaid: 'غير مدفوع / NOT PAID', thanks: 'شكراً لزيارتكم / Thank you',
     vatNo: 'الرقم الضريبي / VAT No', crNo: 'السجل التجاري / CR No',
-    pay: { CASH: 'نقداً / Cash', CARD: 'بطاقة / Card', ONLINE: 'إلكتروني / Online', OTHER: 'أخرى / Other' },
+    pay: { CASH: 'نقداً / Cash', CARD: 'بطاقة / Card', ONLINE: 'إلكتروني / Online', OTHER: 'أخرى / Other',
+           SPLIT: 'مقسوم / Split' },
   },
   en: {
     invoice: 'Invoice', invoiceRetro: '*** INVOICE ***',
@@ -43,7 +44,7 @@ const LABELS: Record<ReceiptLanguage, {
     subtotal: 'Subtotal', vat: 'VAT', total: 'Total', payment: 'Payment',
     notPaid: 'NOT PAID', thanks: 'Thank you',
     vatNo: 'VAT No', crNo: 'CR No',
-    pay: { CASH: 'Cash', CARD: 'Card', ONLINE: 'Online', OTHER: 'Other' },
+    pay: { CASH: 'Cash', CARD: 'Card', ONLINE: 'Online', OTHER: 'Other', SPLIT: 'Split' },
   },
 };
 

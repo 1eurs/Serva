@@ -103,8 +103,8 @@ export default function ItemSheet({ t, branchId, item, cover, links, openSheet, 
       )}
 
       <div className="stk-panel-acts">
-        <button className="key" onClick={() => go({ k: 'delivery', itemId: item.id })}>
-          {t('logDelivery')}
+        <button className="key" onClick={() => go({ k: 'add', id: item.id })}>
+          {t('addStock')}
         </button>
         <button onClick={() => go({ k: 'waste', itemId: item.id })}>{t('logWaste')}</button>
         <button onClick={() => go({ k: 'edit', id: item.id })}>{t('edit')}</button>

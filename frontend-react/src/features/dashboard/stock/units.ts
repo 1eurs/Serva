@@ -32,16 +32,24 @@ export const unitTag = (u: BaseUnit | null | undefined, t: T): string =>
  * <p>The ledger counts in grams and millilitres, which is right for the ledger and wrong for
  * somebody holding the bag: "6000.0 g" is a figure to decode, "6 kg" is the thing in their
  * hand. Anything past a thousand climbs to the bigger unit and drops the decimal noise.
+ *
+ * <p>Returned as two pieces because the wall sets the figure at four times the size of its
+ * unit — one string would make "kg" as loud as the number it qualifies.
  */
-export const human = (n: number, u: BaseUnit, lang: Lang): string => {
+export const humanParts = (n: number, u: BaseUnit, lang: Lang): { n: string; u: string } => {
   const small = lang === 'ar'
     ? (u === 'G' ? 'جم' : u === 'ML' ? 'مل' : 'حبة')
     : (u === 'G' ? 'g' : u === 'ML' ? 'ml' : 'pcs');
   const big = lang === 'ar' ? (u === 'G' ? 'كيلو' : 'لتر') : (u === 'G' ? 'kg' : 'L');
-  if (u === 'PIECE') return `${Math.round(n)} ${small}`;
-  if (n === 0) return `0 ${small}`;                       // "0.0 g" is a decimal about nothing
-  if (Math.abs(n) >= 1000) return `${Number((n / 1000).toFixed(2))} ${big}`;
-  return `${qty(n, u)} ${small}`;
+  if (u === 'PIECE') return { n: String(Math.round(n)), u: small };
+  if (n === 0) return { n: '0', u: small };               // "0.0 g" is a decimal about nothing
+  if (Math.abs(n) >= 1000) return { n: String(Number((n / 1000).toFixed(2))), u: big };
+  return { n: qty(n, u), u: small };
+};
+
+export const human = (n: number, u: BaseUnit, lang: Lang): string => {
+  const p = humanParts(n, u, lang);
+  return `${p.n} ${p.u}`;
 };
 
 /**
@@ -123,29 +131,31 @@ export const levelOf = (i: StockItemRow): Level =>
 /* ------------------------------------------------------------------ the axis */
 
 /**
- * Where the order line stands, as a percentage across every track on the shelf.
+ * Where the order line stands, as a percentage of every track on the wall.
  *
- * <p>This is the one number the page's whole shape hangs off: because it is a constant, the
- * rule can be drawn once down the side of the list instead of once per row, and "left of the
- * line" becomes something you see across forty items without reading a word.
+ * <p>This is the one number the page's whole shape hangs off. Because it is a constant, the
+ * line lands at the same height in every tile and can be read straight across the grid —
+ * "not filled up to the line" becomes something you see across forty items without reading
+ * a word. It was 34 while the wall was a list and the line ran vertically down it; sitting
+ * across a tile it wants to be nearer the middle, or a full shelf has nowhere to grow.
  */
-export const LINE_AT = 34;
+export const LINE_AT = 44;
 
 /**
  * How far along its track a quantity sits.
  *
  * <p>The axis is deliberately not "how full is this shelf". A shelf's fullness is measured
- * against its par, and every item has a different par, so a bar scaled that way puts each
- * item's warning notch in a different column and the shelf reads as forty unrelated
+ * against its par, and every item has a different par, so a fill scaled that way puts each
+ * item's warning mark at a different height and the wall reads as forty unrelated
  * instruments. The axis here is <em>multiples of your own order line</em>, which is the same
- * quantity for every row — one line's worth is one line's worth — so one rule serves the
- * whole list and crossing it is the only thing the reader has to see.
+ * quantity for every item — one line's worth is one line's worth — so a single height serves
+ * the whole grid and reaching it is the only thing the reader has to see.
  *
  * <p>Above the line the scale compresses: two lines' worth reaches halfway to the end, ten
  * is nearly there, and nothing ever runs off the track. A café stocked for a month must not
  * flatten every other row into an identical full bar.
  *
- * <p>Null when nobody has set a line yet — an item like that gets an empty dashed track,
+ * <p>Null when nobody has set a line yet — an item like that gets an empty dashed tile,
  * because there is no honest place to put a fill.
  */
 export const axisPct = (onHand: number, orderAt: number | null | undefined): number | null => {
