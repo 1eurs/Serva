@@ -249,7 +249,20 @@ case "$TARGET" in
     rsync -az --delete "$ROOT/frontend-react/dist/" "$PROD_HOST:$PROD_DIR/frontend-react/dist/"
     ssh "$PROD_HOST" "mkdir -p $PROD_DIR/deploy"
     rsync -az "$ROOT/target/app.jar" "$ROOT/deploy/Dockerfile.thin" "$PROD_HOST:$PROD_DIR/deploy/"
-    rsync -az "$ROOT/src" "$ROOT/pom.xml" "$ROOT/docker-compose.yml" "$PROD_HOST:$PROD_DIR/"
+    # src goes in its own call, with --delete, because the host keeps a fallback build.
+    #
+    # docker-compose.yml declares `build: .` against $PROD_DIR/Dockerfile, which is a full
+    # Maven build from this tree. Nothing uses it while the pre-built image is present, but
+    # the day that image is missing, `docker compose up` compiles whatever is sitting here.
+    # Without --delete a file deleted from the repo simply stayed on the host forever, so
+    # that fallback would compile the deleted code against the code that replaced it and
+    # fail — which is exactly what removing the stock package did, silently, until someone
+    # went looking. Syncing the directory rather than copying into it keeps the two equal.
+    #
+    # It cannot share the call below: those land in $PROD_DIR itself, and --delete there
+    # would take .env, deploy/ and frontend-react/ with it.
+    rsync -az --delete "$ROOT/src/" "$PROD_HOST:$PROD_DIR/src/"
+    rsync -az "$ROOT/pom.xml" "$ROOT/docker-compose.yml" "$PROD_HOST:$PROD_DIR/"
 
     ssh "$PROD_HOST" "grep -q '^POSTGRES_PASSWORD=' $PROD_DIR/.env" \
       || die "remote .env has no POSTGRES_PASSWORD"
