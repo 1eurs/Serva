@@ -43,7 +43,10 @@ public final class StockDtos {
             /** How much is there right now. Absent means none yet — an item can be set up empty. */
             @PositiveOrZero @DecimalMax(MAX) BigDecimal quantity,
             @PositiveOrZero @DecimalMax(MAX) BigDecimal reorderPoint,
-            @PositiveOrZero @DecimalMax(MAX) BigDecimal unitPrice
+            @PositiveOrZero @DecimalMax(MAX) BigDecimal unitPrice,
+            /** What one piece holds — only for things counted in pieces, and only a weight or volume. */
+            @Positive @DecimalMax(MAX) BigDecimal packSize,
+            StockUnit packUnit
     ) {}
 
     /**
@@ -63,7 +66,10 @@ public final class StockDtos {
             @Size(max = 150) String nameAr,
             @NotNull StockUnit unit,
             @PositiveOrZero @DecimalMax(MAX) BigDecimal reorderPoint,
-            @PositiveOrZero @DecimalMax(MAX) BigDecimal unitPrice
+            @PositiveOrZero @DecimalMax(MAX) BigDecimal unitPrice,
+            /** Replaced like the fields above: both empty clears the contents. */
+            @Positive @DecimalMax(MAX) BigDecimal packSize,
+            StockUnit packUnit
     ) {}
 
     /**
@@ -98,6 +104,8 @@ public final class StockDtos {
             BigDecimal quantity,
             BigDecimal reorderPoint,
             BigDecimal unitPrice,
+            BigDecimal packSize,
+            StockUnit packUnit,
             Instant lastMovedAt,
             Instant createdAt
     ) {
@@ -105,6 +113,7 @@ public final class StockDtos {
             return new StockItemResponse(
                     i.getId(), i.getBranchId(), i.getNameEn(), i.getNameAr(), i.getUnit(),
                     i.getQuantity(), i.getReorderPoint(), i.getUnitPrice(),
+                    i.getPackSize(), i.getPackUnit(),
                     i.getLastMovedAt(), i.getCreatedAt());
         }
     }

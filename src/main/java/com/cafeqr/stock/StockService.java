@@ -3,10 +3,12 @@ package com.cafeqr.stock;
 import com.cafeqr.auth.security.AccessGuard;
 import com.cafeqr.branches.BranchService;
 import com.cafeqr.branches.domain.Branch;
+import com.cafeqr.common.exception.BadRequestException;
 import com.cafeqr.common.exception.ConflictException;
 import com.cafeqr.common.exception.ResourceNotFoundException;
 import com.cafeqr.common.util.Names;
 import com.cafeqr.stock.domain.StockItem;
+import com.cafeqr.stock.domain.StockUnit;
 import com.cafeqr.stock.dto.StockDtos.CountRequest;
 import com.cafeqr.stock.dto.StockDtos.CreateStockItemRequest;
 import com.cafeqr.stock.dto.StockDtos.ReceiveRequest;
@@ -73,6 +75,7 @@ public class StockService {
         item.setQuantity(scaled(request.quantity(), BigDecimal.ZERO));
         item.setReorderPoint(scaled(request.reorderPoint(), null));
         item.setUnitPrice(scaled(request.unitPrice(), null));
+        applyPack(item, request.packSize(), request.packUnit());
         // An opening figure is somebody saying what is there, which is the same act as a count.
         // Setting up an empty item is not, so it starts with no date rather than a false one.
         if (item.getQuantity().signum() > 0) {
@@ -101,6 +104,7 @@ public class StockService {
         // clearing one impossible.
         item.setReorderPoint(scaled(request.reorderPoint(), null));
         item.setUnitPrice(scaled(request.unitPrice(), null));
+        applyPack(item, request.packSize(), request.packUnit());
         return StockItemResponse.from(item);
     }
 
@@ -167,6 +171,32 @@ public class StockService {
 
     private static boolean matches(String a, String b) {
         return a != null && b != null && a.trim().equalsIgnoreCase(b.trim());
+    }
+
+    /**
+     * What one piece holds. Only a shelf counted in pieces can say, and only in a weight or a
+     * volume — "a sleeve of 50 cups" would make a recipe line reading "1" ambiguous between the
+     * cup and the sleeve. Half an answer (a size without a unit, or the reverse) is refused
+     * rather than guessed. A shelf that stops being counted in pieces loses its contents: they
+     * described a piece, and there is no longer one.
+     */
+    private static void applyPack(StockItem item, BigDecimal size, StockUnit unit) {
+        if (size == null && unit == null) {
+            item.setPackSize(null);
+            item.setPackUnit(null);
+            return;
+        }
+        if (size == null || unit == null) {
+            throw new BadRequestException("Say both how much a piece holds and in what unit");
+        }
+        if (item.getUnit() != StockUnit.PIECE) {
+            throw new BadRequestException("Only something counted in pieces can say what a piece holds");
+        }
+        if (unit == StockUnit.PIECE) {
+            throw new BadRequestException("A piece's contents are a weight or a volume, not more pieces");
+        }
+        item.setPackSize(size.setScale(SCALE, RoundingMode.HALF_UP));
+        item.setPackUnit(unit);
     }
 
     private static BigDecimal scaled(BigDecimal value, BigDecimal fallback) {

@@ -134,6 +134,29 @@ class MenuStockServiceTest {
     }
 
     @Test
+    void aRecipeMayPourFromABottleThatSaysWhatItHolds() {
+        StockItem bottles = new StockItem();
+        bottles.setId(7L);
+        bottles.setBranchId(2L);
+        bottles.setNameEn("Milk");
+        bottles.setUnit(StockUnit.PIECE);
+        bottles.setPackSize(BigDecimal.ONE);
+        bottles.setPackUnit(StockUnit.L);
+        when(stockItems.findById(7L)).thenReturn(Optional.of(bottles));
+
+        // 200 ml against a shelf counted in 1 L bottles: the whole reason contents exist.
+        List<RecipeLineResponse> ok = service.setRecipe(2L, 10L, new RecipeRequest(List.of(
+                new RecipeLineInput(7L, new BigDecimal("200"), StockUnit.ML))));
+        assertThat(ok.get(0).unit()).isEqualTo(StockUnit.ML);
+
+        // Grams against a bottle of milk are still nonsense, and the refusal names the bottle.
+        assertThatThrownBy(() -> service.setRecipe(2L, 10L, new RecipeRequest(List.of(
+                new RecipeLineInput(7L, new BigDecimal("18"), StockUnit.G)))))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("PIECE of 1 L");
+    }
+
+    @Test
     void aRecipeCannotListTheSameIngredientTwice() {
         assertThatThrownBy(() -> service.setRecipe(2L, 10L, new RecipeRequest(List.of(
                 new RecipeLineInput(5L, BigDecimal.ONE, StockUnit.KG),

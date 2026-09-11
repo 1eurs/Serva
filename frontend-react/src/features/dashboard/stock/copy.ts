@@ -43,6 +43,8 @@ export const DICT: Dict = {
     unitWarn: 'الرقم سيبقى {n} — تغيير الوحدة لا يحوّله.',
 
     uKG: 'كيلو', uG: 'جرام', uL: 'لتر', uML: 'مليلتر', uPIECE: 'حبة',
+    fPack: 'كل حبة تحوي', fPackHint: 'اختياري. ليتمكن الوصف من قول «200 مل» بينما يعدّ المخزون الزجاجات.',
+    each: 'كل حبة {q}',
 
     /* usage, on the wall and in the sheet */
     stDays: '≈ {n} {d}', usesPerDay: 'يُستهلك حوالي {q} يوميًا', daysLeft: 'يكفي {n} {d} بهذا المعدل',
@@ -55,6 +57,12 @@ export const DICT: Dict = {
     recipeT: 'ما يدخل فيه', recipeHint: 'لمعرفة أين يذهب المخزون — لا يغيّر العدد أبدًا.',
     addLine: 'إضافة مكوّن', pickTin: 'اختر…', plateCost: 'تكلفته حوالي',
     rulesLoading: 'جارٍ التحميل…', rulesNoShelf: 'أضف أصنافًا للمخزون أولًا لربطها من هنا.',
+
+    /* the menu, seen from the shelf */
+    viewShelf: 'المخزون', viewMenu: 'القائمة',
+    menuHint: 'اضغط على صنف لتحديد ما يدعمه من المخزون، أو حدّه اليومي، أو ما يدخل فيه.',
+    notSetUp: 'غير مُعدّ', aDay: '{n} يوميًا', perSale: '{name} — واحدة لكل بيعة',
+    noMenu: 'لا توجد أصناف في القائمة بعد',
 
     /* settings */
     setT: 'المخزون', hideT: 'إخفاء الأصناف التي نفدت',
@@ -92,6 +100,8 @@ export const DICT: Dict = {
     unitWarn: 'The figure stays {n} — changing the unit doesn’t convert it.',
 
     uKG: 'Kilos', uG: 'Grams', uL: 'Litres', uML: 'Millilitres', uPIECE: 'Pieces',
+    fPack: 'Each piece holds', fPackHint: 'Optional. So a recipe can say “200 ml” while the shelf counts bottles.',
+    each: '{q} each',
 
     /* usage, on the wall and in the sheet */
     stDays: '≈ {n} {d}', usesPerDay: 'Uses about {q} a day', daysLeft: '{n} {d} left at this rate',
@@ -104,6 +114,12 @@ export const DICT: Dict = {
     recipeT: 'What goes into it', recipeHint: 'For knowing where the stock goes — it never changes the count.',
     addLine: 'Add ingredient', pickTin: 'Choose…', plateCost: 'Costs about',
     rulesLoading: 'Loading…', rulesNoShelf: 'Add items to the shelf first to link them here.',
+
+    /* the menu, seen from the shelf */
+    viewShelf: 'Shelf', viewMenu: 'Menu',
+    menuHint: 'Tap an item to say what backs it, cap it for the day, or write what goes into it.',
+    notSetUp: 'Not set up', aDay: '{n} a day', perSale: '{name} — one per sale',
+    noMenu: 'No menu items yet',
 
     /* settings */
     setT: 'Stock', hideT: 'Hide items that have run out',

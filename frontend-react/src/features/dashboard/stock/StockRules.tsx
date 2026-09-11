@@ -9,9 +9,9 @@ import { recipeUnitsFor, unitFactor, unitWord } from './units';
 import './stock.css';
 
 /**
- * What the menu item editor holds about the shelf while it is open: the rule and the recipe,
- * as typed. Null means "never loaded" — and a save skips it, so an editor that opened while the
- * network was down can never wipe a rule by re-sending an empty one.
+ * What the sheet holds about a menu item while it is open: the rule and the recipe, as typed.
+ * Null means "never loaded" — and a save is refused until it has, so a sheet that opened while
+ * the network was down can never wipe a rule by re-sending an empty one.
  */
 export type StockDraft = {
   stockItemId: number | null;
@@ -39,13 +39,12 @@ export async function saveStockDraft(branchId: number, menuItemId: number, d: St
 }
 
 /**
- * The shelf's corner of the menu item editor.
+ * The three questions the shelf asks about a menu item, each optional: is this item one of the
+ * tins (one sale takes one), is there a cap on it today, and what goes into making it. The
+ * first two change what a customer can buy; the third never does — it only lets the wall say
+ * where the beans went.
  *
- * <p>Three questions, each optional: is this item one of the tins (one sale takes one), is there
- * a cap on it today, and what goes into making it. The first two change what a customer can
- * buy; the third never does — it only lets the wall say where the beans went.
- *
- * <p>Owned by the editor: this component renders and edits the draft the editor holds, and
+ * <p>Owned by whoever opens it: this component renders and edits the draft its owner holds, and
  * loads the current answers into it once for an existing item. It saves nothing itself.
  */
 export function StockRules({ branchId, menuItemId, draft, onChange }: {
@@ -100,7 +99,7 @@ export function StockRules({ branchId, menuItemId, draft, onChange }: {
     let sum = 0;
     for (const l of draft.lines) {
       const tin = l.stockItemId != null ? byId.get(l.stockItemId) : undefined;
-      const f = tin ? unitFactor(l.unit, tin.unit) : null;
+      const f = tin ? unitFactor(l.unit, tin) : null;
       if (!tin || tin.unitPrice == null || f == null || !(Number(l.quantity) > 0)) return null;
       sum += Number(l.quantity) * f * Number(tin.unitPrice);
     }
@@ -115,11 +114,6 @@ export function StockRules({ branchId, menuItemId, draft, onChange }: {
 
   return (
     <div className="stk-rules">
-      <div className="stk-rules-hd">
-        <b>{t('rulesT')}</b>
-        <span>{t('rulesHint')}</span>
-      </div>
-
       {shelf.length === 0 ? (
         <p className="stk-hint">{t('rulesNoShelf')}</p>
       ) : (
@@ -151,7 +145,7 @@ export function StockRules({ branchId, menuItemId, draft, onChange }: {
             <em className="stk-hint">{t('recipeHint')}</em>
             {draft.lines.map((l, i) => {
               const tin = l.stockItemId != null ? byId.get(l.stockItemId) : undefined;
-              const units = tin ? recipeUnitsFor(tin.unit) : [];
+              const units = tin ? recipeUnitsFor(tin) : [];
               return (
                 <div className="stk-line" key={i}>
                   <select className="stk-select" value={l.stockItemId ?? ''}
@@ -159,7 +153,7 @@ export function StockRules({ branchId, menuItemId, draft, onChange }: {
                       const id = e.target.value ? Number(e.target.value) : null;
                       const next = id != null ? byId.get(id) : undefined;
                       /* The unit follows the tin: a recipe against kilos is spoken in grams. */
-                      setLine(i, { stockItemId: id, unit: next ? recipeUnitsFor(next.unit)[0] : l.unit });
+                      setLine(i, { stockItemId: id, unit: next ? recipeUnitsFor(next)[0] : l.unit });
                     }}>
                     <option value="">{t('pickTin')}</option>
                     {shelf.map((s) => <option key={s.id} value={s.id}>{name(s)}</option>)}

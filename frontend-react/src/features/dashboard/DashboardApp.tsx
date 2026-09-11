@@ -742,7 +742,7 @@ function Shell() {
         {page === 'board' && <KdsBoard branchId={branchId} focusSignal={focusBoard} />}
         {page === 'neworder' && <OrderPad branchId={branchId} onPlaced={() => setPage('board')} />}
         {page === 'orders' && <OrdersPage branchId={branchId} />}
-        {page === 'menu' && <MenuManager branchId={branchId} />}
+        {page === 'menu' && <MenuManager />}
         {page === 'team' && <TeamPage branches={branches} branchId={branchId} />}
         {page === 'analytics' && <Suspense fallback={<div className="an-msg">…</div>}><AnalyticsPage branches={isManager(user) && pinnedBranch == null ? activeBranches : []} /></Suspense>}
         {page === 'stock' && <StockPage branchId={branchId} />}

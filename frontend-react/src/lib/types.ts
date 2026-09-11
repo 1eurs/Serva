@@ -438,6 +438,10 @@ export interface StockItemRow {
   unitPrice?: number | null;
   /** When a person last said what was there — a delivery or a count. */
   lastMovedAt?: string | null;
+  /** What one piece holds, for a thing counted in pieces: a bottle is 1 L. Both absent when
+   *  nobody has said, and always absent for a shelf not counted in pieces. */
+  packSize?: number | null;
+  packUnit?: StockUnit | null;
   createdAt: string;
 }
 
@@ -451,6 +455,8 @@ export interface StockItemPayload {
   quantity?: number;
   reorderPoint?: number | null;
   unitPrice?: number | null;
+  packSize?: number | null;
+  packUnit?: StockUnit | null;
 }
 
 /** How one menu item meets the shelf at one branch. Mirrors MenuStockDtos.RuleResponse. */

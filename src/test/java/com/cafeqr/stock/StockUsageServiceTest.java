@@ -101,6 +101,29 @@ class StockUsageServiceTest {
     }
 
     @Test
+    void usageAgainstBottlesComesOutInBottles() throws Exception {
+        StockItem bottles = tin(7L, StockUnit.PIECE, "24");
+        bottles.setPackSize(BigDecimal.ONE);
+        bottles.setPackUnit(StockUnit.L);
+        when(stockItems.findByBranchIdOrderByIdAsc(2L)).thenReturn(List.of(beans, croissants, bottles));
+        RecipeLine line = new RecipeLine();
+        line.setMenuItemId(11L);
+        line.setStockItemId(7L);
+        line.setQuantity(new BigDecimal("200"));
+        line.setUnit(StockUnit.ML);
+        when(recipes.findByBranchId(2L)).thenReturn(List.of(line));
+        // 350 lattes × 200 ml = 70 L = 70 bottles over the week; 24 in the fridge is 2.4 days
+        when(tallies.findByBranchIdAndCafeDayBetween(eq(2L), any(), any()))
+                .thenReturn(List.of(sold(11L, 350)));
+
+        UsageRow r = service.usage(2L, 7).get(0);
+
+        assertThat(r.used()).isEqualByComparingTo("70");
+        assertThat(r.perDay()).isEqualByComparingTo("10");
+        assertThat(r.daysLeft()).isEqualByComparingTo("2.4");
+    }
+
+    @Test
     void nothingSoldMeansNoRateAndNoVerdict() {
         RecipeLine line = new RecipeLine();
         line.setMenuItemId(11L);

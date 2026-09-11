@@ -106,10 +106,10 @@ public class MenuStockService {
     }
 
     /**
-     * Replace the recipe outright. Each line names a tin at this branch, in that tin's unit or
-     * its ×1000 sibling — "18 g" against a shelf in kilos is allowed and is the whole point; "18 g"
-     * against a shelf in litres is a mistake and is refused before it can produce a usage figure
-     * that means nothing.
+     * Replace the recipe outright. Each line names a tin at this branch, in a unit that tin can
+     * read — its own, its ×1000 sibling, or the unit of what one piece holds: "18 g" against a
+     * shelf in kilos, "200 ml" against bottles that say they are 1 L. "18 g" against a shelf in
+     * litres is a mistake and is refused before it can produce a usage figure that means nothing.
      */
     @Transactional
     public List<RecipeLineResponse> setRecipe(Long branchId, Long menuItemId, RecipeRequest request) {
@@ -122,9 +122,12 @@ public class MenuStockService {
                 throw new BadRequestException("The same ingredient is listed twice");
             }
             StockItem stock = requireStockItemAt(branch, in.stockItemId());
-            if (!in.unit().compatibleWith(stock.getUnit())) {
+            if (stock.factorFrom(in.unit()) == null) {
                 throw new BadRequestException("\"" + displayName(stock) + "\" is counted in "
-                        + stock.getUnit() + ", so a recipe cannot ask for it in " + in.unit());
+                        + stock.getUnit() + (stock.getPackUnit() != null
+                                ? " of " + stock.getPackSize().stripTrailingZeros().toPlainString() + " " + stock.getPackUnit()
+                                : "")
+                        + ", so a recipe cannot ask for it in " + in.unit());
             }
             RecipeLine line = new RecipeLine();
             line.setMenuItemId(menuItemId);

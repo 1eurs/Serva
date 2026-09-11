@@ -58,6 +58,38 @@ public class StockItem extends BaseEntity implements BilingualNamed {
     @Column(name = "last_moved_at")
     private Instant lastMovedAt;
 
+    /**
+     * What one piece holds, for a thing counted in pieces: a bottle is 1 L, a bag is 1 kg. The
+     * bridge between the wall, which counts bottles, and a recipe, which pours millilitres.
+     * Both null when nobody has said — and always null for a shelf not counted in pieces.
+     */
+    @Column(name = "pack_size", precision = 14, scale = 3)
+    private BigDecimal packSize;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "pack_unit", length = 8)
+    private StockUnit packUnit;
+
+    /**
+     * Multiply a recipe quantity written in {@code lineUnit} by this to express it in the unit
+     * this tin is counted in — or null when the two do not describe the same kind of thing.
+     *
+     * <p>A shelf in kilos takes grams at a thousandth. A shelf in pieces takes its own contents'
+     * unit: 200 ml against a 1 L bottle is a fifth of a piece. A shelf in pieces with no contents
+     * declared takes pieces and nothing else.
+     */
+    public BigDecimal factorFrom(StockUnit lineUnit) {
+        BigDecimal direct = lineUnit.factorTo(unit);
+        if (direct != null) return direct;
+        if (unit == StockUnit.PIECE && packUnit != null && packSize != null && packSize.signum() > 0) {
+            BigDecimal intoPack = lineUnit.factorTo(packUnit);
+            if (intoPack != null) {
+                return intoPack.divide(packSize, 9, java.math.RoundingMode.HALF_UP);
+            }
+        }
+        return null;
+    }
+
     public Long getRestaurantId() {
         return restaurantId;
     }
@@ -132,5 +164,21 @@ public class StockItem extends BaseEntity implements BilingualNamed {
 
     public void setLastMovedAt(Instant lastMovedAt) {
         this.lastMovedAt = lastMovedAt;
+    }
+
+    public BigDecimal getPackSize() {
+        return packSize;
+    }
+
+    public void setPackSize(BigDecimal packSize) {
+        this.packSize = packSize;
+    }
+
+    public StockUnit getPackUnit() {
+        return packUnit;
+    }
+
+    public void setPackUnit(StockUnit packUnit) {
+        this.packUnit = packUnit;
     }
 }

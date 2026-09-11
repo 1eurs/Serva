@@ -89,7 +89,7 @@ public class StockUsageService {
         for (RecipeLine line : recipes.findByBranchId(branchId)) {
             StockItem tin = shelf.get(line.getStockItemId());
             if (tin == null) continue;
-            BigDecimal factor = line.getUnit().factorTo(tin.getUnit());
+            BigDecimal factor = tin.factorFrom(line.getUnit());
             if (factor == null) continue;   // refused on the way in; belt and braces
             BigDecimal perSale = line.getQuantity().multiply(factor);
             used.merge(line.getStockItemId(),

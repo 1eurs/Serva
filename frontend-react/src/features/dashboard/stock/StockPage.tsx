@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
+import { useAuth, can } from '../../../lib/auth';
 import { useI18n, useT, pick } from '../../../lib/i18n';
 import { Money } from '../../../lib/Money';
 import type { StockItemRow, StockUsageRow } from '../../../lib/types';
 import { DICT, fill } from './copy';
 import { ItemForm, ItemSheet } from './sheets';
+import MenuRules from './MenuRules';
 import { LINE_AT, PRESETS, axisPct, daysWord, levelOf, parts, shelfValue, type Level, type Preset } from './units';
 import './stock.css';
 
@@ -37,7 +39,12 @@ const STATE_WORD: Record<Level, string> = {
 export default function StockPage({ branchId }: { branchId?: number }) {
   const t = useT(DICT);
   const { lang } = useI18n();
+  const { user } = useAuth();
   const queryKey = ['stock', branchId];
+  /* Two views of one shelf. The wall is what is there; the menu is what each thing you sell
+     takes from it. Setting the second up is a menu-editing power, so it needs MENU as well. */
+  const canMenu = can(user, 'MENU');
+  const [view, setView] = useState<'shelf' | 'menu'>('shelf');
 
   const { data: items = [], isLoading } = useQuery({
     queryKey,
@@ -85,6 +92,15 @@ export default function StockPage({ branchId }: { branchId?: number }) {
   return (
     <div className="tables-wrap stock-page">
       <div className="stk-top">
+        {canMenu && (
+          <div className="stk-tabs stk-view" role="tablist">
+            <button role="tab" aria-selected={view === 'shelf'} className={view === 'shelf' ? 'on' : ''}
+              onClick={() => setView('shelf')}>{t('viewShelf')}</button>
+            <button role="tab" aria-selected={view === 'menu'} className={view === 'menu' ? 'on' : ''}
+              onClick={() => setView('menu')}>{t('viewMenu')}</button>
+          </div>
+        )}
+        {view === 'shelf' && <>
         <input className="stk-search" type="search" value={q} placeholder={t('search')}
           onChange={(e) => setQ(e.target.value)} aria-label={t('search')} />
 
@@ -98,12 +114,17 @@ export default function StockPage({ branchId }: { branchId?: number }) {
         )}
 
         <button className="btn stk-new" onClick={() => setForm({ item: null })}>＋ {t('add')}</button>
+        </>}
       </div>
+
+      {view === 'menu' && branchId ? (
+        <MenuRules t={t} branchId={branchId} shelf={items} />
+      ) : null}
 
       {/* No branch yet means the shell is still resolving which shop this is, and the query has
           not run. Saying "nothing on the shelf" there would flash an empty-stockroom screen at
           an owner whose stockroom is full. */}
-      {isLoading || !branchId ? (
+      {view === 'menu' ? null : isLoading || !branchId ? (
         <p className="stk-msg">{t('loading')}</p>
       ) : items.length === 0 ? (
         <FirstRun t={t} onPick={(preset) => setForm({ item: null, preset })} />

@@ -91,15 +91,17 @@ export const shelfValue = (items: StockItemRow[]): number => items.reduce(
  * tap rather than a form each. The preset knows the name in both languages and the unit it is
  * counted in; how much is there is the only thing genuinely theirs to say.
  */
-export type Preset = { en: string; ar: string; unit: StockUnit };
+export type Preset = { en: string; ar: string; unit: StockUnit; packSize?: number; packUnit?: StockUnit };
 export const PRESETS: Preset[] = [
-  { en: 'Milk', ar: 'حليب', unit: 'L' },
+  /* Counted the way the fridge is read — in bottles — and told what a bottle holds, so a
+     recipe can pour millilitres from it on day one. */
+  { en: 'Milk', ar: 'حليب', unit: 'PIECE', packSize: 1, packUnit: 'L' },
   { en: 'Coffee beans', ar: 'حبوب بن', unit: 'KG' },
   { en: 'Cups', ar: 'أكواب', unit: 'PIECE' },
   { en: 'Lids', ar: 'أغطية', unit: 'PIECE' },
   { en: 'Sugar', ar: 'سكر', unit: 'KG' },
   { en: 'Tea bags', ar: 'أكياس شاي', unit: 'PIECE' },
-  { en: 'Vanilla syrup', ar: 'شراب فانيلا', unit: 'ML' },
+  { en: 'Vanilla syrup', ar: 'شراب فانيلا', unit: 'PIECE', packSize: 750, packUnit: 'ML' },
   { en: 'Napkins', ar: 'مناديل', unit: 'PIECE' },
 ];
 
@@ -140,15 +142,37 @@ export const daysWord = (n: number, lang: Lang): string => {
   return n >= 3 && n <= 10 ? 'أيام' : 'يوم';
 };
 
-/**
- * The units a recipe may be written in for a shelf row counted in {@code u}: the row's own unit
- * and its ×1000 sibling, smaller one first because "18 g" is how a recipe is spoken.
- */
-export const recipeUnitsFor = (u: StockUnit): StockUnit[] =>
+/** The ×1000 pair a unit belongs to, smaller first because "18 g" is how a recipe is spoken. */
+const family = (u: StockUnit): StockUnit[] =>
   u === 'KG' || u === 'G' ? ['G', 'KG'] : u === 'L' || u === 'ML' ? ['ML', 'L'] : ['PIECE'];
 
-/** Multiply a quantity in `from` by this to express it in `to`; null when they don't match. */
-export const unitFactor = (from: StockUnit, to: StockUnit): number | null => {
+/** What one piece holds, when a tin has said. */
+type Tin = { unit: StockUnit; packSize?: number | null; packUnit?: StockUnit | null };
+const packOf = (tin: Tin): { size: number; unit: StockUnit } | null =>
+  tin.unit === 'PIECE' && tin.packUnit && tin.packSize && tin.packSize > 0
+    ? { size: tin.packSize, unit: tin.packUnit } : null;
+
+/**
+ * The units a recipe may be written in against a tin: the tin's own family — and, for a tin
+ * counted in pieces that has said what a piece holds, the contents' family first, because a
+ * latte is written in millilitres and nobody writes "0.2 bottles".
+ */
+export const recipeUnitsFor = (tin: Tin): StockUnit[] => {
+  const pack = packOf(tin);
+  return pack ? [...family(pack.unit), 'PIECE'] : family(tin.unit);
+};
+
+/** Multiply a quantity in `from` by this to express it in the tin's own unit; null when it can't. */
+export const unitFactor = (from: StockUnit, tin: Tin): number | null => {
+  const direct = pairFactor(from, tin.unit);
+  if (direct != null) return direct;
+  const pack = packOf(tin);
+  if (!pack) return null;
+  const intoPack = pairFactor(from, pack.unit);
+  return intoPack == null ? null : intoPack / pack.size;
+};
+
+const pairFactor = (from: StockUnit, to: StockUnit): number | null => {
   if (from === to) return 1;
   if (from === 'G' && to === 'KG') return 0.001;
   if (from === 'KG' && to === 'G') return 1000;
@@ -156,3 +180,6 @@ export const unitFactor = (from: StockUnit, to: StockUnit): number | null => {
   if (from === 'L' && to === 'ML') return 1000;
   return null;
 };
+
+/** The units a piece may be said to hold: a weight or a volume, never more pieces. */
+export const PACK_UNITS: StockUnit[] = ['L', 'ML', 'KG', 'G'];
