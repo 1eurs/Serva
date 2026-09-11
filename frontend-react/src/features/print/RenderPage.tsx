@@ -37,16 +37,34 @@ import type { OrderResponse, Restaurant } from '../../lib/types';
  * animation frames is the phone maker's decision, and both this page and the rasteriser
  * (html-to-image parks every decoded image on a frame) wait on one. A frame that never
  * comes is a ticket that never prints, and the station "works only while the app is open".
- * So a frame is the real one when frames are flowing, and a short timer when they are not.
- * A render page has no animation to keep honest, so nothing is lost.
+ * So a frame is the real one when frames are flowing, and a short timer when they are not,
+ * whichever arrives first and once only. A render page has no animation to keep honest, so
+ * nothing is lost by not waiting for the display. This route is loaded on its own, so no
+ * other page in the app is touched.
  */
 const nativeFrame = window.requestAnimationFrame.bind(window);
+const nativeCancel = window.cancelAnimationFrame.bind(window);
+const fallbacks = new Map<number, number>();
 window.requestAnimationFrame = (callback: FrameRequestCallback): number => {
   let done = false;
-  const once = (now: number) => { if (!done) { done = true; callback(now); } };
-  const id = nativeFrame(once);
-  window.setTimeout(() => once(performance.now()), 250);
+  let id = 0;
+  const once = (now: number) => {
+    if (done) return;
+    done = true;
+    fallbacks.delete(id);
+    callback(now);
+  };
+  id = nativeFrame(once);
+  fallbacks.set(id, window.setTimeout(() => once(performance.now()), 250));
   return id;
+};
+window.cancelAnimationFrame = (id: number) => {
+  const timer = fallbacks.get(id);
+  if (timer !== undefined) {
+    clearTimeout(timer);
+    fallbacks.delete(id);
+  }
+  nativeCancel(id);
 };
 
 export interface RenderRequest {
