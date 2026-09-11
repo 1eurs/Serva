@@ -152,6 +152,13 @@ export function ItemSheet({ t, item, usage, queryKey, onClose, onEdit }: {
         <small>{when ? fill(t('updatedAgo'), { when }) : t('notCounted')}</small>
         {/* Where it is going, worked out from sales rather than counts — which is why it can
             speak for a tin nobody has recounted this week. Silent until something has sold. */}
+        {/* The explanation for the figure above: what sales have drawn since a person last
+            said what was there. If the two disagree with the fridge, that is what a recount is for. */}
+        {usage?.usedSinceCount != null && usage.usedSinceCount > 0 && (
+          <small className="stk-pace">
+            {fill(t('usedSince'), { q: `${qty(usage.usedSinceCount, item.unit)} ${unitName}` })}
+          </small>
+        )}
         {usage && usage.perDay > 0 && (
           <small className="stk-pace">
             {fill(t('usesPerDay'), { q: `${qty(usage.perDay, item.unit)} ${unitName}` })}

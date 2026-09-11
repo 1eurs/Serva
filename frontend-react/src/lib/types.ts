@@ -459,12 +459,10 @@ export interface StockItemPayload {
   packUnit?: StockUnit | null;
 }
 
-/** How one menu item meets the shelf at one branch. Mirrors MenuStockDtos.RuleResponse. */
+/** A cap on one menu item at one branch. Mirrors MenuStockDtos.RuleResponse. */
 export interface MenuStockRule {
   menuItemId: number;
   branchId: number;
-  /** One sale draws one of this. Null = not backed by the shelf. */
-  stockItemId?: number | null;
   /** At most this many a café day. Null = no cap. */
   dailyLimit?: number | null;
 }
@@ -485,4 +483,6 @@ export interface StockUsageRow {
   perDay: number;
   /** Null when nothing has been sold against it in the window. */
   daysLeft?: number | null;
+  /** What sales have drawn out of it since somebody last counted. Null when nobody ever has. */
+  usedSinceCount?: number | null;
 }

@@ -20,12 +20,12 @@ export const unitWord = (u: StockUnit, lang: Lang): string => (lang === 'ar'
  * A figure as a person would say it out loud.
  *
  * <p>Trailing zeros are noise on a shelf — "12.000 L" is a figure to decode, "12 L" is what is
- * in the fridge. Pieces are whole things and never carry a decimal at all; you cannot have
- * half a cup.
+ * in the fridge. Pieces are usually whole, but a bottle that lattes have been poured from is
+ * honestly four-and-a-bit, and rounding that to five would hide what the sales did.
  */
 export const qty = (n: number | null | undefined, unit: StockUnit): string => {
   const v = Number(n ?? 0);
-  if (unit === 'PIECE') return String(Math.round(v));
+  if (unit === 'PIECE') return String(Number(v.toFixed(1)));
   return String(Number(v.toFixed(2)));
 };
 

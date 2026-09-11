@@ -97,24 +97,24 @@ class MenuStockServiceTest {
         existing.setDailyLimit(3);
         when(rules.findByMenuItemIdAndBranchId(10L, 2L)).thenReturn(Optional.of(existing));
 
-        RuleResponse r = service.setRule(2L, 10L, new RuleRequest(null, null));
+        RuleResponse r = service.setRule(2L, 10L, new RuleRequest(null));
 
         verify(rules).delete(existing);
         verify(rules, never()).save(any());
-        assertThat(r.stockItemId()).isNull();
         assertThat(r.dailyLimit()).isNull();
     }
 
     @Test
-    void aRuleCannotNameATinFromAnotherBranch() {
-        assertThatThrownBy(() -> service.setRule(2L, 10L, new RuleRequest(6L, null)))
+    void aRecipeCannotNameATinFromAnotherBranch() {
+        assertThatThrownBy(() -> service.setRecipe(2L, 10L, new RecipeRequest(List.of(
+                new RecipeLineInput(6L, BigDecimal.ONE, StockUnit.L)))))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("another branch");
     }
 
     @Test
-    void aRuleCannotBeSetOnAnotherCafesMenuItem() {
-        assertThatThrownBy(() -> service.setRule(2L, 77L, new RuleRequest(5L, null)))
+    void aCapCannotBeSetOnAnotherCafesMenuItem() {
+        assertThatThrownBy(() -> service.setRule(2L, 77L, new RuleRequest(3)))
                 .isInstanceOf(BadRequestException.class);
     }
 

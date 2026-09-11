@@ -14,7 +14,4 @@ public interface MenuItemStockRepository extends JpaRepository<MenuItemStock, Lo
     Optional<MenuItemStock> findByMenuItemIdAndBranchId(Long menuItemId, Long branchId);
 
     List<MenuItemStock> findByBranchIdAndMenuItemIdIn(Long branchId, Collection<Long> menuItemIds);
-
-    /** Every rule pointing at one shelf row — what the wall shows as "backs: Croissant". */
-    List<MenuItemStock> findByStockItemId(Long stockItemId);
 }

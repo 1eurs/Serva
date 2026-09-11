@@ -27,12 +27,11 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * What an owner says about how a menu item meets the shelf: the rule (backed by which tin, capped
- * at how many a day) and the recipe (what goes into it). Both are per branch, because the tins
- * they name are.
+ * What an owner says about how a menu item meets the shelf: the recipe (what it takes) and the
+ * cap (how many a day). Both are per branch, because the tins a recipe names are.
  *
- * <p>Nothing here moves stock. Rules are read by {@link StockDrawService} when an order is
- * accepted; recipes are read by {@link StockUsageService} when someone asks how long the milk
+ * <p>Nothing here moves stock. Both are read by {@link StockDrawService} when an order is
+ * accepted, and recipes again by {@link StockUsageService} when someone asks how long the milk
  * will last. This class only keeps the owner's answers consistent — a tin from another branch, a
  * recipe in litres against a shelf in grams, the same ingredient twice — and refuses the rest.
  */
@@ -69,21 +68,16 @@ public class MenuStockService {
     }
 
     /**
-     * Replace the rule outright. A rule with nothing in it is deleted rather than kept: an item
-     * with no rule and an item with an empty rule must be indistinguishable, because "never
-     * hidden" has to mean the same thing for both.
+     * Replace the cap outright. No cap deletes the rule rather than keeping an empty one: an item
+     * with no rule and an item with an empty rule must be indistinguishable.
      */
     @Transactional
     public RuleResponse setRule(Long branchId, Long menuItemId, RuleRequest request) {
         Branch branch = requireBranch(branchId);
         requireMenuItemAt(branch, menuItemId);
-        if (request.stockItemId() != null) {
-            requireStockItemAt(branch, request.stockItemId());
-        }
 
         MenuItemStock rule = rules.findByMenuItemIdAndBranchId(menuItemId, branchId).orElse(null);
-        boolean empty = request.stockItemId() == null && request.dailyLimit() == null;
-        if (empty) {
+        if (request.dailyLimit() == null) {
             if (rule != null) rules.delete(rule);
             return RuleResponse.none(menuItemId, branchId);
         }
@@ -92,7 +86,6 @@ public class MenuStockService {
             rule.setMenuItemId(menuItemId);
             rule.setBranchId(branchId);
         }
-        rule.setStockItemId(request.stockItemId());
         rule.setDailyLimit(request.dailyLimit());
         return RuleResponse.from(rules.save(rule));
     }

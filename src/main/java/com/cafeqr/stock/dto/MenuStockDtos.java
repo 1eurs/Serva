@@ -19,27 +19,24 @@ public final class MenuStockDtos {
     }
 
     /**
-     * The rule for one menu item at one branch, sent whole. Both fields are replaced by what
-     * arrives — the form shows both, so an empty one means "no longer" — and both empty deletes
-     * the rule, which is the same as never having had one.
+     * The cap on one menu item at one branch. Replaced by what arrives — the form shows the
+     * field, so empty means "no cap any more", which deletes the rule.
      */
     public record RuleRequest(
-            Long stockItemId,
             @Positive Integer dailyLimit
     ) {}
 
     public record RuleResponse(
             Long menuItemId,
             Long branchId,
-            Long stockItemId,
             Integer dailyLimit
     ) {
         public static RuleResponse from(MenuItemStock r) {
-            return new RuleResponse(r.getMenuItemId(), r.getBranchId(), r.getStockItemId(), r.getDailyLimit());
+            return new RuleResponse(r.getMenuItemId(), r.getBranchId(), r.getDailyLimit());
         }
 
         public static RuleResponse none(Long menuItemId, Long branchId) {
-            return new RuleResponse(menuItemId, branchId, null, null);
+            return new RuleResponse(menuItemId, branchId, null);
         }
     }
 
@@ -68,16 +65,18 @@ public final class MenuStockDtos {
     }
 
     /**
-     * What one shelf row has been used at, worked out from sales and recipes rather than from the
-     * count — which is why it can say "3 days left" for a tin nobody has recounted this week.
-     * Null {@code daysLeft} means nothing has been sold against it in the window, so there is no
-     * honest rate to divide by.
+     * What one shelf row is being used at, worked out from sales and recipes. Null
+     * {@code daysLeft} means nothing has been sold against it in the window, so there is no
+     * honest rate to divide by. {@code usedSinceCount} is what sales have actually drawn out of
+     * it since somebody last counted — the answer to "why does it say 4.6" — and null when nobody
+     * ever has.
      */
     public record UsageRow(
             Long stockItemId,
             /** In the shelf row's own unit, over the whole window. */
             BigDecimal used,
             BigDecimal perDay,
-            BigDecimal daysLeft
+            BigDecimal daysLeft,
+            BigDecimal usedSinceCount
     ) {}
 }

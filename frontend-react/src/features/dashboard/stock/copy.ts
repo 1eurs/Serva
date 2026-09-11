@@ -50,23 +50,24 @@ export const DICT: Dict = {
     stDays: '≈ {n} {d}', usesPerDay: 'يُستهلك حوالي {q} يوميًا', daysLeft: 'يكفي {n} {d} بهذا المعدل',
     lessThanDay: 'يكفي أقل من يوم بهذا المعدل', backs: 'مرتبط بـ {names}',
 
-    /* the rules section in the menu item editor */
-    rulesT: 'المخزون', rulesHint: 'كيف يرتبط هذا الصنف بالمخزون في هذا الفرع.',
-    backedBy: 'مرتبط بـ', backedNone: 'غير مرتبط بالمخزون', backedHint: 'كل بيعة تأخذ واحدًا منه.',
+    /* the sheet behind a menu item */
+    rulesHint: 'ما يأخذه هذا الصنف من المخزون في هذا الفرع.',
     limitL: 'الحد الأقصى يوميًا', limitHint: 'اتركه فارغًا بلا حد. يُعاد كل صباح.', perDay: 'يوميًا',
-    recipeT: 'ما يدخل فيه', recipeHint: 'لمعرفة أين يذهب المخزون — لا يغيّر العدد أبدًا.',
+    recipeT: 'ما يأخذه من المخزون', recipeHint: 'كل بيعة تأخذ هذا من المخزون. كرواسون واحد يأخذ كرواسون واحدًا.',
     addLine: 'إضافة مكوّن', pickTin: 'اختر…', plateCost: 'تكلفته حوالي',
     rulesLoading: 'جارٍ التحميل…', rulesNoShelf: 'أضف أصنافًا للمخزون أولًا لربطها من هنا.',
+    usedSince: '≈ {q} استُهلك منذ آخر عدّ',
+    nudgeT: 'الآن حدّد ما يأخذه كل صنف من المخزون', nudgeS: 'اضغط على «القائمة» واختر صنفًا.',
 
     /* the menu, seen from the shelf */
     viewShelf: 'المخزون', viewMenu: 'القائمة',
     menuHint: 'اضغط على صنف لتحديد ما يدعمه من المخزون، أو حدّه اليومي، أو ما يدخل فيه.',
-    notSetUp: 'غير مُعدّ', aDay: '{n} يوميًا', perSale: '{name} — واحدة لكل بيعة',
+    notSetUp: 'غير مُعدّ', aDay: '{n} يوميًا',
     noMenu: 'لا توجد أصناف في القائمة بعد',
 
-    /* settings */
-    setT: 'المخزون', hideT: 'إخفاء الأصناف التي نفدت',
-    hideS: 'عندما يكون الصنف مرتبطًا بالمخزون ويصل العدد إلى صفر، يرى العميل «غير متوفر» ولا يستطيع طلبه. عند الإيقاف يبقى العدد لك فقط: لا يُخفى شيء ولا يُرفض طلب.',
+    /* the switch */
+    hideT: 'إخفاء الأصناف التي نفدت',
+    hideS: 'عندما لا يكفي المخزون لبيعة واحدة أخرى، يرى العميل «غير متوفر» ولا يستطيع طلبه. عند الإيقاف يبقى العدد لك فقط: لا يُخفى شيء ولا يُرفض طلب.',
     hideNote: 'الحدود اليومية تُطبَّق دائمًا بغض النظر عن هذا الخيار.',
     hideOn: 'يتم إخفاء ما نفد', hideOff: 'لا يُخفى شيء',
   },
@@ -107,23 +108,24 @@ export const DICT: Dict = {
     stDays: '≈ {n} {d}', usesPerDay: 'Uses about {q} a day', daysLeft: '{n} {d} left at this rate',
     lessThanDay: 'Less than a day left at this rate', backs: 'Backs {names}',
 
-    /* the rules section in the menu item editor */
-    rulesT: 'Stock', rulesHint: 'How this item meets the shelf at this branch.',
-    backedBy: 'Backed by', backedNone: 'Not on the shelf', backedHint: 'One sale takes one from it.',
+    /* the sheet behind a menu item */
+    rulesHint: 'What this item takes from the shelf at this branch.',
     limitL: 'At most, a day', limitHint: 'Leave empty for no cap. Resets every morning.', perDay: 'a day',
-    recipeT: 'What goes into it', recipeHint: 'For knowing where the stock goes — it never changes the count.',
+    recipeT: 'What it takes from the shelf', recipeHint: 'Selling one draws this from the shelf. A croissant takes one croissant.',
     addLine: 'Add ingredient', pickTin: 'Choose…', plateCost: 'Costs about',
     rulesLoading: 'Loading…', rulesNoShelf: 'Add items to the shelf first to link them here.',
+    usedSince: '≈ {q} used since you last counted',
+    nudgeT: 'Now say what each item takes from the shelf', nudgeS: 'Open Menu and tap an item.',
 
     /* the menu, seen from the shelf */
     viewShelf: 'Shelf', viewMenu: 'Menu',
     menuHint: 'Tap an item to say what backs it, cap it for the day, or write what goes into it.',
-    notSetUp: 'Not set up', aDay: '{n} a day', perSale: '{name} — one per sale',
+    notSetUp: 'Not set up', aDay: '{n} a day',
     noMenu: 'No menu items yet',
 
-    /* settings */
-    setT: 'Stock', hideT: 'Hide items that have run out',
-    hideS: 'When a menu item is backed by a shelf item and the count reads zero, customers see “Sold out” and can’t order it. Off, the count is only for you: nothing is hidden and nothing is refused.',
+    /* the switch */
+    hideT: 'Hide items that have run out',
+    hideS: 'When the shelf can’t cover one more sale of an item, customers see “Sold out” and can’t order it. Off, the count is only for you: nothing is hidden and nothing is refused.',
     hideNote: 'Daily limits always apply, switch or not.',
     hideOn: 'Hiding items that have run out', hideOff: 'Not hiding anything',
   },

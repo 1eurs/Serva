@@ -4,7 +4,7 @@ import { api } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import { useI18n, pick } from '../../../lib/i18n';
 import { useToast } from '../../../lib/toast';
-import type { CategoryResponse, MenuItemResponse, MenuStockRule, RecipeLineRow, StockItemRow } from '../../../lib/types';
+import type { CategoryResponse, MenuItemResponse, MenuStockRule, RecipeLineRow, Restaurant, StockItemRow } from '../../../lib/types';
 import { fill } from './copy';
 import { Sheet } from './sheets';
 import { StockRules, saveStockDraft, type StockDraft } from './StockRules';
@@ -15,9 +15,10 @@ type T = (k: string) => string;
 /**
  * The menu, seen from the shelf.
  *
- * <p>Everything about how a menu item meets the stock is set up here and nowhere else: what
- * backs it, how many a day, what goes into it. The owner never leaves the stock tab. Each item
- * is one line saying what has been decided about it, and a tap opens the three questions.
+ * <p>Everything about how a menu item meets the stock is set up here and nowhere else: what it
+ * takes from the shelf, and how many a day. The owner never leaves the stock tab — the one
+ * switch the feature has sits at the top of this view too. Each item is one line saying what
+ * has been decided about it, and a tap opens the sheet.
  *
  * <p>Grouped by category in menu order, because that is how an owner knows their own menu, and
  * the job here is to walk down it once.
@@ -50,6 +51,22 @@ export default function MenuRules({ t, branchId, shelf }: {
     queryKey: ['recipes', branchId],
     queryFn: () => api.get<RecipeLineRow[]>(`/api/branches/${branchId}/recipes`),
   });
+  const restaurantQ = useQuery({
+    queryKey: ['restaurant', rid],
+    queryFn: () => api.get<Restaurant>(`/api/restaurants/${rid}`),
+  });
+  const hiding = !!restaurantQ.data?.hideWhenOutOfStock;
+  /* Saves on the tap: it is one yes/no, and a switch that flips on screen and then quietly does
+     nothing until a Save button is found is the kind of control that gets reported as broken. */
+  const flip = useMutation({
+    mutationFn: (next: boolean) => api.patch<Restaurant>(`/api/restaurants/${rid}`, { hideWhenOutOfStock: next }),
+    onSuccess: (saved) => {
+      qc.setQueryData(['restaurant', rid], saved);
+      qc.invalidateQueries({ queryKey: ['pad-menu'] });
+      toast(saved.hideWhenOutOfStock ? t('hideOn') : t('hideOff'));
+    },
+    onError: (e: Error) => toast(e.message),
+  });
 
   const tins = useMemo(() => new Map(shelf.map((s) => [s.id, s])), [shelf]);
   const rules = useMemo(() => new Map((rulesQ.data ?? []).map((r) => [r.menuItemId, r])), [rulesQ.data]);
@@ -73,9 +90,6 @@ export default function MenuRules({ t, branchId, shelf }: {
   const summary = (i: MenuItemResponse): { text: string; set: boolean } => {
     const parts: string[] = [];
     const rule = rules.get(i.id);
-    const tin = rule?.stockItemId != null ? tins.get(rule.stockItemId) : undefined;
-    if (tin) parts.push(fill(t('perSale'), { name: pick(tin, 'name', lang) }));
-    if (rule?.dailyLimit != null) parts.push(fill(t('aDay'), { n: rule.dailyLimit }));
     const lines = recipes.get(i.id) ?? [];
     if (lines.length) {
       const shown = lines.slice(0, 3).map((l) => {
@@ -84,6 +98,7 @@ export default function MenuRules({ t, branchId, shelf }: {
       }).filter(Boolean);
       parts.push(shown.join(', ') + (lines.length > 3 ? ` +${lines.length - 3}` : ''));
     }
+    if (rule?.dailyLimit != null) parts.push(fill(t('aDay'), { n: rule.dailyLimit }));
     return parts.length ? { text: parts.join(' · '), set: true } : { text: t('notSetUp'), set: false };
   };
 
@@ -107,6 +122,18 @@ export default function MenuRules({ t, branchId, shelf }: {
 
   return (
     <div className="stk-menu">
+      <div className="stk-switch-row">
+        <div>
+          <b>{t('hideT')}</b>
+          <span>{t('hideS')}</span>
+          <span className="stk-set-note">{t('hideNote')}</span>
+        </div>
+        <button type="button" className={'switch' + (hiding ? ' on' : '')}
+          role="switch" aria-checked={hiding} aria-label={t('hideT')}
+          disabled={!restaurantQ.data || flip.isPending}
+          onClick={() => flip.mutate(!hiding)}><span /></button>
+      </div>
+
       <p className="stk-menu-hint">{t('menuHint')}</p>
       <input className="stk-search" type="search" value={q} placeholder={t('search')}
         onChange={(e) => setQ(e.target.value)} aria-label={t('search')} />

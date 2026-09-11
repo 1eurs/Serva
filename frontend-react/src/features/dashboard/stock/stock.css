@@ -497,3 +497,20 @@ html[data-posture="counter"] .stk-qty b { font-size: 31px; }
 
 /* In the sheet the rules are the whole body, so the box chrome goes. */
 .stk-sheet .stk-rules { margin: 0; padding: 0; border: 0; background: transparent; }
+
+/* ---------------------------------------------------------------- the switch, and the nudge */
+
+.stk-switch-row, .stk-nudge {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 12px 14px;
+  border: var(--bw) solid var(--keyline); border-radius: 10px;
+  background: var(--bg-2); box-shadow: var(--hard-xs);
+}
+.stk-switch-row > div, .stk-nudge > div { display: flex; flex-direction: column; gap: 2px; min-inline-size: 0; }
+.stk-switch-row b, .stk-nudge b { font-size: 13.5px; }
+.stk-switch-row span, .stk-nudge span { font-size: 12px; color: var(--muted); }
+.stk-nudge { background: var(--accent-tint); }
+.stk-nudge .btn { flex: 0 0 auto; }
+@media (max-width: 639px) {
+  .stk-nudge { flex-direction: column; align-items: stretch; }
+}

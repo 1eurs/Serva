@@ -8,9 +8,13 @@ import com.cafeqr.orders.domain.OrderItem;
 import com.cafeqr.restaurants.domain.Restaurant;
 import com.cafeqr.stock.domain.MenuItemDailyTally;
 import com.cafeqr.stock.domain.MenuItemStock;
+import com.cafeqr.stock.domain.OrderItemDraw;
+import com.cafeqr.stock.domain.RecipeLine;
 import com.cafeqr.stock.domain.StockItem;
 import com.cafeqr.stock.repository.MenuItemDailyTallyRepository;
 import com.cafeqr.stock.repository.MenuItemStockRepository;
+import com.cafeqr.stock.repository.OrderItemDrawRepository;
+import com.cafeqr.stock.repository.RecipeLineRepository;
 import com.cafeqr.stock.repository.StockItemRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -31,36 +36,43 @@ import java.util.stream.Collectors;
 /**
  * Where a sale meets the shelf.
  *
- * <p>Three things happen here and nowhere else. A customer order is refused when the shelf cannot
- * honour it ({@link #requireAvailable}). An accepted order takes what it needs ({@link #draw}). A
- * cancelled one puts it back ({@link #restore}). And the menu asks which items are out and how
- * many are left today ({@link #availability}).
+ * <p>A menu item's recipe says what it takes from the shelf: a croissant takes one croissant, a
+ * latte takes 200 ml of milk and 18 g of beans. An accepted order draws every line of every
+ * recipe ({@link #draw}); a cancelled one puts it back ({@link #restore}); a customer order the
+ * shelf cannot cover is refused ({@link #requireAvailable}); and the menu asks which items are
+ * out and how many are left today ({@link #availability}).
  *
- * <p>Two promises hold throughout. <b>Nothing is hidden unless the owner said so:</b> an item with
- * no rule is never touched, a stock-backed item is only hidden when the restaurant's switch is
- * on, and a daily limit — which the owner typed on purpose — always applies. <b>Nothing moves
+ * <p>Two promises hold throughout. <b>Nothing is hidden unless the owner said so:</b> an item
+ * with no recipe is never touched, a recipe only hides its item when the restaurant's switch is
+ * on, and a daily cap — which the owner typed on purpose — always applies. <b>Nothing moves
  * twice:</b> the order carries one mark saying a draw is outstanding, so a double accept or a
- * double cancel is a no-op, and what each line took is written on the line so a restore reverses
- * exactly that — never the current rule, which may have changed since.
+ * double cancel is a no-op, and what each line took from each tin is written down so a restore
+ * reverses exactly that — never the current recipe, which may have changed since.
  *
- * <p>The daily tally is counted for every accepted line, capped or not. A limit set at two in the
- * afternoon then honestly includes the morning, and "sold today" is the figure recipes read.
+ * <p>The daily tally is counted for every accepted line, capped or not. A cap set at two in the
+ * afternoon then honestly includes the morning, and "sold today" is what usage is read from.
  *
  * <p>Every method joins the caller's transaction. The order service owns the transaction and the
- * order; this class only ever touches shelf rows and tallies inside it.
+ * order; this class only ever touches shelf rows, draws and tallies inside it.
  */
 @Service
 public class StockDrawService {
 
-    private final MenuItemStockRepository rules;
+    private final MenuItemStockRepository caps;
+    private final RecipeLineRepository recipes;
     private final StockItemRepository stockItems;
+    private final OrderItemDrawRepository draws;
     private final MenuItemDailyTallyRepository tallies;
 
-    public StockDrawService(MenuItemStockRepository rules,
+    public StockDrawService(MenuItemStockRepository caps,
+                            RecipeLineRepository recipes,
                             StockItemRepository stockItems,
+                            OrderItemDrawRepository draws,
                             MenuItemDailyTallyRepository tallies) {
-        this.rules = rules;
+        this.caps = caps;
+        this.recipes = recipes;
         this.stockItems = stockItems;
+        this.draws = draws;
         this.tallies = tallies;
     }
 
@@ -70,29 +82,32 @@ public class StockDrawService {
     /**
      * Which of these menu items are sold out at this branch right now, and how many are left of
      * the ones with a daily cap. Computed when asked, never stored — see V47 for why.
+     *
+     * <p>A recipe item is out when any one ingredient cannot cover a single sale. Not "when the
+     * milk is at zero": a bottle with 100 ml left cannot make a 200 ml latte either.
      */
     @Transactional(readOnly = true)
     public Map<Long, ItemAvailability> availability(Restaurant restaurant, Long branchId,
                                                     Collection<Long> menuItemIds) {
         Snapshot s = snapshot(restaurant, branchId, menuItemIds);
         Map<Long, ItemAvailability> out = new HashMap<>();
-        for (MenuItemStock rule : s.rules.values()) {
-            Integer remaining = s.remainingToday(rule);
-            boolean out0 = (remaining != null && remaining == 0)
-                    || (s.hide && s.backed(rule) && s.onShelf(rule).signum() <= 0);
-            out.put(rule.getMenuItemId(), new ItemAvailability(out0, remaining));
+        for (Long id : menuItemIds) {
+            Integer remaining = s.remainingToday(id);
+            boolean short0 = s.hide && s.cannotCover(id, 1);
+            if (remaining == null && !s.recipes.containsKey(id)) continue;   // nothing to say
+            out.put(id, new ItemAvailability((remaining != null && remaining == 0) || short0, remaining));
         }
         return out;
     }
 
     /**
-     * Refuse a customer order the shelf cannot honour.
+     * Refuse a customer order the shelf cannot cover.
      *
-     * <p>Aggregated first, because a cart can hold the same item twice with different options, and
-     * two menu items can be backed by the same tin — three of one and two of the other is five
-     * croissants. The check is read-only; between it and the draw another order may slip in, and
-     * the draw clamps. That window is accepted: the alternative is holding row locks across the
-     * whole of order creation.
+     * <p>Aggregated per tin first, because a cart can hold the same item twice with different
+     * options, and two drinks can pour from the same bottle — three lattes and two cappuccinos is
+     * one carton being asked for 900 ml. The check is read-only; between it and the draw another
+     * order may slip in, and the draw clamps. That window is accepted: the alternative is holding
+     * row locks across the whole of order creation.
      *
      * <p>Staff orders never come through here. The person at the counter can see the shelf.
      */
@@ -108,29 +123,35 @@ public class StockDrawService {
         if (wanted.isEmpty()) return;
         Snapshot s = snapshot(restaurant, branchId, wanted.keySet());
 
-        Map<Long, BigDecimal> perStock = new LinkedHashMap<>();
-        Map<Long, String> stockNames = new HashMap<>();
         for (Map.Entry<Long, Integer> w : wanted.entrySet()) {
-            MenuItemStock rule = s.rules.get(w.getKey());
-            if (rule == null) continue;
-            Integer remaining = s.remainingToday(rule);
+            Integer remaining = s.remainingToday(w.getKey());
             if (remaining != null && w.getValue() > remaining) {
                 throw new BadRequestException(ErrorCode.MENU_ITEM_UNAVAILABLE, remaining == 0
                         ? "\"" + names.get(w.getKey()) + "\" is sold out for today"
                         : "Only " + remaining + " of \"" + names.get(w.getKey()) + "\" left today");
             }
-            if (s.hide && s.backed(rule)) {
-                perStock.merge(rule.getStockItemId(), BigDecimal.valueOf(w.getValue()), BigDecimal::add);
-                stockNames.putIfAbsent(rule.getStockItemId(), names.get(w.getKey()));
+        }
+        if (!s.hide) return;
+
+        // Everything the whole cart would pour from each tin, against what the tin holds.
+        Map<Long, BigDecimal> need = new LinkedHashMap<>();
+        Map<Long, String> firstAsker = new HashMap<>();
+        for (Map.Entry<Long, Integer> w : wanted.entrySet()) {
+            for (RecipeLine r : s.recipes.getOrDefault(w.getKey(), List.of())) {
+                BigDecimal perSale = s.perSale(r);
+                if (perSale == null) continue;
+                need.merge(r.getStockItemId(), perSale.multiply(BigDecimal.valueOf(w.getValue())), BigDecimal::add);
+                firstAsker.putIfAbsent(r.getStockItemId(), names.get(w.getKey()));
             }
         }
-        for (Map.Entry<Long, BigDecimal> p : perStock.entrySet()) {
-            BigDecimal have = s.stock.get(p.getKey());
-            if (p.getValue().compareTo(have) > 0) {
-                throw new BadRequestException(ErrorCode.MENU_ITEM_UNAVAILABLE, have.signum() <= 0
-                        ? "\"" + stockNames.get(p.getKey()) + "\" is sold out"
-                        : "Only " + have.stripTrailingZeros().toPlainString()
-                        + " of \"" + stockNames.get(p.getKey()) + "\" left");
+        for (Map.Entry<Long, BigDecimal> n : need.entrySet()) {
+            StockItem tin = s.tins.get(n.getKey());
+            if (tin == null) continue;   // vanished tin: nothing to say, never "sold out"
+            if (n.getValue().compareTo(tin.getQuantity().max(BigDecimal.ZERO)) > 0) {
+                throw new BadRequestException(ErrorCode.MENU_ITEM_UNAVAILABLE,
+                        tin.getQuantity().signum() <= 0
+                                ? "\"" + firstAsker.get(n.getKey()) + "\" is sold out"
+                                : "Not enough " + tinName(tin) + " for \"" + firstAsker.get(n.getKey()) + "\"");
             }
         }
     }
@@ -139,39 +160,46 @@ public class StockDrawService {
      * Take what an accepted order needs. Idempotent: the order's mark says whether a draw is
      * already outstanding, and a second call does nothing.
      *
-     * <p>Each shelf row is locked while it is decremented, because two orders for the last
-     * croissant can be accepted in the same second. The count is clamped at zero and the line
-     * records what it actually got, which is the figure a restore will put back. The switch is
-     * not consulted: drawing is bookkeeping and runs whether or not anything is hidden.
+     * <p>Each tin is locked while it is decremented, because two orders for the last croissant
+     * can be accepted in the same second. The count is clamped at zero and the draw records what
+     * it actually got, which is the figure a restore will put back. The switch is not consulted:
+     * drawing is bookkeeping and runs whether or not anything is hidden.
      */
     @Transactional
     public void draw(Order order) {
         if (order.getStockDrawnAt() != null) return;
         Instant now = Instant.now();
         LocalDate day = LocalDate.ofInstant(now, TimeZones.CAFES);
-        Map<Long, MenuItemStock> byItem = rulesFor(order.getBranchId(), order.getItems());
+        Map<Long, List<RecipeLine>> byItem = recipesFor(order.getBranchId(), order.getItems());
+        List<OrderItemDraw> made = new ArrayList<>();
 
         for (OrderItem line : order.getItems()) {
             if (line.getMenuItemId() == null) continue;
             tallies.add(line.getMenuItemId(), order.getBranchId(), day, line.getQuantity());
 
-            MenuItemStock rule = byItem.get(line.getMenuItemId());
-            if (rule == null || rule.getStockItemId() == null) continue;
-            StockItem stock = stockItems.findByIdForUpdate(rule.getStockItemId()).orElse(null);
-            if (stock == null) continue;   // the tin was thrown away since the rule was written
-            BigDecimal want = BigDecimal.valueOf(line.getQuantity());
-            BigDecimal take = want.min(stock.getQuantity().max(BigDecimal.ZERO));
-            stock.setQuantity(stock.getQuantity().subtract(take));
-            line.setDrawnStockItemId(stock.getId());
-            line.setDrawnQty(take);
+            for (RecipeLine r : byItem.getOrDefault(line.getMenuItemId(), List.of())) {
+                StockItem tin = stockItems.findByIdForUpdate(r.getStockItemId()).orElse(null);
+                if (tin == null) continue;   // the tin was thrown away since the recipe was written
+                BigDecimal factor = tin.factorFrom(r.getUnit());
+                if (factor == null) continue;   // refused on the way in; belt and braces
+                BigDecimal want = r.getQuantity().multiply(factor).multiply(BigDecimal.valueOf(line.getQuantity()));
+                BigDecimal take = want.min(tin.getQuantity().max(BigDecimal.ZERO));
+                tin.setQuantity(tin.getQuantity().subtract(take));
+                OrderItemDraw d = new OrderItemDraw();
+                d.setOrderItemId(line.getId());
+                d.setStockItemId(tin.getId());
+                d.setQuantity(take);
+                made.add(d);
+            }
         }
+        if (!made.isEmpty()) draws.saveAll(made);
         order.setStockDrawnAt(now);
     }
 
     /**
-     * Put back what a cancelled order took. Idempotent, and blind to the current rules: it reads
-     * what each line recorded, so a link changed or removed since the draw cannot misdirect it,
-     * and a tin thrown away since simply has nothing to receive.
+     * Put back what a cancelled order took. Idempotent, and blind to the current recipes: it
+     * reads what each line recorded per tin, so a recipe changed since the draw cannot misdirect
+     * it, and a tin thrown away since simply has nothing to receive.
      *
      * <p>The tally comes off the day the draw was made — an order accepted last night and
      * cancelled this morning was last night's sale.
@@ -182,71 +210,91 @@ public class StockDrawService {
         if (drawnAt == null) return;
         LocalDate day = LocalDate.ofInstant(drawnAt, TimeZones.CAFES);
 
+        Set<Long> lineIds = order.getItems().stream().map(OrderItem::getId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
         for (OrderItem line : order.getItems()) {
             if (line.getMenuItemId() != null) {
                 tallies.subtract(line.getMenuItemId(), order.getBranchId(), day, line.getQuantity());
             }
-            if (line.getDrawnStockItemId() != null && line.getDrawnQty() != null
-                    && line.getDrawnQty().signum() > 0) {
-                stockItems.findByIdForUpdate(line.getDrawnStockItemId())
-                        .ifPresent(stock -> stock.setQuantity(stock.getQuantity().add(line.getDrawnQty())));
+        }
+        if (!lineIds.isEmpty()) {
+            for (OrderItemDraw d : draws.findByOrderItemIdIn(lineIds)) {
+                if (d.getStockItemId() == null || d.getQuantity().signum() <= 0) continue;
+                stockItems.findByIdForUpdate(d.getStockItemId())
+                        .ifPresent(tin -> tin.setQuantity(tin.getQuantity().add(d.getQuantity())));
             }
-            line.setDrawnStockItemId(null);
-            line.setDrawnQty(null);
+            draws.deleteByOrderItemIdIn(lineIds);
         }
         order.setStockDrawnAt(null);
     }
 
     // ---- internals ----
 
-    private Map<Long, MenuItemStock> rulesFor(Long branchId, List<OrderItem> lines) {
+    private Map<Long, List<RecipeLine>> recipesFor(Long branchId, List<OrderItem> lines) {
         Set<Long> ids = lines.stream().map(OrderItem::getMenuItemId)
                 .filter(Objects::nonNull).collect(Collectors.toSet());
         if (ids.isEmpty()) return Map.of();
-        return rules.findByBranchIdAndMenuItemIdIn(branchId, ids).stream()
-                .collect(Collectors.toMap(MenuItemStock::getMenuItemId, Function.identity()));
+        return recipes.findByBranchIdAndMenuItemIdIn(branchId, ids).stream()
+                .collect(Collectors.groupingBy(RecipeLine::getMenuItemId));
     }
 
-    /** One read of everything a verdict needs: the rules, the tins they name, today's tallies. */
+    /** One read of everything a verdict needs: the caps, the recipes, the tins, today's tallies. */
     private Snapshot snapshot(Restaurant restaurant, Long branchId, Collection<Long> menuItemIds) {
-        if (menuItemIds.isEmpty()) return new Snapshot(false, Map.of(), Map.of(), Map.of());
-        Map<Long, MenuItemStock> byItem = rules.findByBranchIdAndMenuItemIdIn(branchId, menuItemIds).stream()
+        if (menuItemIds.isEmpty()) return new Snapshot(false, Map.of(), Map.of(), Map.of(), Map.of());
+        Map<Long, MenuItemStock> capByItem = caps.findByBranchIdAndMenuItemIdIn(branchId, menuItemIds).stream()
+                .filter(c -> c.getDailyLimit() != null)
                 .collect(Collectors.toMap(MenuItemStock::getMenuItemId, Function.identity()));
+        Map<Long, List<RecipeLine>> recipeByItem = recipes.findByBranchIdAndMenuItemIdIn(branchId, menuItemIds).stream()
+                .collect(Collectors.groupingBy(RecipeLine::getMenuItemId));
 
-        Set<Long> stockIds = byItem.values().stream().map(MenuItemStock::getStockItemId)
-                .filter(Objects::nonNull).collect(Collectors.toSet());
-        Map<Long, BigDecimal> stock = stockIds.isEmpty() ? Map.of()
-                : stockItems.findByIdIn(stockIds).stream()
-                        .collect(Collectors.toMap(StockItem::getId, StockItem::getQuantity));
+        Set<Long> tinIds = recipeByItem.values().stream().flatMap(List::stream)
+                .map(RecipeLine::getStockItemId).collect(Collectors.toSet());
+        Map<Long, StockItem> tins = tinIds.isEmpty() ? Map.of()
+                : stockItems.findByIdIn(tinIds).stream()
+                        .collect(Collectors.toMap(StockItem::getId, Function.identity()));
 
-        Set<Long> capped = byItem.values().stream().filter(r -> r.getDailyLimit() != null)
-                .map(MenuItemStock::getMenuItemId).collect(Collectors.toSet());
-        Map<Long, Integer> sold = capped.isEmpty() ? Map.of()
+        Map<Long, Integer> sold = capByItem.isEmpty() ? Map.of()
                 : tallies.findByBranchIdAndCafeDayAndMenuItemIdIn(
-                        branchId, LocalDate.now(TimeZones.CAFES), capped).stream()
+                        branchId, LocalDate.now(TimeZones.CAFES), capByItem.keySet()).stream()
                         .collect(Collectors.toMap(MenuItemDailyTally::getMenuItemId, MenuItemDailyTally::getSold));
 
-        return new Snapshot(restaurant.isHideWhenOutOfStock(), byItem, stock, sold);
+        return new Snapshot(restaurant.isHideWhenOutOfStock(), capByItem, recipeByItem, tins, sold);
     }
 
-    private record Snapshot(boolean hide, Map<Long, MenuItemStock> rules,
-                            Map<Long, BigDecimal> stock, Map<Long, Integer> soldToday) {
-        Integer remainingToday(MenuItemStock rule) {
-            if (rule.getDailyLimit() == null) return null;
-            return Math.max(0, rule.getDailyLimit() - soldToday.getOrDefault(rule.getMenuItemId(), 0));
+    private static String tinName(StockItem tin) {
+        return tin.getNameEn() != null ? tin.getNameEn() : tin.getNameAr();
+    }
+
+    private record Snapshot(boolean hide, Map<Long, MenuItemStock> caps,
+                            Map<Long, List<RecipeLine>> recipes,
+                            Map<Long, StockItem> tins, Map<Long, Integer> soldToday) {
+        Integer remainingToday(Long menuItemId) {
+            MenuItemStock cap = caps.get(menuItemId);
+            if (cap == null) return null;
+            return Math.max(0, cap.getDailyLimit() - soldToday.getOrDefault(menuItemId, 0));
+        }
+
+        /** One sale's worth of a recipe line, in the tin's own unit; null when the tin is gone. */
+        BigDecimal perSale(RecipeLine r) {
+            StockItem tin = tins.get(r.getStockItemId());
+            if (tin == null) return null;
+            BigDecimal f = tin.factorFrom(r.getUnit());
+            return f == null ? null : r.getQuantity().multiply(f);
         }
 
         /**
-         * Linked to a tin that is actually there. The FK nulls the link the moment a tin is
-         * thrown away, so the miss can only be a race — and a race must read as "nothing to
-         * say", never as "sold out". Silence is the safe default.
+         * Would {@code n} sales of this item run some ingredient dry? A tin that has vanished is
+         * left out — the FK nulls nothing here, it deletes the line, so a miss can only be a
+         * race, and a race must read as "nothing to say", never as "sold out".
          */
-        boolean backed(MenuItemStock rule) {
-            return rule.getStockItemId() != null && stock.containsKey(rule.getStockItemId());
-        }
-
-        BigDecimal onShelf(MenuItemStock rule) {
-            return stock.get(rule.getStockItemId());
+        boolean cannotCover(Long menuItemId, int n) {
+            for (RecipeLine r : recipes.getOrDefault(menuItemId, List.of())) {
+                BigDecimal per = perSale(r);
+                if (per == null) continue;
+                BigDecimal have = tins.get(r.getStockItemId()).getQuantity().max(BigDecimal.ZERO);
+                if (per.multiply(BigDecimal.valueOf(n)).compareTo(have) > 0) return true;
+            }
+            return false;
         }
     }
 }

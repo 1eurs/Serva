@@ -57,18 +57,6 @@ public class OrderItem {
     @Column(name = "selected_options_json", columnDefinition = "text")
     private String selectedOptionsJson;
 
-    /**
-     * The shelf row this line drew from and how much it actually got — less than {@code quantity}
-     * when the count was clamped at zero. A restore reads these and never the current link, so a
-     * rule edited between accept and cancel cannot send stock back to the wrong tin. Null on a
-     * line that drew nothing.
-     */
-    @Column(name = "drawn_stock_item_id")
-    private Long drawnStockItemId;
-
-    @Column(name = "drawn_qty", precision = 14, scale = 3)
-    private BigDecimal drawnQty;
-
     public Long getId() {
         return id;
     }
@@ -149,19 +137,4 @@ public class OrderItem {
         this.selectedOptionsJson = selectedOptionsJson;
     }
 
-    public Long getDrawnStockItemId() {
-        return drawnStockItemId;
-    }
-
-    public void setDrawnStockItemId(Long drawnStockItemId) {
-        this.drawnStockItemId = drawnStockItemId;
-    }
-
-    public BigDecimal getDrawnQty() {
-        return drawnQty;
-    }
-
-    public void setDrawnQty(BigDecimal drawnQty) {
-        this.drawnQty = drawnQty;
-    }
 }

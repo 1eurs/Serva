@@ -4,13 +4,12 @@ import com.cafeqr.auth.security.AccessGuard;
 import com.cafeqr.branches.BranchService;
 import com.cafeqr.branches.domain.Branch;
 import com.cafeqr.stock.domain.MenuItemDailyTally;
-import com.cafeqr.stock.domain.MenuItemStock;
 import com.cafeqr.stock.domain.RecipeLine;
 import com.cafeqr.stock.domain.StockItem;
 import com.cafeqr.stock.domain.StockUnit;
 import com.cafeqr.stock.dto.MenuStockDtos.UsageRow;
 import com.cafeqr.stock.repository.MenuItemDailyTallyRepository;
-import com.cafeqr.stock.repository.MenuItemStockRepository;
+import com.cafeqr.stock.repository.OrderItemDrawRepository;
 import com.cafeqr.stock.repository.RecipeLineRepository;
 import com.cafeqr.stock.repository.StockItemRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,8 +34,8 @@ import static org.mockito.Mockito.when;
 class StockUsageServiceTest {
 
     @Mock private MenuItemDailyTallyRepository tallies;
-    @Mock private MenuItemStockRepository rules;
     @Mock private RecipeLineRepository recipes;
+    @Mock private OrderItemDrawRepository draws;
     @Mock private StockItemRepository stockItems;
     @Mock private BranchService branchService;
     @Mock private AccessGuard accessGuard;
@@ -47,7 +46,7 @@ class StockUsageServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new StockUsageService(tallies, rules, recipes, stockItems, branchService, accessGuard);
+        service = new StockUsageService(tallies, recipes, draws, stockItems, branchService, accessGuard);
         Branch branch = new Branch();
         branch.setId(2L);
         branch.setRestaurantId(1L);
@@ -56,17 +55,19 @@ class StockUsageServiceTest {
         beans = tin(5L, StockUnit.KG, "2.000");
         croissants = tin(6L, StockUnit.PIECE, "6");
         lenient().when(stockItems.findByBranchIdOrderByIdAsc(2L)).thenReturn(List.of(beans, croissants));
-        lenient().when(rules.findByBranchId(2L)).thenReturn(List.of());
         lenient().when(recipes.findByBranchId(2L)).thenReturn(List.of());
+        lenient().when(draws.usedSince(any(), any())).thenReturn(BigDecimal.ZERO);
         lenient().when(tallies.findByBranchIdAndCafeDayBetween(eq(2L), any(), any())).thenReturn(List.of());
     }
 
     @Test
-    void aCountableLinkIsAOnePieceRecipe() throws Exception {
-        MenuItemStock rule = new MenuItemStock();
-        rule.setMenuItemId(10L);
-        rule.setStockItemId(6L);
-        when(rules.findByBranchId(2L)).thenReturn(List.of(rule));
+    void aOnePieceRecipeCountsWholeThings() throws Exception {
+        RecipeLine one = new RecipeLine();
+        one.setMenuItemId(10L);
+        one.setStockItemId(6L);
+        one.setQuantity(BigDecimal.ONE);
+        one.setUnit(StockUnit.PIECE);
+        when(recipes.findByBranchId(2L)).thenReturn(List.of(one));
         // 14 croissants over the week
         when(tallies.findByBranchIdAndCafeDayBetween(eq(2L), any(), any()))
                 .thenReturn(List.of(sold(10L, 9), sold(10L, 5)));
@@ -121,6 +122,24 @@ class StockUsageServiceTest {
         assertThat(r.used()).isEqualByComparingTo("70");
         assertThat(r.perDay()).isEqualByComparingTo("10");
         assertThat(r.daysLeft()).isEqualByComparingTo("2.4");
+    }
+
+    @Test
+    void usedSinceTheLastCountComesFromTheDrawsAndOnlyWhenSomebodyCounted() {
+        RecipeLine line = new RecipeLine();
+        line.setMenuItemId(11L);
+        line.setStockItemId(5L);
+        line.setQuantity(new BigDecimal("18"));
+        line.setUnit(StockUnit.G);
+        when(recipes.findByBranchId(2L)).thenReturn(List.of(line));
+        beans.setLastMovedAt(java.time.Instant.now().minusSeconds(3600));
+        when(draws.usedSince(eq(5L), any())).thenReturn(new BigDecimal("0.414"));
+
+        assertThat(service.usage(2L, 7).get(0).usedSinceCount()).isEqualByComparingTo("0.414");
+
+        // A tin nobody has ever counted has no "since" to speak of.
+        beans.setLastMovedAt(null);
+        assertThat(service.usage(2L, 7).get(0).usedSinceCount()).isNull();
     }
 
     @Test

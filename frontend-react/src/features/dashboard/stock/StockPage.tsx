@@ -4,7 +4,7 @@ import { api } from '../../../lib/api';
 import { useAuth, can } from '../../../lib/auth';
 import { useI18n, useT, pick } from '../../../lib/i18n';
 import { Money } from '../../../lib/Money';
-import type { StockItemRow, StockUsageRow } from '../../../lib/types';
+import type { RecipeLineRow, StockItemRow, StockUsageRow } from '../../../lib/types';
 import { DICT, fill } from './copy';
 import { ItemForm, ItemSheet } from './sheets';
 import MenuRules from './MenuRules';
@@ -60,6 +60,14 @@ export default function StockPage({ branchId }: { branchId?: number }) {
   });
   const usage = useMemo(
     () => new Map((usageQ.data ?? []).map((u) => [u.stockItemId, u])), [usageQ.data]);
+  /* Only to know whether anything has been set up yet: a shelf with things on it and a menu
+     that takes nothing from them is a café halfway through, and the wall says so once. */
+  const recipesQ = useQuery({
+    queryKey: ['recipes', branchId],
+    queryFn: () => api.get<RecipeLineRow[]>(`/api/branches/${branchId}/recipes`),
+    enabled: !!branchId && canMenu,
+  });
+  const nothingLinked = canMenu && recipesQ.data != null && recipesQ.data.length === 0;
 
   const [q, setQ] = useState('');
   const [onlyLow, setOnlyLow] = useState(false);
@@ -132,6 +140,12 @@ export default function StockPage({ branchId }: { branchId?: number }) {
         <Nothing t={t} q={q.trim()} onAdd={() => setForm({ item: null, seedName: q.trim() })} />
       ) : (
         <>
+          {nothingLinked && (
+            <div className="stk-nudge">
+              <div><b>{t('nudgeT')}</b><span>{t('nudgeS')}</span></div>
+              <button className="btn sm" onClick={() => setView('menu')}>{t('viewMenu')} ›</button>
+            </div>
+          )}
           <div className="stk-wall">
             {shown.map((i) => <Tile key={i.id} t={t} item={i} usage={usage.get(i.id)} onOpen={() => setOpenId(i.id)} />)}
           </div>
