@@ -35,8 +35,8 @@ android {
         // that are not worth the printing edge cases.
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "1.5"
+        versionCode = 7
+        versionName = "1.6"
     }
     buildTypes {
         release {

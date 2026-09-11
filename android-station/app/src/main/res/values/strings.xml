@@ -5,16 +5,10 @@
     <string name="channel_name">Print station</string>
     <string name="notif_title">Serva print station</string>
 
-    <string name="step_1">Step 1 of 4</string>
-    <string name="step_2">Step 2 of 4</string>
-    <string name="step_3">Step 3 of 4</string>
-    <string name="step_4">Step 4 of 4</string>
-
     <string name="sign_in_title">Sign in</string>
     <string name="sign_in_body">Use a staff account for this café. This tablet stays signed in, so you only do this once.</string>
     <string name="hint_username">Staff email</string>
     <string name="hint_password">Password</string>
-    <string name="hint_api">Serva address</string>
     <string name="sign_in">Sign in</string>
     <string name="signing_in">Signing in…</string>
 
@@ -30,7 +24,7 @@
     <string name="scanning_wider">Searching other address ranges… %1$d of %2$d</string>
     <string name="found_none_wider">Still nothing. Get the address off the printer itself — switch it off, hold FEED, switch it on, and it prints a slip with its address — then use “Enter the address myself”. If that will not connect either, the printer is on a network this tablet cannot reach, and the two have to be joined to the same one.</string>
     <string name="found_one">Found your printer.</string>
-    <string name="found_many">Found %1$d printers. Pick the one at your counter.</string>
+    <string name="found_many">Found %1$d printers. Each has its own address — pick the one at your counter. Not sure which? Switch the printer off, hold FEED, switch it on: it prints its address. Type that with “Enter the address myself”.</string>
     <string name="printer_at">Printer at %1$s</string>
     <string name="printer_confirmed">Answered as a printer</string>
     <string name="printer_open_port">Print port %1$d is open</string>
@@ -40,7 +34,7 @@
     <string name="hint_printer_ip">Printer IP address</string>
     <string name="use_bluetooth">Use a Bluetooth printer</string>
     <string name="bt_pick">Pick your printer. Only printers already paired with this tablet are listed.</string>
-    <string name="bt_is_printer">Paired · reports itself as a printer</string>
+    <string name="bt_is_printer">Paired, and it reports itself as a printer</string>
     <string name="bt_none_paired">Nothing is paired with this tablet yet. Pair the printer in Android\'s Bluetooth settings first, then come back.</string>
     <string name="bt_off">Bluetooth is switched off. Turn it on, then come back.</string>
     <string name="no_printer_picked">Pick a printer first.</string>
@@ -63,15 +57,14 @@
     <string name="not_running">Not printing</string>
     <string name="paused">Paused</string>
     <string name="running_detail">Tickets for %1$s print here automatically. You can turn the screen off.</string>
-    <string name="status_meta">Printer %1$s · this device %2$s</string>
     <string name="pause_collecting">Pause collecting</string>
     <string name="resume_collecting">Resume collecting</string>
-    <string name="cloud_ok">Collecting from %1$s · last pull %2$s</string>
-    <string name="cloud_never">Collecting from %1$s · never pulled</string>
-    <string name="cloud_waiting">Connecting to %1$s…</string>
+    <string name="cloud_ok">Collecting tickets, last pull %1$s</string>
+    <string name="cloud_never">Collecting tickets, waiting for the first one</string>
+    <string name="cloud_waiting">Connecting…</string>
     <string name="cloud_down">Cannot reach Serva</string>
     <string name="printer_answering">Printer %1$s is answering</string>
-    <string name="printer_waiting">Printer %1$s · waiting for the first ticket</string>
+    <string name="printer_waiting">Printer %1$s is waiting for the first ticket</string>
     <string name="printer_silent">Printer %1$s is not answering</string>
     <string name="last_pull_just_now">just now</string>
     <string name="last_pull_never">never</string>

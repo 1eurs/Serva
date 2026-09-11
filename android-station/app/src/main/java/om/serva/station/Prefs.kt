@@ -16,6 +16,7 @@ class Prefs(context: Context) {
         const val TRANSPORT_BLUETOOTH = "bluetooth"
     }
 
+    /** Where this tablet talks to Serva. Not shown on screen — cafés do not type a URL. */
     var apiBase: String
         get() = p.getString("apiBase", "https://serva.om")!!.trimEnd('/')
         set(v) = p.edit().putString("apiBase", v.trimEnd('/')).apply()

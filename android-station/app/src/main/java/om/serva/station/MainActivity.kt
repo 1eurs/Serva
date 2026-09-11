@@ -31,9 +31,11 @@ import org.json.JSONObject
  *
  * The hardest thing about connecting a thermal printer is that every other product asks the
  * café for an IP address — which means power-cycling the printer while holding FEED, reading
- * a self-test slip, and typing four numbers correctly. This asks for none of it: the app
- * sweeps the café's own WiFi for anything answering on the printer port and offers what it
- * finds. Branches are picked by name for the same reason.
+ * a self-test slip, and typing four numbers correctly. This asks for none of it when there
+ * is one printer: the app sweeps the café's own WiFi for anything answering on the printer
+ * port and offers what it finds. Several printers on the same WiFi is not a collision —
+ * each has its own address, the list shows that address, and typing it (or the test slip)
+ * is how you pick the physical machine. Branches are picked by name for the same reason.
  *
  * Nothing here prints in service. Once set up, this screen exists only to answer "is it
  * working?" — the service does the work, and the tablet's screen can be off.
@@ -78,7 +80,6 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         }
 
-        b.apiBase.setText(prefs.apiBase)
         b.username.setText(prefs.username)
         b.paper58.isChecked = prefs.paperWidth == 58
 
@@ -125,6 +126,16 @@ class MainActivity : AppCompatActivity() {
         b.step3.visibility = if (step == 3) View.VISIBLE else View.GONE
         b.step4.visibility = if (step == 4) View.VISIBLE else View.GONE
         wizardBack.isEnabled = step in 2..4
+        b.brandSub.visibility = if (step == 0) View.GONE else View.VISIBLE
+        b.progress.visibility = if (step in 1..4) View.VISIBLE else View.GONE
+        markTick(b.tick1, step >= 1)
+        markTick(b.tick2, step >= 2)
+        markTick(b.tick3, step >= 3)
+        markTick(b.tick4, step >= 4)
+    }
+
+    private fun markTick(tick: View, on: Boolean) {
+        tick.setBackgroundResource(if (on) R.drawable.tick_on else R.drawable.tick_off)
     }
 
     private fun showStatus() {
@@ -156,7 +167,6 @@ class MainActivity : AppCompatActivity() {
         if (user.isBlank()) b.username.error = getString(R.string.needed)
         if (pass.isBlank()) b.password.error = getString(R.string.needed)
         if (user.isBlank() || pass.isBlank()) return
-        prefs.apiBase = b.apiBase.text.toString().ifBlank { "https://serva.om" }
         prefs.username = user
         prefs.password = pass
         b.signIn.isEnabled = false
@@ -543,23 +553,15 @@ class MainActivity : AppCompatActivity() {
                 else -> R.drawable.dot_bad
             }
         )
-        b.statusMeta.text = getString(R.string.status_meta, prefs.printerLabel, prefs.stationId)
         b.pause.text = getString(if (prefs.paused) R.string.resume_collecting else R.string.pause_collecting)
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         b.battery.visibility = if (pm.isIgnoringBatteryOptimizations(packageName)) View.GONE else View.VISIBLE
     }
 
     private fun cloudHealthText(): String {
-        val host = cloudHost()
-        if (prefs.lastPullAt == 0L) return getString(if (prefs.cloudOk) R.string.cloud_never else R.string.cloud_waiting, host)
+        if (prefs.lastPullAt == 0L) return getString(if (prefs.cloudOk) R.string.cloud_never else R.string.cloud_waiting)
         if (!prefs.cloudOk) return getString(R.string.cloud_down)
-        return getString(R.string.cloud_ok, host, lastPullPhrase())
-    }
-
-    private fun cloudHost(): String {
-        val host = Uri.parse(prefs.apiBase).host
-        return host?.takeIf { it.isNotBlank() }
-            ?: prefs.apiBase.removePrefix("https://").removePrefix("http://").substringBefore('/')
+        return getString(R.string.cloud_ok, lastPullPhrase())
     }
 
     private fun lastPullPhrase(): String {

@@ -1,12 +1,11 @@
 <resources>
-    <!-- The counter tablet is used at arm's length, standing, holding something else —
-         Serva gives that posture its most generous scale, and so does this. -->
+    <!-- Arm's-length, standing, often holding something else. -->
     <dimen name="tap">56dp</dimen>
-    <dimen name="radius">12dp</dimen>
-    <dimen name="border">2dp</dimen>
-    <dimen name="drop">4dp</dimen>
-    <dimen name="gutter">22dp</dimen>
+    <dimen name="radius">4dp</dimen>
+    <dimen name="border">1.5dp</dimen>
+    <dimen name="gutter">20dp</dimen>
+    <dimen name="slip_max">440dp</dimen>
     <dimen name="text_body">16sp</dimen>
     <dimen name="text_title">26sp</dimen>
-    <dimen name="text_step">13sp</dimen>
+    <dimen name="text_status">40sp</dimen>
 </resources>

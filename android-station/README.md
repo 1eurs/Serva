@@ -28,9 +28,11 @@ it last did.
 
 1. Install, open, sign in with a staff account and pick the branch.
 2. Pick the printer. The app asks the network over mDNS **and** sweeps the addresses on its
-   own subnets, then offers what answers — there is no address to type. A printer that answers
-   ESC/POS status is labelled "Answered as a printer", which is the difference between the
-   machine you want and something that merely has a port open.
+   own subnets, then offers what answers. A printer that answers ESC/POS status is labelled
+   "Answered as a printer", which is the difference between the machine you want and something
+   that merely has a port open. Several printers on the WiFi is not a collision: each has its
+   own address, the list shows that address, and **Enter the address myself** takes the number
+   off the FEED slip when you are not sure which row is the counter.
    *If nothing is found*, the printer is usually on a different range of addresses than the
    tablet — a static IP left over from wherever it was installed before. mDNS finds those when
    the printer announces itself; when it does not, **Search wider** tries the /24s a
