@@ -61,13 +61,19 @@ Both screens are bilingual and styled already; nothing about them needs rewritin
 
 ## Verified but not acted on
 
-**Two integration tests cannot run on this machine.**
-`CafeQrFlowIntegrationTest` and `StaffPermissionsIntegrationTest` fail before
-reaching any application code: Testcontainers 1.20.4 negotiates Docker API 1.32,
-and the local daemon reports `MinAPIVersion 1.40`. The error is
-`Could not find a valid Docker environment`. This reproduces on a clean checkout,
-so it is environmental, not a code fault. Fixing it means bumping the Testcontainers
-dependency. The remaining 158 tests pass.
+**~~Two integration tests cannot run on this machine.~~ They can — pass the API version.**
+`CafeQrFlowIntegrationTest` and `StaffPermissionsIntegrationTest` fail with
+`Could not find a valid Docker environment` under a plain `mvn test`, because
+docker-java negotiates an API version below what Docker 29 accepts as its minimum.
+That is environmental, and it does not need a Testcontainers bump — it needs the
+flag `.github/workflows/ci.yml` already documents:
+
+    mvn test -DargLine="-Dapi.version=1.44"
+
+Verified 2026-09-11: all 225 tests pass that way locally, the 54 in
+`StaffPermissionsIntegrationTest` included. Deliberately not pinned in the pom —
+CI's runner has an older Docker that negotiates fine, and hardcoding 1.44 would
+break anyone on a Docker too old to speak it.
 
 **57 CSS classes have no literal reference in the source.**
 They are *not* confirmed dead — each one's prefix does appear in source, so most are

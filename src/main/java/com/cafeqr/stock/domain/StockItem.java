@@ -30,10 +30,10 @@ public class StockItem extends BaseEntity implements BilingualNamed {
     @Column(name = "branch_id", nullable = false)
     private Long branchId;
 
-    @Column(name = "name_en")
+    @Column(name = "name_en", length = 150)
     private String nameEn;
 
-    @Column(name = "name_ar")
+    @Column(name = "name_ar", length = 150)
     private String nameAr;
 
     @Enumerated(EnumType.STRING)

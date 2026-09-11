@@ -4,7 +4,7 @@ export type Lang = 'ar' | 'en';
 
 export type Permission =
   | 'PLATFORM_ADMIN' | 'ORDERS' | 'PAYMENTS' | 'MENU'
-  | 'QR_TABLES' | 'TEAM' | 'ANALYTICS' | 'PROFILE' | 'BRANCHES' | 'BILLING';
+  | 'QR_TABLES' | 'TEAM' | 'ANALYTICS' | 'PROFILE' | 'BRANCHES' | 'STOCK' | 'BILLING';
 export type OrderType = 'DINE_IN' | 'CAR';
 export type OrderStatus = 'PENDING' | 'ACCEPTED' | 'PREPARING' | 'READY' | 'COMPLETED' | 'DECLINED' | 'CANCELLED';
 export type PaymentStatus = 'UNPAID' | 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
@@ -410,4 +410,38 @@ export interface StaffInvite {
   joinUrl: string;
   expiresAt: string;
   createdAt: string;
+}
+
+/* ---- stock ---- */
+
+/** What the number beside an item counts. Stored and shown as typed — nothing converts. */
+export type StockUnit = 'KG' | 'G' | 'L' | 'ML' | 'PIECE';
+
+/** One thing on the shelf. Mirrors StockDtos.StockItemResponse. */
+export interface StockItemRow {
+  id: number;
+  branchId: number;
+  nameEn?: string | null;
+  nameAr?: string | null;
+  unit: StockUnit;
+  quantity: number;
+  /** Buy more at or below this. Null means nobody has said — not "zero". */
+  reorderPoint?: number | null;
+  /** What one unit costs, in OMR. Optional everywhere it appears. */
+  unitPrice?: number | null;
+  /** When a person last said what was there — a delivery or a count. */
+  lastMovedAt?: string | null;
+  createdAt: string;
+}
+
+/** What the add / edit form sends. Quantity is absent on edit: only a count or a delivery moves it. */
+export interface StockItemPayload {
+  /** One of the pair carries the name and the other is empty — an item named once, in its
+   *  own script. Both are filled only for a starter item, which knows it in both. */
+  nameEn: string;
+  nameAr: string;
+  unit: StockUnit;
+  quantity?: number;
+  reorderPoint?: number | null;
+  unitPrice?: number | null;
 }

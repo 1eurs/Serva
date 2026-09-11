@@ -266,6 +266,7 @@ public class UserManagementService {
             case ANALYTICS -> "Analytics";
             case PROFILE -> "Restaurant settings";
             case BRANCHES -> "Branches";
+            case STOCK -> "Stock";
             case PLATFORM_ADMIN -> "platform admin";
             case BILLING -> "Billing";
         };

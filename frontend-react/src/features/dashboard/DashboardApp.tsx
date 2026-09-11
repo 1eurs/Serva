@@ -32,12 +32,13 @@ import TeamPage from './TeamPage';
 const AnalyticsPage = lazy(() => import('./AnalyticsPage'));
 import OrderPad from './OrderPad';
 import LoyaltyPage from './LoyaltyPage';
+import StockPage from './stock/StockPage';
 import './dashboard.css';
 import './settings.css';
 
 const DICT: Dict = {
   ar: { title: 'شاشة المطبخ', live: 'مباشر', logoutT: 'خروج', cur: 'ر.ع', min: 'د', empty: 'لا طلبات',
-        nav_board: 'الطلبات المباشرة', nav_tables: 'الطاولات ورموز QR', nav_orders: 'سجل الطلبات', nav_menu: 'إدارة القائمة', nav_look: 'شكل قائمة العملاء', nav_team: 'الفريق', nav_analytics: 'التحليلات', nav_neworder: 'طلب جديد', nav_profile: 'ملف المطعم', nav_loyalty: 'الولاء', nav_loyaltySetup: 'إعدادات الولاء', nav_settings: 'الإعدادات', more: 'المزيد', beta: 'تجريبي',
+        nav_board: 'الطلبات المباشرة', nav_tables: 'الطاولات ورموز QR', nav_orders: 'سجل الطلبات', nav_menu: 'إدارة القائمة', nav_look: 'شكل قائمة العملاء', nav_team: 'الفريق', nav_analytics: 'التحليلات', nav_neworder: 'طلب جديد', nav_profile: 'ملف المطعم', nav_loyalty: 'الولاء', nav_loyaltySetup: 'إعدادات الولاء', nav_stock: 'المخزون', nav_settings: 'الإعدادات', more: 'المزيد', beta: 'تجريبي',
         col_PENDING: 'جديد', col_ACCEPTED: 'قيد التنفيذ', col_PREPARING: 'قيد التحضير', col_READY: 'جاهز',
         table: 'طاولة', car: 'خدمة السيارة', note: 'ملاحظة', loyaltyReward: 'مكافأة ولاء',
         paymentTitle: 'كيف دفع العميل؟', paymentSub: 'اختر طريقة الدفع قبل إنهاء الطلب.', paymentCash: 'نقداً', paymentCard: 'بطاقة / فيزا',
@@ -73,7 +74,7 @@ const DICT: Dict = {
         emailChanged: 'تم تغيير البريد الإلكتروني', emailInvalid: 'أدخل بريدًا صحيحًا',
         role_owner: 'مالك المطعم', role_staff: 'موظف' },
   en: { title: 'Kitchen Display', live: 'Live', logoutT: 'Logout', cur: 'OMR', min: 'min', empty: 'No orders',
-        nav_board: 'Live orders', nav_tables: 'Tables & QR', nav_orders: 'Order history', nav_menu: 'Menu', nav_look: 'Customer menu look', nav_team: 'Team', nav_analytics: 'Analytics', nav_neworder: 'New order', nav_profile: 'Restaurant profile', nav_loyalty: 'Loyalty', nav_loyaltySetup: 'Loyalty settings', nav_settings: 'Settings', more: 'More', beta: 'Beta',
+        nav_board: 'Live orders', nav_tables: 'Tables & QR', nav_orders: 'Order history', nav_menu: 'Menu', nav_look: 'Customer menu look', nav_team: 'Team', nav_analytics: 'Analytics', nav_neworder: 'New order', nav_profile: 'Restaurant profile', nav_loyalty: 'Loyalty', nav_loyaltySetup: 'Loyalty settings', nav_stock: 'Stock', nav_settings: 'Settings', more: 'More', beta: 'Beta',
         col_PENDING: 'New', col_ACCEPTED: 'In progress', col_PREPARING: 'Preparing', col_READY: 'Ready',
         table: 'Table', car: 'Outdoor car', note: 'Note', loyaltyReward: 'Loyalty reward',
         paymentTitle: 'How did the customer pay?', paymentSub: 'Choose the payment method before completing the order.', paymentCash: 'Cash', paymentCard: 'Card / Visa',
@@ -186,10 +187,10 @@ function SupportSessionBanner() {
 /* Menu look, the restaurant profile and loyalty setup used to be pages of their own (two of
    them reachable only from the avatar dropdown, which is a "who am I" affordance nobody
    opens looking for a VAT rate). They're now sections inside `settings`. */
-type Page = 'board' | 'neworder' | 'orders' | 'menu' | 'team' | 'analytics' | 'tables' | 'loyalty' | 'settings';
+type Page = 'board' | 'neworder' | 'orders' | 'menu' | 'team' | 'analytics' | 'tables' | 'loyalty' | 'stock' | 'settings';
 /** The URL owns the active page (/dashboard/<page>, /dashboard/settings/<section>), so an
     incoming path segment is validated against this list before we trust it. */
-const PAGES: Page[] = ['board', 'neworder', 'orders', 'menu', 'team', 'analytics', 'tables', 'loyalty', 'settings'];
+const PAGES: Page[] = ['board', 'neworder', 'orders', 'menu', 'team', 'analytics', 'tables', 'loyalty', 'stock', 'settings'];
 
 function LivePill({ stream, t }: { stream: StreamStatus; t: (k: string) => string }) {
   if (stream === 'open') {
@@ -339,6 +340,7 @@ const IcMenu = () => <Ico><path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 
 const IcTables = () => <Ico><rect width="5" height="5" x="3" y="3" rx="1" /><rect width="5" height="5" x="16" y="3" rx="1" /><rect width="5" height="5" x="3" y="16" rx="1" /><path d="M21 16h-3a2 2 0 0 0-2 2v3M21 21v.01M12 7v3a2 2 0 0 1-2 2H7M3 12h.01M12 3h.01M12 16v.01M16 12h1M21 12v.01M12 21v-1" /></Ico>;
 const IcTeam = () => <Ico><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></Ico>;
 const IcPower = () => <Ico><path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.77.04" /></Ico>;
+const IcStock = () => <Ico><path d="M3 8h18v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" /><path d="M2 4h20v4H2z" /><path d="M10 12h4" /></Ico>;
 const IcLoyalty = () => <Ico><path d="M12 2l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20l1.1-6.5L2.6 8.8l6.5-.9z" /></Ico>;
 const IcSettings = () => <Ico><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></Ico>;
 const IcMore = () => <Ico><rect width="7" height="7" x="3" y="3" rx="1.5" /><rect width="7" height="7" x="14" y="3" rx="1.5" /><rect width="7" height="7" x="14" y="14" rx="1.5" /><rect width="7" height="7" x="3" y="14" rx="1.5" /></Ico>;
@@ -350,7 +352,7 @@ function Shell() {
   const confirm = useConfirm();
   // The URL is the source of truth for what's on screen, so every tab is deep-linkable, the
   // browser back button works, and an owner can send a staff member a link straight to the
-  // menu page. DashboardApp is mounted at /dashboard/* (see App.tsx), so we own everything
+  // stock page. DashboardApp is mounted at /dashboard/* (see App.tsx), so we own everything
   // past that prefix: /dashboard/<page> and /dashboard/settings/<section>.
   const location = useLocation();
   const navigate = useNavigate();
@@ -375,10 +377,10 @@ function Shell() {
   const [focusBoard, setFocusBoard] = useState(0);
   const [moreOpen, setMoreOpen] = useState(false);
   const sound = useOrderSound();
-  const titles: Record<string, string> = { board: t('title'), neworder: t('nav_neworder'), orders: t('nav_orders'), menu: t('nav_menu'), team: t('nav_team'), analytics: t('nav_analytics'), tables: t('tablesTitle'), loyalty: t('nav_loyalty'), settings: t('nav_settings') };
+  const titles: Record<string, string> = { board: t('title'), neworder: t('nav_neworder'), orders: t('nav_orders'), menu: t('nav_menu'), team: t('nav_team'), analytics: t('nav_analytics'), tables: t('tablesTitle'), loyalty: t('nav_loyalty'), stock: t('nav_stock'), settings: t('nav_settings') };
 
   // Ordered by daily workflow: run the floor (live → new → history), read the numbers
-  // (analytics), then set things up (menu → tables → team). Settings sits last —
+  // (analytics), then set things up (menu → stock → tables → team). Settings sits last —
   // it's a set-once destination, so it shouldn't compete with the operational tabs the way
   // the old top-level "Customer menu look" tab did.
   const navItems = ([
@@ -388,6 +390,9 @@ function Shell() {
     { key: 'analytics', icon: <IcAnalytics />, label: t('nav_analytics'), show: can(user, 'ANALYTICS') },
     { key: 'loyalty', icon: <IcLoyalty />, label: t('nav_loyalty'), show: can(user, 'PROFILE') },
     { key: 'menu', icon: <IcMenu />, label: t('nav_menu'), show: can(user, 'MENU') },
+    // Next to the menu because that is the pair an owner sets up together: what you sell,
+    // and what you need in the room to sell it.
+    { key: 'stock', icon: <IcStock />, label: t('nav_stock'), show: can(user, 'STOCK') },
     { key: 'tables', icon: <IcTables />, label: t('nav_tables'), show: can(user, 'QR_TABLES') },
     { key: 'team', icon: <IcTeam />, label: t('nav_team'), show: can(user, 'TEAM') },
     // Always shown: SettingsPage gates its own sections, and Appearance is available to
@@ -735,6 +740,7 @@ function Shell() {
         {page === 'menu' && <MenuManager />}
         {page === 'team' && <TeamPage branches={branches} branchId={branchId} />}
         {page === 'analytics' && <Suspense fallback={<div className="an-msg">…</div>}><AnalyticsPage branches={isManager(user) && pinnedBranch == null ? activeBranches : []} /></Suspense>}
+        {page === 'stock' && <StockPage branchId={branchId} />}
         {page === 'tables' && <TablesPage branchId={branchId} />}
         {/* pushes (not replaces) so the back button returns to the loyalty dashboard */}
         {page === 'loyalty' && <LoyaltyPage onOpenSetup={() => navigate('/dashboard/settings/loyalty')} />}

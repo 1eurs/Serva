@@ -1,0 +1,405 @@
+/* =====================================================================
+   Stock — "the wall".
+
+   One idea carries the whole surface: an item is a CONTAINER WITH
+   SOMETHING IN IT. Every item is a tile that fills from the bottom, and
+   a single dashed order line crosses every tile at the same height — so
+   "what do I need?" is a shape you see across forty of them before you
+   read a word.
+
+   That constant height is only honest because the fill is scaled in
+   multiples of each item's OWN order line (axisPct in units.ts), never as
+   a fraction of some target. Rescaling a tile to its own target would put
+   every mark at a different height and the wall would go back to being
+   forty little charts. That is the rule this file exists to protect.
+
+   Everything else stays quiet: one search row, one filter, hairlines and
+   mono figures, no second accent. The colour budget is spent on the
+   fills, because the fills are the page.
+
+   Composes with .dash (BOLD GREEN tokens) and flattens automatically
+   under [data-skin="pro"], which rewrites --hard-* / --bw-* beneath us.
+
+   Mobile-first: this is done standing in a stockroom on a phone, one
+   handed, so every control is a real touch target and the desk is the
+   enhancement. Logical properties throughout — the dashboard runs RTL.
+   ===================================================================== */
+
+.stock-page {
+  /* Status, not brand: "in stock" must stay green even on a skin whose primary fill
+     (--lime) is a neutral, or a healthy shelf reads as a black bar. */
+  --stk-ok: var(--green, #10b981);
+  --stk-low: var(--sun, #F5B83D);
+  --stk-out: var(--bad, #FF6B5A);
+  /* Each status needs TWO grades, because the same state has to work as a 60px wash and
+     as 11px type. The plain token is the fill; --stk-*-ink is the text, dark enough to
+     clear 4.5:1 on white in either skin. Local to stock because the theme has no
+     fill/text split for status — if one lands upstream, delete these. */
+  --stk-low-ink: #B45309;   /* amber-700 · 5.02:1 on white */
+  --stk-out-ink: #C62828;   /* red-700   · 5.63:1 on white */
+  /* The order line's own ink. --keyline is right under the default and bold skins, where
+     it IS --ink; under pro it resolves to zinc-200 and the one rule the whole wall is read
+     against would fade to nothing, so it is mixed from --ink there instead. */
+  --stk-rule-ink: var(--keyline);
+  /* The tile's own minimum. The column count falls out of this and nothing else — two
+     across a phone, five or six on a counter iPad — so there is no breakpoint here to keep
+     in step with anything. */
+  --stk-tile: 9.25rem;
+  --stk-gap: 10px;
+  /* On the page root this drives the rules below; on .stk-sheet (which also carries
+     .stock-page) it makes the dialog its own query container, so the sheet lays out
+     against its own width rather than the page behind it. */
+  container-type: inline-size;
+}
+
+[data-skin="pro"] .stock-page {
+  /* Pro sets --sun to amber-700 because its status tokens double as text and have to clear
+     4.5:1. That is right for type and wrong for a wash, where it reads as brown mud rather
+     than a warning — so the FILL grade gets amber-500 back. */
+  --stk-low: #F59E0B;
+  --stk-rule-ink: color-mix(in srgb, var(--ink) 62%, transparent);
+}
+
+.tables-wrap.stock-page {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(12px, 2.4vw, 18px);
+}
+
+@media (max-width: 639px) {
+  .stock-page { --stk-tile: 8.5rem; }
+  /* The row wraps here, and a primary action hanging off the right edge of its own line is
+     a thumb-stretch on the hand holding the phone. It takes the line it is given. */
+  .stk-new { inline-size: 100%; margin-inline-start: 0; }
+}
+
+/* ---------------------------------------------------------------- the one control row */
+
+.stk-top {
+  display: flex; align-items: center; gap: var(--tap-gap, 8px); flex-wrap: wrap;
+}
+.stk-search {
+  /* Capped: a search field stretched across a desk monitor is the widest, loudest thing on a
+     page whose subject is the grid underneath it. It grows to a comfortable line and stops. */
+  flex: 1 1 12rem; min-inline-size: 0; max-inline-size: 24rem;
+  min-block-size: var(--tap); padding: 10px 13px;
+  border: var(--bw) solid var(--keyline); border-radius: 8px;
+  background: var(--bg-2); color: var(--ink);
+  font-family: var(--font-ar); font-size: var(--fs-field);
+}
+.stk-search::placeholder { color: var(--faint); }
+.stk-search:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+
+/* The filter is the page's own question, so it is coloured like the answer it filters for
+   rather than like the brand. */
+.stk-tobuy {
+  flex: 0 0 auto; min-block-size: var(--tap); padding: 8px 13px;
+  border: var(--bw) solid var(--stk-low-ink); border-radius: 8px;
+  background: var(--tint-warn); color: var(--stk-low-ink);
+  font-family: var(--font-ar); font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.stk-tobuy.on { background: var(--stk-low-ink); color: var(--paper, #fff); }
+.stk-tobuy:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+/* Pushed to the far end, so the row reads as [what you are looking at] … [what you can add]. */
+.stk-new { flex: 0 0 auto; margin-inline-start: auto; }
+
+.stk-msg { margin: 0; padding: 28px 4px; color: var(--muted); font-size: 13px; }
+
+/* ---------------------------------------------------------------- the wall */
+
+.stk-wall {
+  display: grid;
+  /* One rule, no breakpoints: two tiles across a phone, five or six on a counter iPad,
+     more on a laptop — the grid finds it from the tile's own minimum. */
+  grid-template-columns: repeat(auto-fill, minmax(var(--stk-tile), 1fr));
+  gap: var(--stk-gap);
+}
+
+/* Three layers, bottom to top: the fill, the line, the words. The words never sit on a
+   saturated colour — the fill is a wash — so a tile stays readable at every level,
+   including the one that matters most, which is nearly empty. */
+.stk-tile {
+  position: relative; overflow: hidden; isolation: isolate;
+  display: grid; grid-template-rows: auto 1fr auto; gap: 5px;
+  min-block-size: 7.5rem;
+  padding: 11px 12px;
+  text-align: start;
+  border: var(--bw) solid var(--keyline); border-radius: 10px;
+  background: var(--bg-2); box-shadow: var(--hard-xs);
+  font-family: var(--font-ar); color: var(--ink);
+  cursor: pointer;
+  transition: box-shadow .14s, transform .14s;
+  /* The wash this state fills with, and the line along its top. Two custom properties, so
+     the fill element itself never needs to know which state it is in — and the surface needs
+     its own grade rather than a mix into the wash, which is 20% alpha and would swallow it. */
+  --stk-wash: color-mix(in srgb, var(--stk-ok) 20%, transparent);
+  --stk-surface: color-mix(in srgb, var(--stk-ok) 55%, transparent);
+}
+.stk-tile[data-state="order"] {
+  --stk-wash: color-mix(in srgb, var(--stk-low) 32%, transparent);
+  --stk-surface: color-mix(in srgb, var(--stk-low) 75%, transparent);
+}
+.stk-tile[data-state="out"] {
+  --stk-wash: color-mix(in srgb, var(--stk-out) 26%, transparent);
+  /* Nothing left draws no fill at all, which on its own looks exactly like a tile nobody
+     has measured. The tint on the whole tile is what tells the two apart at arm's length. */
+  background: var(--tint-bad); border-color: var(--stk-out);
+}
+/* No order line set: nothing to fill to, so the tile is left an empty dashed outline rather
+   than drawn off a number nobody gave. */
+.stk-tile[data-state="noline"] {
+  border-style: dashed; border-color: var(--line-2); box-shadow: none;
+}
+@media (hover: hover) {
+  .stk-tile:hover { box-shadow: var(--hard-sm); transform: translate(-1px, -1px); }
+}
+.stk-tile:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+
+.stk-fill {
+  position: absolute; inset-inline: 0; inset-block-end: 0; z-index: 0;
+  background: var(--stk-wash);
+  pointer-events: none;
+  /* The single piece of motion on the page, and it only ever runs in answer to somebody
+     saying a delivery arrived: the level rises to where they put it. */
+  transition: block-size .45s cubic-bezier(.2, .8, .2, 1);
+}
+/* A surface rather than a gradient's edge — this is a level in a tin, and a tin has one.
+   It is also the only hard edge on the tile that moves, so it is what the eye follows when
+   a delivery raises the fill. */
+.stk-fill::before {
+  content: ""; position: absolute; inset-inline: 0; inset-block-start: 0; block-size: 2px;
+  background: var(--stk-surface);
+}
+/* The signature. One dashed rule at the same height in every tile on the page — which is
+   only true because the fill is scaled in multiples of the item's own order line. */
+.stk-water {
+  position: absolute; inset-inline: 0; z-index: 1;
+  border-block-start: var(--bw-hair) dashed var(--stk-rule-ink);
+  pointer-events: none;
+}
+
+.stk-name {
+  position: relative; z-index: 2;
+  font-size: 12.5px; font-weight: 700; line-height: 1.3;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; overflow-wrap: anywhere;
+}
+.stk-qty {
+  position: relative; z-index: 2; align-self: end;
+  display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap;
+}
+.stk-qty b {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 27px; font-weight: 800; line-height: 1; letter-spacing: -.03em;
+}
+/* The unit qualifies the figure rather than competing with it — and it is a WORD, in Arabic
+   as often as not, so it never goes in the mono slot beside the digits. */
+.stk-qty i {
+  font-style: normal; font-size: 12px; font-weight: 700; color: var(--muted);
+}
+.stk-tile[data-state="out"] .stk-qty b { color: var(--stk-out-ink); }
+
+/* Only the tiles that want something say anything — a wall where every healthy tile also
+   reads "Fine" spends its loudest row on the items needing nothing, and the fill has already
+   said it. The row is kept even when empty so that every figure on the wall sits at the same
+   height; a number that jumps a line depending on its state is a wall that will not scan.
+
+   Sentence case, in the UI face. An uppercase tracked-out label would be chrome here, and it
+   does nothing at all in Arabic, which has no case to shout in. */
+.stk-state {
+  position: relative; z-index: 2;
+  min-block-size: 1.05em;
+  font-size: 11px; font-weight: 700; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.stk-state[data-tone="out"] { color: var(--stk-out-ink); }
+.stk-state[data-tone="order"] { color: var(--stk-low-ink); }
+.stk-state[data-tone="noline"] { color: var(--faint); }
+
+/* The payoff for having typed prices in. Quiet, and last. */
+.stk-value {
+  margin: 2px 0 0;
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; color: var(--muted);
+}
+
+/* ---------------------------------------------------------------- empty screens */
+
+.stk-first {
+  /* Held to a readable column rather than stretched across the wall's full width: there is
+     nothing else on this screen, so it is the composition. */
+  max-inline-size: 44rem; margin-inline: auto;
+  padding: clamp(24px, 5vw, 44px);
+  border: var(--bw-hair) dashed var(--line-2); border-radius: 12px;
+}
+.stk-first h3 { margin: 0; font-size: clamp(19px, 3vw, 23px); font-weight: var(--fw-display); }
+.stk-first p { margin: 8px 0 20px; color: var(--muted); font-size: 13.5px; max-inline-size: 42ch; }
+.stk-seeds { display: flex; flex-wrap: wrap; gap: var(--tap-gap, 8px); }
+.stk-seed {
+  min-block-size: var(--tap); padding: 8px 14px;
+  border: var(--bw) solid var(--keyline); border-radius: 999px;
+  background: var(--bg-2); color: var(--ink);
+  font-family: var(--font-ar); font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.stk-seed:hover { background: var(--surface-2); }
+.stk-seed:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+
+.stk-none {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 9px;
+  padding: 28px 18px;
+  border: var(--bw-hair) dashed var(--line-2); border-radius: 10px;
+}
+.stk-none b { font-size: 16px; font-weight: var(--fw-display); }
+.stk-none span { font-size: 12.5px; color: var(--muted); }
+
+/* ---------------------------------------------------------------- the sheet */
+
+.modal-card.stk-sheet {
+  max-width: 27rem; padding: 0;
+  display: flex; flex-direction: column;
+}
+.stk-sheet-hd {
+  display: flex; align-items: center; gap: 10px;
+  padding: 16px 18px 12px;
+  border-block-end: var(--bw-hair) solid var(--line);
+}
+.stk-sheet-hd h3 { flex: 1; margin: 0; font-size: 16.5px; overflow-wrap: anywhere; }
+.stk-x {
+  flex: 0 0 auto; inline-size: var(--tap); block-size: var(--tap);
+  border: 0; border-radius: 8px; background: transparent; color: var(--muted);
+  font-size: 14px; cursor: pointer;
+}
+.stk-x:hover { background: var(--surface-2); color: var(--ink); }
+.stk-sheet-body {
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 16px 18px;
+  overflow-y: auto;
+}
+/* One button, the width of the sheet — this is a thumb in a stockroom, and the way out is
+   already the ✕ in the header, the backdrop and Escape. A second "cancel" beside the action
+   would be a third way to do nothing. */
+.stk-sheet-ft {
+  display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+  padding: 12px 18px 16px;
+  border-block-start: var(--bw-hair) solid var(--line);
+}
+.stk-why { margin: 0; font-size: 11.5px; color: var(--muted); }
+
+/* What is there now, said before anything is asked. */
+.stk-now {
+  display: grid; gap: 2px;
+  padding: 12px 14px;
+  border: var(--bw-hair) solid var(--line); border-radius: 10px;
+  background: var(--surface-2);
+}
+.stk-now > span { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.stk-now b { display: flex; align-items: baseline; gap: 6px; }
+.stk-now b i {
+  font-style: normal; font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 26px; font-weight: 800; line-height: 1.1;
+}
+.stk-now b em { font-style: normal; font-size: 13px; font-weight: 700; color: var(--muted); }
+.stk-now small { font-size: 11px; color: var(--faint); }
+
+/* Two things can be true about a number, and they are never one control. */
+.stk-tabs {
+  display: flex; gap: 4px; padding: 3px;
+  border: var(--bw-hair) solid var(--line); border-radius: 10px;
+  background: var(--surface-2);
+}
+.stk-tabs button {
+  flex: 1; min-block-size: var(--tap-sm); padding: 8px 10px;
+  border: 0; border-radius: 7px; background: transparent; color: var(--muted);
+  font-family: var(--font-ar); font-size: 12.5px; font-weight: 700; cursor: pointer;
+}
+.stk-tabs button.on { background: var(--bg-2); color: var(--ink); box-shadow: var(--hard-press); }
+.stk-tabs button:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+
+/* Labelled with what lands, not with "1 pack" — nobody should hold a conversion in their
+   head to press the right button. */
+.stk-keys { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--tap-gap, 8px); }
+@container (min-width: 22rem) {
+  .stk-keys { grid-template-columns: repeat(4, 1fr); }
+}
+.stk-key {
+  min-block-size: var(--tap-lg); padding: 10px 6px;
+  border: var(--bw) solid var(--keyline); border-radius: 9px;
+  background: var(--bg-2); color: var(--ink);
+  font-family: var(--font-ar); font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.stk-key i {
+  font-style: normal; font-family: var(--font-mono); font-size: 15px; font-weight: 800;
+}
+.stk-key.on { background: var(--lime, var(--accent)); color: var(--fill-ink, var(--accent-ink)); }
+.stk-key:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+
+.stk-f { display: grid; gap: 6px; }
+.stk-f > span:first-child { font-size: 12px; font-weight: 700; color: var(--muted); }
+.stk-in { display: flex; align-items: center; gap: 8px; }
+.stk-in input {
+  flex: 1; min-inline-size: 0; min-block-size: var(--tap); padding: 10px 12px;
+  border: var(--bw) solid var(--keyline); border-radius: 8px;
+  background: var(--bg-2); color: var(--ink);
+  font-family: var(--font-ar); font-size: var(--fs-field);
+}
+.stk-in input.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.stk-in input:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+.stk-in em {
+  flex: 0 0 auto; font-style: normal; font-size: 12.5px; font-weight: 700; color: var(--muted);
+}
+
+.stk-units { display: flex; flex-wrap: wrap; gap: var(--tap-gap, 8px); }
+.stk-unit {
+  min-block-size: var(--tap); padding: 8px 13px;
+  border: var(--bw) solid var(--keyline); border-radius: 999px;
+  background: var(--bg-2); color: var(--ink);
+  font-family: var(--font-ar); font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.stk-unit.on { background: var(--lime, var(--accent)); color: var(--fill-ink, var(--accent-ink)); }
+.stk-unit:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+
+.stk-link {
+  align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 5px;
+  min-block-size: var(--tap-sm); padding: 6px 2px;
+  border: 0; background: transparent; color: var(--accent-text, var(--accent));
+  font-family: var(--font-ar); font-size: 12.5px; font-weight: 700; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.stk-link:focus-visible { outline: none; box-shadow: var(--focus-shadow); border-radius: 4px; }
+
+/* Always say what the shelf will read afterwards. A fat finger is caught here or not until
+   the next count. */
+.stk-lands {
+  margin: 0; padding: 10px 12px;
+  border-radius: 8px; background: var(--accent-tint);
+  color: var(--accent-text, var(--ink)); font-size: 12.5px; font-weight: 700;
+}
+.stk-hint { margin: -4px 0 0; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+
+.stk-else {
+  display: flex; gap: 14px; flex-wrap: wrap;
+  padding-block-start: 4px;
+  border-block-start: var(--bw-hair) solid var(--line);
+}
+.stk-else button {
+  min-block-size: var(--tap-sm);
+  border: 0; background: transparent; color: var(--muted);
+  font-family: var(--font-ar); font-size: 12.5px; font-weight: 600; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.stk-else button:hover { color: var(--ink); }
+.stk-else button.danger { color: var(--bad); }
+.stk-else button:focus-visible { outline: none; box-shadow: var(--focus-shadow); border-radius: 4px; }
+
+/* ---------------------------------------------------------------- posture & motion */
+
+/* Propped on a counter, read at arm's length rather than in the hand. */
+html[data-posture="counter"] .stock-page { --stk-tile: 10.5rem; --stk-gap: 12px; }
+html[data-posture="counter"] .stk-tile { min-block-size: 8.25rem; }
+html[data-posture="counter"] .stk-qty b { font-size: 31px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .stk-fill { transition: none; }
+  .stk-tile, .stk-tile:hover { transition: none; transform: none; }
+}
