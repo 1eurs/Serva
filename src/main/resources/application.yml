@@ -106,7 +106,10 @@ app:
   rate-limit:
     enabled: ${APP_RATE_LIMIT_ENABLED:true}
     auth-per-minute: ${APP_RATE_LIMIT_AUTH:10}
-    public-per-minute: ${APP_RATE_LIMIT_PUBLIC:8}
+    # Per client IP. A café's customers all arrive from the WiFi's one address, so this has to
+    # hold a full room typing phone numbers in the same minute, not one person — 30 still makes
+    # enumerating balances a day's work.
+    public-per-minute: ${APP_RATE_LIMIT_PUBLIC:30}
   # Outbound channels. Each stays 'log' (no real sending) until its provider + credentials are set.
   notifications:
     email:                                         # Brevo SMTP relay (creds in spring.mail.* above)

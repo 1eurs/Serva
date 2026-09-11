@@ -119,13 +119,18 @@ export default function CartPage() {
   const total = round3(subtotal + vat);
 
   // Loyalty: once a phone is entered, fetch this café's stamp progress for it.
+  //
+  // Only once the number is one the café could ring — not from the seventh digit on. This
+  // endpoint is rate-limited per IP so nobody can enumerate phones for stamp balances, and a
+  // café's customers all share the WiFi's one address: a query on every keystroke let two or
+  // three people typing their numbers in the same minute exhaust the limit for everyone after.
   const phoneDigits = phone.replace(/\D/g, '');
   const { data: loyalty } = useQuery({
     queryKey: ['loyalty-summary', slug, phoneDigits],
     queryFn: () => api.get<LoyaltySummary>(
       `/api/public/loyalty/summary?slug=${encodeURIComponent(slug!)}&phone=${encodeURIComponent(phone.trim())}`,
       { auth: false }),
-    enabled: !!slug && phoneDigits.length >= 7,
+    enabled: !!slug && isValidPhone(phone),
     staleTime: 60_000,
   });
   // The reward is redeemable only when the customer has one AND an eligible item is in the cart.
