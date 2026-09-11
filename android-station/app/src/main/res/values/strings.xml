@@ -84,4 +84,14 @@
     <string name="stay_alive">Leave this tablet on a charger. Keep the Serva notification. Do not swipe the app away, and do not tap Force stop.</string>
     <string name="allow_background">Stop Android from sleeping this app</string>
     <string name="not_a_cafe_account">That account is not attached to a café. Use a staff login for this branch.</string>
+
+    <!-- The printer is found, and on the wrong network. Every one of these names both address
+         ranges: seeing 192.168.1.x and 192.168.100.x side by side is the entire explanation,
+         and no café needs the word "subnet" to understand it. -->
+    <string name="ok">OK</string>
+    <string name="printer_at_wrong_network">Printer at %1$s — cannot be reached</string>
+    <string name="printer_wrong_network_fix">It is on network %1$s, but this tablet is on %2$s. Tap to see how to fix it.</string>
+    <string name="wrong_network_title">The printer is on a different network</string>
+    <string name="wrong_network_body">The printer answered at %1$s, so it is switched on and working. This tablet is on %2$s, and the two ranges cannot reach each other — that is why nothing prints.\n\nThe printer is holding a fixed address from wherever it was set up before. Three ways to fix it, best first.\n\n1. Put the printer back on automatic. Find the small button or pinhole on its network module — near the network socket or the aerial, not the FEED button. Switch the printer on while holding it and keep holding for about ten seconds. It then takes an address from this café\'s router, and Search finds it here straight away.\n\n2. Widen this tablet\'s reach. In Android Wi-Fi settings, long-press this network, choose Modify, and set IP settings to Static. Keep the address the tablet already has and change only the prefix length, from 24 to 16. This only works when both addresses begin 192.168.\n\n3. Use Bluetooth instead. Pair the printer in Android settings and choose it here — a Bluetooth printer has no address to go stale.\n\nMany printers have no settings page at all, so do not spend time looking for one in a browser.</string>
+    <string name="wrong_network_short">Not on this tablet\'s network</string>
 </resources>

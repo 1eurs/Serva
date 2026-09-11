@@ -299,6 +299,18 @@ class MainActivity : AppCompatActivity() {
         // "Answered as a printer" is worth saying out loud: it is the difference
         // between something that is definitely the machine they want and something
         // that merely has the port open.
+        // A printer that answered a broadcast from another subnet is the one find worth more
+        // than all the others, and the one thing that must NOT be offered as a tap-to-use: a
+        // socket to it cannot open. Say where it is and what to change, and leave it at that.
+        if (!printer.routable) {
+            val mine = PrinterScanner.localSubnetLabels().firstOrNull() ?: return
+            addPick(
+                b.printerList,
+                getString(R.string.printer_at_wrong_network, printer.host),
+                getString(R.string.printer_wrong_network_fix, printer.host, mine),
+            ) { showWrongNetworkHelp(printer.host, mine) }
+            return
+        }
         val detail = when {
             printer.paperOut -> getString(R.string.printer_no_paper)
             printer.confirmed -> getString(R.string.printer_confirmed)
@@ -309,10 +321,38 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * The whole support call, on a screen.
+     *
+     * Every café that hits this has the same two facts in front of it — an address off a FEED
+     * slip and a tablet that will not talk to it — and no way to see that the two numbers
+     * disagree. Naming both ranges is what makes it obvious, and there is nothing else to
+     * know: the printer has to take a DHCP address, and then it is simply found.
+     */
+    private fun showWrongNetworkHelp(host: String, mine: String) {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.wrong_network_title))
+            .setMessage(getString(R.string.wrong_network_body, host, mine))
+            .setPositiveButton(R.string.ok, null)
+            .show()
+    }
+
     private fun useManualAddress() {
         val host = b.printerHost.text.toString().trim()
         if (host.isBlank()) return
         b.useManual.isEnabled = false
+        // The address came off a FEED slip, so something IS there. Before spending a timeout
+        // finding out it cannot be reached, check the one thing that makes it unreachable and
+        // that this tablet has known all along — that the address is not on its network.
+        if (!PrinterScanner.onLocalSubnet(host)) {
+            b.useManual.isEnabled = true
+            val mine = PrinterScanner.localSubnetLabels().firstOrNull()
+            if (mine != null) {
+                b.printerHost.error = getString(R.string.wrong_network_short)
+                showWrongNetworkHelp(host, mine)
+                return
+            }
+        }
         lifecycleScope.launch {
             val reachable = PrinterScanner.probe(host, 9100)
             b.useManual.isEnabled = true

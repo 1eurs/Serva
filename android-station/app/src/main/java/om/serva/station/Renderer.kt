@@ -85,6 +85,17 @@ class Renderer(private val context: Context, private val prefs: Prefs) {
         val loaded = AtomicReference(false)
         main.post {
             val wv = WebView(context)
+            // Android decides how killable a WebView's renderer process is from whether that
+            // WebView is VISIBLE, and this one is deliberately never attached to a window — so
+            // by default it is treated as invisible and its renderer is waived to background
+            // priority the moment the app is not in front. That is why the station printed
+            // perfectly while someone stood looking at it and stopped as soon as they walked
+            // away: the process holding the receipt page was the first thing reclaimed.
+            //
+            // `false` is the whole fix — do not waive priority when not visible. The page is a
+            // JavaScript host doing real work off-screen, which is precisely the case this
+            // policy exists for.
+            wv.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)
             wv.settings.javaScriptEnabled = true
             // Only ever loads the receipt page from the configured Serva address, so the one
             // method exposed here is not reachable by anything else.

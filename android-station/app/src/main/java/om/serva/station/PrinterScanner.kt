@@ -78,7 +78,45 @@ object PrinterScanner {
         /** It answered an ESC/POS status query: a printer, not merely an open port. */
         val confirmed: Boolean = false,
         val paperOut: Boolean = false,
+        /**
+         * Whether this tablet can actually open a socket to it.
+         *
+         * False means the address is real and answered something, but sits on a subnet this
+         * tablet holds no address on — so every connection to it goes to the default gateway
+         * and is dropped. The café cannot print to it until one of the two is re-addressed,
+         * and saying THAT is worth far more than another "nothing found".
+         */
+        val routable: Boolean = true,
     )
+
+    /** The subnets this tablet is on, as a café would read them: "192.168.100.x". */
+    fun localSubnetLabels(): List<String> = interfaceAddresses().mapNotNull { addr ->
+        val ip = addr.address.hostAddress ?: return@mapNotNull null
+        val octets = ip.split('.')
+        if (octets.size != 4) null else "${octets[0]}.${octets[1]}.${octets[2]}.x"
+    }.distinct()
+
+    /**
+     * Is this address one this tablet could reach directly?
+     *
+     * Pure subnet arithmetic against every interface, which is exactly the test the OS itself
+     * applies before deciding to ARP for a host rather than hand it to the gateway. A café
+     * typing the address off a FEED slip is the moment this question gets asked, and the app
+     * has always known the answer — it just never used it.
+     */
+    fun onLocalSubnet(host: String): Boolean {
+        val target = host.split('.').mapNotNull { it.toIntOrNull() }
+        if (target.size != 4 || target.any { it !in 0..255 }) return true   // not an IPv4 literal; let the socket decide
+        val value = target.fold(0L) { acc, o -> (acc shl 8) or o.toLong() }
+        return interfaceAddresses().any { addr ->
+            val ip = addr.address.hostAddress?.split('.')?.mapNotNull { it.toIntOrNull() } ?: return@any false
+            if (ip.size != 4) return@any false
+            val prefix = addr.networkPrefixLength.toInt().coerceIn(1, 32)
+            val mask = if (prefix == 32) 0xFFFFFFFFL else (0xFFFFFFFFL shl (32 - prefix)) and 0xFFFFFFFFL
+            val mineValue = ip.fold(0L) { acc, o -> (acc shl 8) or o.toLong() }
+            (mineValue and mask) == (value and mask)
+        }
+    }
 
     /** This device's own IPv4 on the local network, or null when there is no WiFi. */
     fun localAddress(): String? = interfaceAddresses().firstOrNull()?.address?.hostAddress
@@ -186,10 +224,21 @@ object PrinterScanner {
                 out.addAll(unique.subList(out.size, unique.size))
                 break
             }
+            if (!onLocalSubnet(hit.host)) {
+                // mDNS answers across subnets, so [PrinterDiscovery] can hand back a printer no
+                // socket here can open. Asking it for ESC/POS status would connect to the
+                // gateway and be dropped: 1.2s to learn nothing, and an "unconfirmed" label
+                // that reads as "probably not your printer" when the truth is "your printer,
+                // on the wrong network".
+                out += hit.copy(routable = false)
+                continue
+            }
             val status = EscPosPrinter.status(hit.host, hit.port, timeoutMs = 1_200)
             out += hit.copy(confirmed = status != null, paperOut = status?.paperOut == true)
         }
-        return out.sortedByDescending { it.confirmed }
+        // Reachable first, then confirmed: an address the café can print to right now outranks
+        // one it has to go and re-address the printer for.
+        return out.sortedWith(compareByDescending<Found> { it.routable }.thenByDescending { it.confirmed })
     }
 
     private suspend fun sweep(

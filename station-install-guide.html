@@ -1,0 +1,680 @@
+<title>Serva Station Field Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  /* ---- light palette: complete token set on bare :root ---- */
+  :root {
+    --ground:      #eef1f4;
+    --surface:     #ffffff;
+    --surface-2:   #f5f7f9;
+    --slip:        #fbfaf7;
+    --ink:         #10171f;
+    --ink-2:       #38434f;
+    --ink-3:       #66727f;
+    --rule:        #d3dae1;
+    --rule-2:      #e4e9ee;
+    --accent:      #0d7d86;
+    --accent-ink:  #ffffff;
+    --accent-soft: #e2f1f2;
+    --ok:          #1f6f45;
+    --ok-soft:     #e0f0e6;
+    --warn:        #9a5b06;
+    --warn-soft:   #f8ecd9;
+    --stop:        #a92d22;
+    --stop-soft:   #f8e5e2;
+    --shadow:      0 1px 2px rgba(16,23,31,.06), 0 8px 24px -12px rgba(16,23,31,.18);
+
+    --step: clamp(1.35rem, 1.1rem + .8vw, 1.7rem);
+    --h1:   clamp(2.1rem, 1.5rem + 2.6vw, 3.1rem);
+    --h2:   clamp(1.5rem, 1.25rem + 1vw, 1.95rem);
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0b1016;
+      --surface:     #131b23;
+      --surface-2:   #18222c;
+      --slip:        #1a2029;
+      --ink:         #eaf0f5;
+      --ink-2:       #b3c0cc;
+      --ink-3:       #7e8d9b;
+      --rule:        #2b3742;
+      --rule-2:      #212c36;
+      --accent:      #3ec5cc;
+      --accent-ink:  #06232a;
+      --accent-soft: #16323a;
+      --ok:          #5cc98a;
+      --ok-soft:     #14301f;
+      --warn:        #e2a944;
+      --warn-soft:   #33260f;
+      --stop:        #f0857a;
+      --stop-soft:   #351a18;
+      --shadow:      0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:      #0b1016;
+    --surface:     #131b23;
+    --surface-2:   #18222c;
+    --slip:        #1a2029;
+    --ink:         #eaf0f5;
+    --ink-2:       #b3c0cc;
+    --ink-3:       #7e8d9b;
+    --rule:        #2b3742;
+    --rule-2:      #212c36;
+    --accent:      #3ec5cc;
+    --accent-ink:  #06232a;
+    --accent-soft: #16323a;
+    --ok:          #5cc98a;
+    --ok-soft:     #14301f;
+    --warn:        #e2a944;
+    --warn-soft:   #33260f;
+    --stop:        #f0857a;
+    --stop-soft:   #351a18;
+    --shadow:      0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font-size: 16.5px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 53rem; margin: 0 auto; padding: 0 1.25rem 6rem; }
+
+  /* ---------------------------------------------------------- masthead */
+  header.masthead {
+    border-bottom: 2px solid var(--ink);
+    padding: 3.25rem 0 1.5rem;
+    margin-bottom: 2.5rem;
+  }
+  .eyebrow {
+    font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+    font-weight: 700;
+    font-size: .78rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 .85rem;
+  }
+  h1 {
+    font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+    font-weight: 700;
+    font-size: var(--h1);
+    line-height: 1.02;
+    letter-spacing: -.015em;
+    text-wrap: balance;
+    margin: 0 0 .7rem;
+  }
+  .standfirst {
+    font-size: 1.1rem;
+    color: var(--ink-2);
+    max-width: 40rem;
+    margin: 0 0 1.75rem;
+    text-wrap: pretty;
+  }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: .5rem 1.75rem;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .76rem;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .meta b { color: var(--ink-2); font-weight: 500; }
+
+  /* ---------------------------------------------------------- jump nav */
+  nav.jump {
+    display: flex; flex-wrap: wrap; gap: .4rem;
+    margin: 0 0 3rem;
+  }
+  nav.jump a {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .76rem;
+    letter-spacing: .02em;
+    color: var(--ink-2);
+    text-decoration: none;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    padding: .34rem .6rem;
+    border-radius: 2px;
+  }
+  nav.jump a:hover { border-color: var(--accent); color: var(--accent); }
+  nav.jump a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------------------------------------------------------- sections */
+  section { margin: 0 0 3.25rem; scroll-margin-top: 1.5rem; }
+
+  .step-head {
+    display: grid;
+    grid-template-columns: 3.1rem 1fr;
+    align-items: baseline;
+    gap: 0 .9rem;
+    border-top: 1px solid var(--rule);
+    padding-top: 1.1rem;
+    margin-bottom: 1.15rem;
+  }
+  .step-num {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-weight: 600;
+    font-size: .92rem;
+    color: var(--accent);
+    letter-spacing: .06em;
+    padding-top: .34rem;
+  }
+  h2 {
+    font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+    font-weight: 700;
+    font-size: var(--step);
+    line-height: 1.14;
+    letter-spacing: -.01em;
+    text-wrap: balance;
+    margin: 0;
+  }
+  .step-head p {
+    grid-column: 2;
+    margin: .5rem 0 0;
+    color: var(--ink-2);
+    max-width: 40rem;
+  }
+  .step-body { padding-left: 4rem; }
+  @media (max-width: 46rem) {
+    .step-head { grid-template-columns: 1fr; gap: .35rem; }
+    .step-num { padding-top: 0; }
+    .step-head p { grid-column: 1; }
+    .step-body { padding-left: 0; }
+  }
+
+  h3 {
+    font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+    font-weight: 600;
+    font-size: 1.08rem;
+    letter-spacing: .005em;
+    margin: 1.9rem 0 .55rem;
+  }
+  p { margin: 0 0 1rem; max-width: 40rem; text-wrap: pretty; }
+  ul, ol { margin: 0 0 1rem; padding-left: 1.15rem; max-width: 40rem; }
+  li { margin-bottom: .45rem; }
+  li::marker { color: var(--ink-3); }
+  strong { font-weight: 600; }
+  a { color: var(--accent); }
+
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .88em;
+    background: var(--surface-2);
+    border: 1px solid var(--rule-2);
+    border-radius: 2px;
+    padding: .06em .34em;
+    white-space: nowrap;
+  }
+
+  /* ---------------------------------------------------------- data panel */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    box-shadow: var(--shadow);
+    margin: 0 0 1.35rem;
+    overflow: hidden;
+  }
+  .panel-title {
+    font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+    font-weight: 700;
+    font-size: .75rem;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding: .62rem .95rem;
+    border-bottom: 1px solid var(--rule-2);
+    background: var(--surface-2);
+  }
+  .fields { width: 100%; border-collapse: collapse; font-size: .93rem; }
+  .fields th, .fields td { text-align: left; padding: .5rem .95rem; vertical-align: top; }
+  .fields th {
+    font-weight: 500; color: var(--ink-2); white-space: nowrap;
+    width: 1%; border-right: 1px solid var(--rule-2);
+  }
+  .fields td {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+  .fields tr + tr th, .fields tr + tr td { border-top: 1px solid var(--rule-2); }
+  .fields .hot td { color: var(--accent); }
+  .fields .note { font-family: "IBM Plex Sans", sans-serif; color: var(--ink-3); font-size: .84rem; font-weight: 400; }
+
+  /* ---------------------------------------------------------- branch */
+  .branch { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 0 0 1.5rem; }
+  @media (max-width: 40rem) { .branch { grid-template-columns: 1fr; } }
+  .branch > div {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-top: 3px solid var(--rule);
+    border-radius: 2px;
+    padding: 1rem 1.05rem 1.1rem;
+  }
+  .branch .same { border-top-color: var(--ok); }
+  .branch .diff { border-top-color: var(--stop); }
+  .branch h4 {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .74rem; letter-spacing: .1em; text-transform: uppercase;
+    margin: 0 0 .6rem; font-weight: 600;
+  }
+  .branch .same h4 { color: var(--ok); }
+  .branch .diff h4 { color: var(--stop); }
+  .branch p { margin: 0 0 .6rem; font-size: .94rem; }
+  .branch p:last-child { margin-bottom: 0; }
+  .addr-pair {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 1rem;
+    line-height: 1.5;
+    margin: 0 0 .75rem;
+  }
+  .addr-pair span { color: var(--ink-3); }
+  .addr-pair b { font-weight: 600; }
+  .match { color: var(--ok); }
+  .mismatch { color: var(--stop); }
+
+  /* ---------------------------------------------------------- callouts */
+  .call {
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: .9rem 1.05rem;
+    margin: 0 0 1.35rem;
+    font-size: .95rem;
+  }
+  .call p { margin: 0; max-width: none; }
+  .call p + p { margin-top: .6rem; }
+  .call .tag {
+    display: block;
+    font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+    font-weight: 700; font-size: .73rem; letter-spacing: .13em; text-transform: uppercase;
+    margin-bottom: .4rem;
+  }
+  .call.warn { background: var(--warn-soft); border-color: var(--warn); }
+  .call.warn .tag { color: var(--warn); }
+  .call.stop { background: var(--stop-soft); border-color: var(--stop); }
+  .call.stop .tag { color: var(--stop); }
+  .call.ok { background: var(--ok-soft); border-color: var(--ok); }
+  .call.ok .tag { color: var(--ok); }
+
+  /* ---------------------------------------------------------- receipt slip */
+  .slip-wrap { display: flex; margin: 0 0 1.4rem; }
+  .slip {
+    background: var(--slip);
+    border: 1px solid var(--rule);
+    border-bottom: none;
+    box-shadow: var(--shadow);
+    width: min(19rem, 100%);
+    padding: 1.1rem 1.2rem .9rem;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .8rem;
+    line-height: 1.65;
+    color: var(--ink-2);
+    position: relative;
+  }
+  .slip::after {
+    content: "";
+    position: absolute; left: -1px; right: -1px; bottom: -9px; height: 9px;
+    background:
+      linear-gradient(-45deg, transparent 50%, var(--slip) 51%) 0 0/12px 9px repeat-x,
+      linear-gradient( 45deg, transparent 50%, var(--slip) 51%) 0 0/12px 9px repeat-x;
+    filter: drop-shadow(0 1px 0 var(--rule));
+  }
+  .slip .slip-head {
+    text-align: center; color: var(--ink); font-weight: 600;
+    letter-spacing: .08em; border-bottom: 1px dashed var(--rule);
+    padding-bottom: .5rem; margin-bottom: .6rem;
+  }
+  .slip dl { display: grid; grid-template-columns: auto 1fr; gap: .1rem .8rem; margin: 0; }
+  .slip dt { color: var(--ink-3); }
+  .slip dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .slip dd.key { color: var(--accent); font-weight: 600; }
+
+  /* ---------------------------------------------------------- record card */
+  .record { border-collapse: collapse; width: 100%; font-size: .93rem; }
+  .record th, .record td { border: 1px solid var(--rule); padding: .55rem .8rem; text-align: left; }
+  .record th { background: var(--surface-2); font-weight: 500; color: var(--ink-2); width: 42%; }
+  .record td { font-family: "IBM Plex Mono", ui-monospace, monospace; color: var(--ink-3); }
+  .scroll-x { overflow-x: auto; margin-bottom: 1.35rem; }
+
+  /* ---------------------------------------------------------- checklist */
+  ul.check { list-style: none; padding-left: 0; }
+  ul.check li {
+    display: grid; grid-template-columns: 1.35rem 1fr; gap: .65rem;
+    align-items: start; margin-bottom: .6rem;
+  }
+  ul.check li::before {
+    content: ""; display: block; width: 1.05rem; height: 1.05rem;
+    border: 1.5px solid var(--rule); border-radius: 2px;
+    background: var(--surface); margin-top: .28rem;
+  }
+
+  footer.end {
+    border-top: 2px solid var(--ink);
+    padding-top: 1.25rem;
+    margin-top: 1rem;
+    font-size: .88rem;
+    color: var(--ink-3);
+  }
+  footer.end p { max-width: 40rem; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">Serva · Installer documentation</p>
+    <h1>Serva Station Field Guide</h1>
+    <p class="standfirst">Getting a café's Wi-Fi receipt printer talking to Serva Station in one visit — without the router password, without a laptop, and without a call to the office.</p>
+    <div class="meta">
+      <span><b>Applies to</b> Wi-Fi / network printers</span>
+      <span><b>Typical visit</b> 5 min · 25 if it fights</span>
+      <span><b>Revision</b> September 2026</span>
+    </div>
+  </header>
+
+  <nav class="jump" aria-label="Sections">
+    <a href="#kit">Kit</a>
+    <a href="#tablet">1 · Tablet address</a>
+    <a href="#scan">2 · Scan</a>
+    <a href="#slip">3 · FEED slip</a>
+    <a href="#compare">4 · Compare</a>
+    <a href="#prefix">5 · Prefix fix</a>
+    <a href="#dhcp">6 · Reset to DHCP</a>
+    <a href="#bluetooth">7 · Bluetooth</a>
+    <a href="#waste">Don't bother</a>
+    <a href="#leaving">Before you leave</a>
+    <a href="#record">Record</a>
+  </nav>
+
+  <section id="kit">
+    <div class="step-head">
+      <div class="step-num">KIT</div>
+      <h2>What to bring, what to ask</h2>
+      <p>Assume you will not get the router password. Most café owners don't have it, and the ones who do can't find it. Everything in this guide works without it.</p>
+    </div>
+    <div class="step-body">
+      <ul>
+        <li>The station tablet, charged, with Serva Station installed and the staff login ready.</li>
+        <li>A spare paper roll — you will print more test slips than you expect.</li>
+        <li>A paperclip, for reset pinholes on Wi-Fi modules.</li>
+        <li>Pen and this guide's record card, or your phone to fill it in.</li>
+      </ul>
+      <p>Ask the café before the visit: <strong>make and model of the printer</strong>, and <strong>whether it is Wi-Fi or Bluetooth</strong>. If they can photograph the label on the underside, that alone saves ten minutes on site.</p>
+    </div>
+  </section>
+
+  <section id="tablet">
+    <div class="step-head">
+      <div class="step-num">01</div>
+      <h2>Write down the tablet's own address first</h2>
+      <p>Do this before you open Serva Station. Every decision later in this guide is a comparison against this number, and you cannot make it from memory.</p>
+    </div>
+    <div class="step-body">
+      <p>Join the café Wi-Fi, then: <strong>Settings → Wi-Fi → tap the connected network → Advanced / Network details</strong>.</p>
+      <p>Write down the <strong>IP address</strong> and the <strong>gateway</strong>. A typical café looks like this:</p>
+      <div class="panel">
+        <div class="panel-title">Tablet — write this down</div>
+        <table class="fields">
+          <tr class="hot"><th>IP address</th><td>192.168.100.240</td></tr>
+          <tr><th>Gateway</th><td>192.168.100.1 <span class="note">— the router</span></td></tr>
+          <tr><th>Prefix length</th><td>24 <span class="note">— the default</span></td></tr>
+        </table>
+      </div>
+      <p>The part that matters is the <strong>first three numbers</strong>: <code>192.168.100</code>. That is the café's network. Anything sharing those three numbers can be reached; anything that doesn't, can't.</p>
+    </div>
+  </section>
+
+  <section id="scan">
+    <div class="step-head">
+      <div class="step-num">02</div>
+      <h2>Scan, and hope you're done</h2>
+      <p>Most installs end here, in about ten seconds.</p>
+    </div>
+    <div class="step-body">
+      <p>In Serva Station: <strong>printer setup → Scan</strong>. The app asks the network for printers, then walks all 254 addresses on the café's range.</p>
+      <p>If the printer appears and the line underneath says <strong>“Answered as a printer”</strong>, that is proof rather than a guess — the printer replied over ESC/POS, not merely left a port open. Tap it, run the test print, and go to <a href="#leaving">Before you leave</a>.</p>
+      <div class="call ok">
+        <span class="tag">Found it, but it says “out of paper”</span>
+        <p>That is still the right printer, and the status channel is working. Load a roll, close the cover properly until it clicks, and scan again.</p>
+      </div>
+      <p>If the list is empty, the printer is almost certainly powered on and working — it is just not on the same network as the tablet. Carry on to step 3.</p>
+    </div>
+  </section>
+
+  <section id="slip">
+    <div class="step-head">
+      <div class="step-num">03</div>
+      <h2>Make the printer tell you its address</h2>
+      <p>Every thermal printer will print its own settings if you ask it correctly. This takes fifteen seconds and removes all the guesswork.</p>
+    </div>
+    <div class="step-body">
+      <p><strong>Switch the printer off. Hold down the FEED button. Switch it on while still holding. Release when it starts printing.</strong></p>
+      <p>You get a self-test slip. Somewhere on it is the network block:</p>
+      <div class="slip-wrap">
+        <div class="slip">
+          <div class="slip-head">SELF TEST</div>
+          <dl>
+            <dt>Mode</dt><dd>Infrastructure</dd>
+            <dt>SSID</dt><dd>R418</dd>
+            <dt>IP</dt><dd class="key">192.168.1.87</dd>
+            <dt>Mask</dt><dd>255.255.255.0</dd>
+            <dt>Gateway</dt><dd>0.0.0.0</dd>
+            <dt>Port</dt><dd>9100</dd>
+          </dl>
+        </div>
+      </div>
+      <p>Write the IP down next to the tablet's. If the slip prints no address at all, or shows <code>0.0.0.0</code>, the printer never joined the Wi-Fi — skip to <a href="#dhcp">step 6</a>.</p>
+      <div class="call warn">
+        <span class="tag">If FEED gives you nothing</span>
+        <p>Some printers with a bolted-on Wi-Fi module put the button on the module rather than the printer, and a few Epson models use a separate push button on the interface board — hold that for more than three seconds with the printer already on, and it prints a network status sheet instead.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="compare">
+    <div class="step-head">
+      <div class="step-num">04</div>
+      <h2>Compare the two addresses</h2>
+      <p>This is the whole diagnosis. You now have two numbers; only their first three parts matter.</p>
+    </div>
+    <div class="step-body">
+      <div class="branch">
+        <div class="same">
+          <h4>First three match</h4>
+          <p class="addr-pair">
+            Tablet <b class="match">192.168.100</b><span>.240</span><br>
+            Printer <b class="match">192.168.100</b><span>.87</span>
+          </p>
+          <p>Same network. The address is not your problem — the printer is asleep, has dropped off the Wi-Fi, or the router is separating wireless clients from each other.</p>
+          <p>Power-cycle the printer and scan again. If it still doesn't answer, go to <a href="#bluetooth">Bluetooth</a>.</p>
+        </div>
+        <div class="diff">
+          <h4>First three differ</h4>
+          <p class="addr-pair">
+            Tablet <b class="match">192.168</b><span>.</span><b class="mismatch">100</b><span>.240</span><br>
+            Printer <b class="match">192.168</b><span>.</span><b class="mismatch">1</b><span>.87</span>
+          </p>
+          <p>The printer is holding a fixed address from wherever it was installed before. Both are on the same Wi-Fi, but they are in ranges that cannot talk to each other.</p>
+          <p>This is the common case. Go to <a href="#prefix">step 5</a>.</p>
+        </div>
+      </div>
+      <div class="call stop">
+        <span class="tag">Check this before step 5</span>
+        <p>The prefix fix only works when <strong>both addresses start with the same first two numbers</strong> — in practice, when both begin <code>192.168</code>.</p>
+        <p>If the café is on <code>10.0.0.x</code> and the printer says <code>192.168.1.87</code>, no tablet setting can bridge that. Go straight to <a href="#dhcp">step 6</a> or <a href="#bluetooth">step 7</a>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="prefix">
+    <div class="step-head">
+      <div class="step-num">05</div>
+      <h2>Widen the tablet's reach</h2>
+      <p>One field on one screen. No router, no laptop, and nothing on the printer changes.</p>
+    </div>
+    <div class="step-body">
+      <p>On the tablet: <strong>Settings → Wi-Fi → long-press the café network → Modify network → Advanced options → IP settings → Static</strong>.</p>
+      <p>Keep the address the tablet already has. Change <strong>only the prefix length</strong>, from 24 to 16:</p>
+      <div class="panel">
+        <div class="panel-title">Static IP — tablet</div>
+        <table class="fields">
+          <tr><th>IP address</th><td>192.168.100.240 <span class="note">— leave exactly as it was</span></td></tr>
+          <tr class="hot"><th>Prefix length</th><td>16 <span class="note">— this is the only change</span></td></tr>
+          <tr><th>Gateway</th><td>192.168.100.1 <span class="note">— the café's router</span></td></tr>
+          <tr><th>DNS 1</th><td>8.8.8.8</td></tr>
+          <tr><th>DNS 2</th><td>8.8.4.4</td></tr>
+        </table>
+      </div>
+      <p>A prefix of 16 stretches the tablet's idea of “my network” from <code>192.168.100.x</code> to the whole of <code>192.168.x.x</code>. The printer at <code>192.168.1.87</code> falls inside it, and so does the router — so printing and internet both keep working.</p>
+
+      <h3>If Save is greyed out or bounces</h3>
+      <ul>
+        <li><strong>Don't change the IP address.</strong> Android refuses a static config whose gateway sits outside the network the address and prefix describe. Leaving the address alone avoids this entirely — it is the single most common reason this screen won't save.</li>
+        <li><strong>Fill every field.</strong> A blank DNS 2 will block the save on many builds.</li>
+        <li><strong>The prefix field wants <code>16</code>, not <code>255.255.0.0</code>.</strong></li>
+        <li><strong>Re-enter the Wi-Fi password</strong> if the form asks for it.</li>
+        <li><strong>Toggle Wi-Fi off and on</strong> after saving, so the new settings actually apply.</li>
+      </ul>
+
+      <h3>Then connect the printer</h3>
+      <p>Open a web page first, to confirm the tablet still has internet. If it doesn't, the gateway or DNS is mistyped and nothing else will work.</p>
+      <p>In Serva Station, tap <strong>Enter the address myself</strong> and type the printer's address from the slip:</p>
+      <div class="panel">
+        <div class="panel-title">Serva Station — manual address</div>
+        <table class="fields">
+          <tr class="hot"><th>Printer address</th><td>192.168.1.87</td></tr>
+        </table>
+      </div>
+      <p>Scan won't find it on its own — the app sweeps the 254 addresses around the tablet's own, which is still the <code>192.168.100.x</code> range. The manual address is the right tool here, and it will connect now.</p>
+      <p>Run the test print.</p>
+      <div class="call warn">
+        <span class="tag">You have left a landmine — record it</span>
+        <p>A static IP lives on that one tablet. If the café replaces the router, changes its address range, or the tablet is swapped, printing stops and the next person will have no idea why.</p>
+        <p>Write it on the <a href="#record">record card</a>, and flag the café for a proper fix: get the printer onto DHCP, or move it to Bluetooth on the next visit.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="dhcp">
+    <div class="step-head">
+      <div class="step-num">06</div>
+      <h2>Put the printer back on automatic</h2>
+      <p>The durable fix. Do this instead of step 5 when you have physical access and a few minutes, because it leaves nothing behind to break.</p>
+    </div>
+    <div class="step-body">
+      <p>You are looking for a small <strong>push button or pinhole on the network module</strong> — near the LAN socket or the antenna, not the FEED button on the front.</p>
+      <ul>
+        <li><strong>Hold it for more than 3 seconds</strong> with the printer already on: prints a network status sheet showing the real settings.</li>
+        <li><strong>Power the printer on while holding it, and keep holding for about 10 seconds:</strong> resets the network settings to factory defaults, which means DHCP.</li>
+      </ul>
+      <p>Then power-cycle the printer, wait a minute for it to take an address from the café's router, and scan again in Serva Station. It will now be on the café's own range and the app finds it with no manual address at all.</p>
+      <div class="call warn">
+        <span class="tag">When there is no settings page to find</span>
+        <p>Older printers are often retrofitted with a third-party Wi-Fi module — a genuine Epson behind a no-name adapter, for instance. These usually have <strong>no web page, no configuration app and no reset that you can reach over the network</strong>. Only the print port answers.</p>
+        <p>Don't spend twenty minutes hunting for a settings screen that doesn't exist. Use the pinhole if there is one; otherwise fall back to step 5 or Bluetooth.</p>
+      </div>
+      <p>After a factory reset the module may come up broadcasting <strong>its own Wi-Fi network</strong> — something like <code>Printer_A1B2</code>. If it does, join it from the tablet and open the address printed on the status sheet (commonly <code>192.168.4.1</code> or <code>10.10.100.254</code>). From there, point it at the café Wi-Fi and set it to automatic. Remember to put the tablet back on the café network afterwards.</p>
+    </div>
+  </section>
+
+  <section id="bluetooth">
+    <div class="step-head">
+      <div class="step-num">07</div>
+      <h2>Bluetooth, when the network won't cooperate</h2>
+      <p>Not a defeat. A Bluetooth printer has no address, no range and no router — there is nothing left that can go stale.</p>
+    </div>
+    <div class="step-body">
+      <p>If the printer supports Bluetooth, this is often the better install even when the network route is available.</p>
+      <ol>
+        <li>Pair the printer in <strong>Android Settings → Bluetooth</strong>. Serva Station never scans for devices, so it must be paired in system settings first.</li>
+        <li>In Serva Station, choose the <strong>Bluetooth printer</strong> option and pick it from the paired list.</li>
+        <li>Run the test print.</li>
+      </ol>
+      <p>Everything above the connection is identical — the queue, the receipt layout and the paper-out warnings all behave exactly as they do over the network.</p>
+    </div>
+  </section>
+
+  <section id="waste">
+    <div class="step-head">
+      <div class="step-num">—</div>
+      <h2>Don't waste the visit on these</h2>
+    </div>
+    <div class="step-body">
+      <ul>
+        <li><strong>“Search wider.”</strong> It takes about a minute and almost never helps. It tries other common ranges, but the tablet has no route to them, so the packets go to the router and are dropped. Use the FEED slip instead — it is faster and it actually answers the question.</li>
+        <li><strong>Asking for the router password.</strong> Changing the router's range would fix this, but you usually can't get in, and you should not be reconfiguring a café's network to install a printer.</li>
+        <li><strong>Typing the printer's address before checking the prefix.</strong> If the tablet is still on prefix 24 and the printer is on another range, the app will say <em>“Nothing answered at that address.”</em> That message is misleading: something is there, the tablet just has no way to reach it. Do step 5 first.</li>
+        <li><strong>Hunting for a web page on the printer.</strong> Many of these have none at all. Check the status sheet, not your browser.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="leaving">
+    <div class="step-head">
+      <div class="step-num">—</div>
+      <h2>Before you leave the café</h2>
+      <p>The install isn't finished when a test slip prints. It's finished when it will still print tomorrow morning.</p>
+    </div>
+    <div class="step-body">
+      <ul class="check">
+        <li>Test print from Serva Station — not from anywhere else — and check it cuts cleanly.</li>
+        <li>Send a real order through and confirm the ticket reaches the counter.</li>
+        <li>Confirm the tablet still loads a web page, so orders can actually sync.</li>
+        <li>Turn off Android's battery optimisation for Serva Station when it offers, or the app will be killed mid-shift.</li>
+        <li>Leave the tablet on a charger, and show staff the Serva notification — tell them not to swipe it away and never to use Force stop.</li>
+        <li>Restart the tablet and confirm the station comes back on its own.</li>
+        <li>Load a fresh roll and leave the spare where staff can find it.</li>
+        <li>Fill in the record card below.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="record">
+    <div class="step-head">
+      <div class="step-num">—</div>
+      <h2>Record card</h2>
+      <p>Fill this in every time, including the easy installs. The next person to touch this café — which may be you in six months — has no other way to know what was done here.</p>
+    </div>
+    <div class="step-body">
+      <div class="scroll-x">
+        <table class="record">
+          <tr><th>Café and branch</th><td></td></tr>
+          <tr><th>Date and installer</th><td></td></tr>
+          <tr><th>Printer make and model</th><td></td></tr>
+          <tr><th>Connection (Wi-Fi / Bluetooth)</th><td></td></tr>
+          <tr><th>Printer address and port</th><td></td></tr>
+          <tr><th>Tablet address</th><td></td></tr>
+          <tr><th>Tablet prefix — 24 or 16?</th><td></td></tr>
+          <tr><th>Static IP applied to tablet?</th><td></td></tr>
+          <tr><th>Needs a return visit, and why</th><td></td></tr>
+        </table>
+      </div>
+      <div class="call stop">
+        <span class="tag">Escalate rather than improvise</span>
+        <p>Call the office before leaving if: the printer never appears on any route and has no Bluetooth; the café's range and the printer's range share no first number; or the printer answers but prints blank or garbled slips.</p>
+        <p>Do not change the café's router settings, and do not factory-reset a printer the café doesn't own.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="end">
+    <p>The single number that decides almost every install is the first three parts of the printer's address, compared against the tablet's. Get the FEED slip early and the rest of this guide is a short lookup.</p>
+  </footer>
+
+</div>
