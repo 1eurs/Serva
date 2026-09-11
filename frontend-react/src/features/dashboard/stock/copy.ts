@@ -48,7 +48,7 @@ export const DICT: Dict = {
 
     /* usage, on the wall and in the sheet */
     stDays: '≈ {n} {d}', usesPerDay: 'يُستهلك حوالي {q} يوميًا', daysLeft: 'يكفي {n} {d} بهذا المعدل',
-    lessThanDay: 'يكفي أقل من يوم بهذا المعدل', backs: 'مرتبط بـ {names}',
+    lessThanDay: 'يكفي أقل من يوم بهذا المعدل',
 
     /* the sheet behind a menu item */
     rulesHint: 'ما يأخذه هذا الصنف من المخزون في هذا الفرع.',
@@ -108,7 +108,7 @@ export const DICT: Dict = {
 
     /* usage, on the wall and in the sheet */
     stDays: '≈ {n} {d}', usesPerDay: 'Uses about {q} a day', daysLeft: '{n} {d} left at this rate',
-    lessThanDay: 'Less than a day left at this rate', backs: 'Backs {names}',
+    lessThanDay: 'Less than a day left at this rate',
 
     /* the sheet behind a menu item */
     rulesHint: 'What this item takes from the shelf at this branch.',

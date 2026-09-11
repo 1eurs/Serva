@@ -9,9 +9,11 @@ import type { PublicItem, SelectedOption } from '../../lib/types';
 
 const DICT: Dict = {
   ar: { cur: 'ر.ع', add: 'أضف للسلة', from: 'يبدأ من', req: 'يرجى اختيار', choose: 'اختر', optional: 'اختياري',
+        regular: 'عادي', noExtra: 'بدون إضافة',
         qty: 'الكمية', close: 'إغلاق', chooseOne: 'اختر واحداً', chooseAny: 'اختر أي منها', soldout: 'غير متوفر',
         min: 'د', prep: 'وقت التحضير', qtyMinus: 'إنقاص الكمية', qtyPlus: 'زيادة الكمية' },
   en: { cur: 'OMR', add: 'Add to cart', from: 'from', req: 'Please choose', choose: 'Choose', optional: 'optional',
+        regular: 'Regular', noExtra: 'no extra',
         qty: 'Quantity', close: 'Close', chooseOne: 'Choose one', chooseAny: 'Choose any', soldout: 'Sold out',
         min: 'min', prep: 'Prep time', qtyMinus: 'Decrease quantity', qtyPlus: 'Increase quantity' },
 };
@@ -78,14 +80,12 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
   }, [onClose]);
 
   const groups = item.optionGroups ?? [];
-  // Pre-select the first option of optional SINGLE groups so the customer sees a default
-  // price and doesn't hit a "required" wall unless the cafe explicitly marked it required.
+  // Nothing is chosen until the customer chooses it. This used to pre-select the first option of
+  // an optional group "so the customer sees a default price" — which, on a latte whose first
+  // option is Almond Milk (+0.300), made every latte an almond latte with no way back to regular.
+  // An optional group now shows "Regular · no extra" as its own, pre-selected row instead.
   useEffect(() => {
-    const init: Record<number, number | null> = {};
-    for (const g of groups) {
-      if (g.selectionType === 'SINGLE' && !g.required && g.options.length) init[g.id] = g.options[0].id;
-    }
-    setSingle(init);
+    setSingle({});
     setMulti({});
     setQty(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -118,8 +118,9 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
   const canAdd = sellable(item) && !missingRequired;
   const lineTotal = unitPrice * qty;
 
-  const setSingleChoice = (groupId: number, optionId: number) =>
-    setSingle((s) => ({ ...s, [groupId]: optionId }));
+  // Tapping the chosen option again returns to regular — the same gesture the counter pad has.
+  const setSingleChoice = (groupId: number, optionId: number | null) =>
+    setSingle((s) => ({ ...s, [groupId]: s[groupId] === optionId ? null : optionId }));
   const toggleMulti = (groupId: number, optionId: number) =>
     setMulti((s) => {
       const cur = new Set(s[groupId] ?? []);
@@ -180,6 +181,16 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
                   </span>
                 </div>
                 <div className="c-opt-list">
+                  {/* The choice not to add anything, said out loud and selected by default, so an
+                      optional group never reads as a wall the customer has to pick through. */}
+                  {g.selectionType === 'SINGLE' && !g.required && (
+                    <button type="button" className={'c-opt' + (single[g.id] == null ? ' on' : '')}
+                      onClick={() => setSingle((s) => ({ ...s, [g.id]: null }))} aria-pressed={single[g.id] == null}>
+                      <span className="c-opt-mark">{single[g.id] == null ? '●' : '○'}</span>
+                      <span className="c-opt-name">{t('regular')}</span>
+                      <span className="c-opt-none">{t('noExtra')}</span>
+                    </button>
+                  )}
                   {g.options.map((o) => {
                     const on = g.selectionType === 'SINGLE'
                       ? single[g.id] === o.id
@@ -189,7 +200,7 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
                       <button type="button" key={o.id} className={cls}
                         onClick={() => g.selectionType === 'SINGLE' ? setSingleChoice(g.id, o.id) : toggleMulti(g.id, o.id)}
                         aria-pressed={on}>
-                        <span className="c-opt-mark">{g.selectionType === 'SINGLE' ? '○' : '☐'}</span>
+                        <span className="c-opt-mark">{g.selectionType === 'SINGLE' ? (on ? '●' : '○') : (on ? '☑' : '☐')}</span>
                         <span className="c-opt-name">{pick(o, 'name', lang)}</span>
                         {o.priceDelta !== 0 && (
                           <Money value={o.priceDelta} className="c-opt-delta" showPlus />
