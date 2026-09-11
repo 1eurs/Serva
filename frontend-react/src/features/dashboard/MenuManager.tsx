@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, upload, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
@@ -6,9 +6,8 @@ import { useI18n, useT, pick, nameOf, Ltr, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { useConfirm } from '../../lib/confirm';
 import { omr, estimateVat, discountPercent } from '../../lib/format';
-import type { BranchResponse, CategoryResponse, Lang, MenuItemResponse, MenuItemSoldOut, Restaurant, StockMode } from '../../lib/types';
+import type { BranchResponse, CategoryResponse, MenuItemResponse, Restaurant } from '../../lib/types';
 import { sellable } from '../../lib/types';
-import RecipeEditor from './stock/RecipeEditor';
 import { ensureGoogleFonts } from '../../lib/fonts';
 import { MenuDecorLayer } from '../customer/MenuDecor';
 import { parseMenuInfo, houseFacts } from '../customer/menuInfo';
@@ -39,12 +38,10 @@ import './look-studio.css';
 const DICT: Dict = {
   ar: { addCat: '＋ قسم', addItem: '＋ صنف', editCat: 'تعديل القسم', newCat: 'قسم جديد', editItem: 'تعديل الصنف', newItem: 'صنف جديد',
         nameAr: 'الاسم (عربي)', nameEn: 'الاسم (إنجليزي)', descAr: 'الوصف (عربي)', descEn: 'الوصف (إنجليزي)',
-        soldOutOf: 'نفد {name}', soldOutNone: 'نفد', soldOutLimit: 'خلص حدّه اليومي',
-        soldOutWhy: 'المخزون أوقفه، لا أنت. يرجع للبيع أول ما تسجّل توريد.',
         price: 'السعر', prep: 'دقائق التحضير', category: 'القسم', available: 'متوفر الآن', image: 'الصورة', uploadImg: 'رفع صورة', uploading: 'جارٍ الرفع…', removeImg: 'حذف الصورة',
         addPhoto: 'إضافة صورة', cover: 'الغلاف', photosHint: 'الصورة الأولى هي الغلاف',
         options: 'الخيارات', optionsHint: 'مثل: الحجم (كبير/صغير) أو نوع الحليب', addGroup: '＋ مجموعة خيارات', groupNameAr: 'اسم المجموعة (ع)', groupNameEn: 'اسم المجموعة (EN)',
-        single: 'اختيار واحد', multi: 'متعدد', requiredOpt: 'إلزامي', addOption: '＋ خيار', optNameAr: 'الخيار (ع)', optNameEn: 'الخيار (EN)', priceDelta: 'فرق السعر', stockRecipe: 'وش تاخذ البيعة',
+        single: 'اختيار واحد', multi: 'متعدد', requiredOpt: 'إلزامي', addOption: '＋ خيار', optNameAr: 'الخيار (ع)', optNameEn: 'الخيار (EN)', priceDelta: 'فرق السعر',
         save: 'حفظ', cancel: 'إلغاء', del: 'حذف', cur: 'ر.ع', noItems: 'لا أصناف بعد',
         discount: 'الخصم', discNone: 'بدون', discPercent: 'نسبة %', discFixed: 'سعر العرض',
         discPercentVal: 'نسبة الخصم %', discNewPrice: 'السعر بعد الخصم', discStarts: 'يبدأ (اختياري)', discEnds: 'ينتهي (اختياري)',
@@ -77,12 +74,10 @@ const DICT: Dict = {
         st_PENDING: 'أرسلنا طلبك', st_ACCEPTED: 'قبِله المقهى', st_PREPARING: 'يُحضَّر الآن', st_READY: 'جاهز!' },
   en: { addCat: '＋ Category', addItem: '＋ Item', editCat: 'Edit category', newCat: 'New category', editItem: 'Edit item', newItem: 'New item',
         nameAr: 'Name (Arabic)', nameEn: 'Name (English)', descAr: 'Description (Arabic)', descEn: 'Description (English)',
-        soldOutOf: 'Out of {name}', soldOutNone: 'Sold out', soldOutLimit: "Hit today's limit",
-        soldOutWhy: 'Stock took this off sale, not you. It comes back the moment you record a delivery.',
         price: 'Price', prep: 'Prep minutes', category: 'Category', available: 'Available now', image: 'Photo', uploadImg: 'Upload photo', uploading: 'Uploading…', removeImg: 'Remove photo',
         addPhoto: 'Add photo', cover: 'Cover', photosHint: 'First photo is the cover',
         options: 'Options', optionsHint: 'e.g. Size (large/small) or milk type', addGroup: '＋ Option group', groupNameAr: 'Group name (AR)', groupNameEn: 'Group name (EN)',
-        single: 'Pick one', multi: 'Multiple', requiredOpt: 'Required', addOption: '＋ Option', optNameAr: 'Option (AR)', optNameEn: 'Option (EN)', priceDelta: 'Price +/-', stockRecipe: 'What a sale takes',
+        single: 'Pick one', multi: 'Multiple', requiredOpt: 'Required', addOption: '＋ Option', optNameAr: 'Option (AR)', optNameEn: 'Option (EN)', priceDelta: 'Price +/-',
         save: 'Save', cancel: 'Cancel', del: 'Delete', cur: 'OMR', noItems: 'No items yet',
         discount: 'Discount', discNone: 'None', discPercent: '% off', discFixed: 'Sale price',
         discPercentVal: 'Percent off', discNewPrice: 'New price', discStarts: 'Starts (optional)', discEnds: 'Ends (optional)',
@@ -166,29 +161,11 @@ const BASIC_COLOR_FIELDS: { key: BasicColorKey; label: string }[] = [
 // than photographs — the point where it becomes a worse menu than List, not a prettier one.
 const GALLERY_PHOTO_FLOOR = 0.6;
 
-/**
- * What took the item off sale, in the words that tell an owner what to do about it.
- *
- * The ingredient is the fix, so the ingredient is what the badge says: "Out of Fresh milk"
- * sends someone to the fridge, where "Sold out" only sends them back to this screen. Both of
- * the blocker's names travel with the row so the badge can render in one language.
- *
- * Counting the item itself is the exception. A SIMPLE item is backed by a good named after
- * it, so naming the blocker there prints "Out of Latte" on the row headed Latte — the plain
- * fact is the whole story.
- */
-const soldOutLabel = (off: MenuItemSoldOut, stockMode: StockMode | null | undefined,
-                      t: (k: string) => string, lang: Lang): string => {
-  if (off.reason === 'DAILY_LIMIT_REACHED') return t('soldOutLimit');
-  const name = stockMode === 'SIMPLE' ? '' : nameOf({ nameEn: off.blockerNameEn, nameAr: off.blockerNameAr }, lang);
-  return name ? t('soldOutOf').replace('{name}', name) : t('soldOutNone');
-};
-
 type DeleteTarget =
   | { type: 'category'; id: number; name: string; itemCount: number }
   | { type: 'item'; id: number; name: string };
 
-export default function MenuManager({ branchId }: { branchId?: number | null }) {
+export default function MenuManager() {
   const { user } = useAuth();
   const rid = user!.restaurantId!;
   const { lang } = useI18n();
@@ -197,14 +174,9 @@ export default function MenuManager({ branchId }: { branchId?: number | null }) 
   const qc = useQueryClient();
 
   const catsQ = useQuery({ queryKey: ['menu-cats', rid], queryFn: () => api.get<CategoryResponse[]>(`/api/menu/categories?restaurantId=${rid}`) });
-  /* The branch is passed for the figures, not to filter the list: the menu is one menu, but
-     "sold out" and "left today" are facts about one shop's shelf. Without it the server can
-     only infer the branch, which it cannot do for a cafe with two — so a two-shop owner's
-     switches would sit on a menu that says nothing about either shop. */
   const itemsQ = useQuery({
-    queryKey: ['menu-items', rid, branchId],
-    queryFn: () => api.get<MenuItemResponse[]>(
-      `/api/menu/items?restaurantId=${rid}${branchId != null ? `&displayBranchId=${branchId}` : ''}`),
+    queryKey: ['menu-items', rid],
+    queryFn: () => api.get<MenuItemResponse[]>(`/api/menu/items?restaurantId=${rid}`),
   });
   const cats = useMemo(() => [...(catsQ.data ?? [])].sort((a, b) => a.displayOrder - b.displayOrder), [catsQ.data]);
   const itemsByCat = useMemo(() => {
@@ -259,9 +231,6 @@ export default function MenuManager({ branchId }: { branchId?: number | null }) 
                 <div className="mitems">
                   {items.map((it) => {
                     const ds = discountState(it);
-                    // Off through the shelf rather than a decision — the case the switch must not
-                    // pretend it can undo.
-                    const stockOff = !!it.soldOut && it.available;
                     return (
                     <div className={'mitem' + (sellable(it) ? '' : ' off')} key={it.id}>
                       <div className="c-thumb" style={{ ...thumb(it), width: 54, height: 54, flex: '0 0 54px', borderRadius: 12 }}>
@@ -272,7 +241,6 @@ export default function MenuManager({ branchId }: { branchId?: number | null }) 
                           {ds && <span className={'mitem-disc ' + (ds.active ? 'on' : ds.scheduled ? 'sched' : 'ended')}>
                             {ds.active ? `−${discountPercent(it.price, ds.sale)}%` : ds.scheduled ? t('discScheduled') : t('discEnded')}
                           </span>}
-                          {it.soldOut && <span className="mitem-out">{soldOutLabel(it.soldOut, it.stockMode, t, lang)}</span>}
                         </div>
                         <div className="mitem-sub">{it.nameEn}{it.preparationTimeMinutes ? ` · ⏱ ${it.preparationTimeMinutes}m` : ''}</div>
                       </div>
@@ -281,14 +249,9 @@ export default function MenuManager({ branchId }: { branchId?: number | null }) 
                         <span className={ds?.active ? 'mitem-sale' : ''}>{omr(ds ? ds.sale : it.price)}</span>
                         {' '}<span style={{ fontSize: 10, color: 'var(--muted)' }}>{t('cur')}</span>
                       </div>
-                      {/* The switch answers "can a customer order this right now", and the shelf
-                          gets a vote in that as much as the owner does. A stock-off one cannot
-                          be flipped: the only thing the click could write is available=false,
-                          the one decision the owner did not make. It explains itself instead. */}
-                      <button className={'switch' + (sellable(it) ? ' on' : '') + (stockOff ? ' locked' : '')}
-                        aria-disabled={stockOff || undefined}
-                        title={stockOff ? `${soldOutLabel(it.soldOut!, it.stockMode, t, lang)} — ${t('soldOutWhy')}` : t('available')}
-                        onClick={() => (stockOff ? toast(t('soldOutWhy')) : toggleAvail.mutate(it))}><span /></button>
+                      <button className={'switch' + (sellable(it) ? ' on' : '')}
+                        title={t('available')}
+                        onClick={() => toggleAvail.mutate(it)}><span /></button>
                       <button className="iconbtn" title={t('editItem')} onClick={() => setItemModal(it)}>✎</button>
                       <button className="iconbtn danger" title={t('del')} onClick={() => setDeleteTarget({ type: 'item', id: it.id, name: pick(it, 'name', lang) })}>🗑</button>
                     </div>
@@ -321,7 +284,7 @@ export default function MenuManager({ branchId }: { branchId?: number | null }) 
       )}
 
       {catModal && <CategoryEditor rid={rid} cat={catModal === 'new' ? null : catModal} onClose={() => setCatModal(null)} onDone={() => { invalidate(); setCatModal(null); }} />}
-      {itemModal && <ItemEditor rid={rid} cats={cats} branchId={branchId} item={'id' in itemModal ? itemModal : null} defaultCat={'categoryId' in itemModal ? itemModal.categoryId : undefined} onClose={() => setItemModal(null)} onDone={() => { invalidate(); setItemModal(null); }} />}
+      {itemModal && <ItemEditor rid={rid} cats={cats} item={'id' in itemModal ? itemModal : null} defaultCat={'categoryId' in itemModal ? itemModal.categoryId : undefined} onClose={() => setItemModal(null)} onDone={() => { invalidate(); setItemModal(null); }} />}
     </div>
   );
 }
@@ -960,8 +923,8 @@ function CategoryEditor({ rid, cat, onClose, onDone }: { rid: number; cat: Categ
   );
 }
 
-function ItemEditor({ rid, cats, item, defaultCat, branchId, onClose, onDone }:
-  { rid: number; cats: CategoryResponse[]; item: MenuItemResponse | null; defaultCat?: number; branchId?: number | null; onClose: () => void; onDone: () => void }) {
+function ItemEditor({ rid, cats, item, defaultCat, onClose, onDone }:
+  { rid: number; cats: CategoryResponse[]; item: MenuItemResponse | null; defaultCat?: number; onClose: () => void; onDone: () => void }) {
   const t = useT(DICT); const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -1013,10 +976,6 @@ function ItemEditor({ rid, cats, item, defaultCat, branchId, onClose, onDone }:
   const patchOption = (oi: number, patch: Partial<OptRow>) => setOpts((p) => p.map((o, j) => (j === oi ? { ...o, ...patch } : o)));
   const addOption = () => setOpts((p) => [...p, { nameAr: '', nameEn: '', priceDelta: '' }]);
   const removeOption = (oi: number) => setOpts((p) => p.filter((_, j) => j !== oi));
-
-  // Stock lives in its own panel rather than inline: it saves against a different endpoint and
-  // needs the item to already exist (its recipe hangs off the item and option ids).
-  const [recipeOpen, setRecipeOpen] = useState(false);
 
   const save = useMutation({
     mutationFn: () => {
@@ -1166,16 +1125,10 @@ function ItemEditor({ rid, cats, item, defaultCat, branchId, onClose, onDone }:
         </div>
 
         <div className="modal-actions">
-          {item && (
-            <button className="btn ghost" style={{ marginInlineEnd: 'auto' }} onClick={() => setRecipeOpen(true)}>
-              🧾 {t('stockRecipe')}
-            </button>
-          )}
           <button className="btn ghost" onClick={onClose}>{t('cancel')}</button>
           <button className="btn" disabled={!valid || save.isPending || uploading} onClick={() => save.mutate()}>{t('save')}</button>
         </div>
       </div>
-      {recipeOpen && item && <RecipeEditor item={item} branchId={branchId} onClose={() => setRecipeOpen(false)} />}
     </div>
   );
 }

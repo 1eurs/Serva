@@ -7,7 +7,6 @@ import com.cafeqr.branches.BranchService;
 import com.cafeqr.common.exception.BadRequestException;
 import com.cafeqr.common.exception.ErrorCode;
 import com.cafeqr.common.exception.ResourceNotFoundException;
-import com.cafeqr.common.util.TimeZones;
 import com.cafeqr.menus.domain.DiscountType;
 import com.cafeqr.menus.domain.MenuCategory;
 import com.cafeqr.menus.domain.MenuItem;
@@ -23,14 +22,11 @@ import com.cafeqr.menus.dto.UpdateCategoryRequest;
 import com.cafeqr.menus.dto.UpdateMenuItemRequest;
 import com.cafeqr.menus.repository.MenuCategoryRepository;
 import com.cafeqr.menus.repository.MenuItemRepository;
-import com.cafeqr.stock.DailyLimitService;
-import com.cafeqr.stock.StockConsumptionService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -45,55 +41,16 @@ public class MenuService {
     private final MenuCategoryRepository categoryRepository;
     private final MenuItemRepository itemRepository;
     private final BranchService branchService;
-    private final DailyLimitService dailyLimitService;
-    private final StockConsumptionService stockConsumptionService;
     private final AccessGuard accessGuard;
 
     public MenuService(MenuCategoryRepository categoryRepository,
                        MenuItemRepository itemRepository,
                        BranchService branchService,
-                       DailyLimitService dailyLimitService,
-                       StockConsumptionService stockConsumptionService,
                        AccessGuard accessGuard) {
         this.categoryRepository = categoryRepository;
         this.itemRepository = itemRepository;
         this.branchService = branchService;
-        this.dailyLimitService = dailyLimitService;
-        this.stockConsumptionService = stockConsumptionService;
         this.accessGuard = accessGuard;
-    }
-
-    /**
-     * Wraps an item with what the branch in view can actually do with it: the daily-limit
-     * figure, and whether the shelf can make it at all. Both are per branch — the cap is
-     * restaurant-wide but the tally against it is not, and a shelf belongs to one branch —
-     * so a dashboard that is not looking at a single branch shows neither rather than a
-     * misleading one.
-     */
-    private MenuItemResponse withBranchState(MenuItem item, Long branchId) {
-        return withBranchState(item, branchId, soldOutAt(item.getRestaurantId(), branchId));
-    }
-
-    private MenuItemResponse withBranchState(MenuItem item, Long branchId,
-                                             Map<Long, StockConsumptionService.SoldOut> soldOut) {
-        StockConsumptionService.SoldOut off = soldOut.get(item.getId());
-        return MenuItemResponse.from(item,
-                dailyLimitService.remainingAt(item, branchId, LocalDate.now(TimeZones.CAFES)),
-                off == null ? null : new MenuItemResponse.SoldOut(
-                        off.reason(), off.blockerNameEn(), off.blockerNameAr()));
-    }
-
-    /**
-     * What this branch cannot make right now, asked once for the whole list.
-     *
-     * <p>Answered fresh rather than stored: availability is a restaurant-wide column and a
-     * shortage is one branch's, so writing the second into the first is what used to take a
-     * drink off sale everywhere the moment one branch ran out of milk.
-     */
-    private Map<Long, StockConsumptionService.SoldOut> soldOutAt(Long restaurantId, Long branchId) {
-        return branchId == null || restaurantId == null
-                ? Map.of()
-                : stockConsumptionService.soldOutByItem(restaurantId, branchId);
     }
 
     // ----------------------------------------------------------------- categories
@@ -194,33 +151,23 @@ public class MenuService {
         item.setDisplayOrder(request.displayOrder() != null ? request.displayOrder() : 0);
         applyImages(item, request.imageUrls(), request.imageUrl());
         applyOptionGroups(item, request.optionGroups());
-        return withBranchState(itemRepository.save(item),
-                branchService.resolveBranchForDisplay(item.getRestaurantId()));
+        return MenuItemResponse.from(itemRepository.save(item));
     }
 
     @Transactional(readOnly = true)
-    public List<MenuItemResponse> listItems(Long restaurantId, Long branchId, Long categoryId,
-                                            Long displayBranchId) {
+    public List<MenuItemResponse> listItems(Long restaurantId, Long branchId, Long categoryId) {
         if (categoryId != null) {
             MenuCategory category = getCategoryEntity(categoryId);
             accessGuard.requireRestaurantAccess(category.getRestaurantId());
-            Long categoryBranch = displayBranch(category.getRestaurantId(),
-                    listBranchScope(branchId), displayBranchId);
-            Map<Long, StockConsumptionService.SoldOut> categorySoldOut =
-                    soldOutAt(category.getRestaurantId(), categoryBranch);
             return itemRepository.findByCategoryIdOrderByDisplayOrderAscIdAsc(categoryId)
-                    .stream().map(i -> withBranchState(i, categoryBranch, categorySoldOut)).toList();
+                    .stream().map(MenuItemResponse::from).toList();
         }
         Long scopedRestaurant = resolveRestaurantId(restaurantId);
         accessGuard.requireRestaurantAccess(scopedRestaurant);
         Long branchScope = listBranchScope(branchId);
-        /* Resolved once, not per item: this asks the branches table, and the menu list is the
-           screen an owner leaves open. */
-        Long displayBranch = displayBranch(scopedRestaurant, branchScope, displayBranchId);
-        Map<Long, StockConsumptionService.SoldOut> soldOut = soldOutAt(scopedRestaurant, displayBranch);
         return itemRepository.findByRestaurantIdOrderByDisplayOrderAscIdAsc(scopedRestaurant).stream()
                 .filter(i -> branchScope == null || i.getBranchId() == null || i.getBranchId().equals(branchScope))
-                .map(i -> withBranchState(i, displayBranch, soldOut))
+                .map(MenuItemResponse::from)
                 .toList();
     }
 
@@ -228,7 +175,7 @@ public class MenuService {
     public MenuItemResponse getItem(Long id) {
         MenuItem item = getItemEntity(id);
         accessGuard.requireRestaurantAccess(item.getRestaurantId());
-        return withBranchState(item, branchService.resolveBranchForDisplay(item.getRestaurantId()));
+        return MenuItemResponse.from(item);
     }
 
     @Transactional
@@ -284,7 +231,7 @@ public class MenuService {
         if (request.displayOrder() != null) {
             item.setDisplayOrder(request.displayOrder());
         }
-        return withBranchState(item, branchService.resolveBranchForDisplay(item.getRestaurantId()));
+        return MenuItemResponse.from(item);
     }
 
     @Transactional
@@ -292,7 +239,7 @@ public class MenuService {
         MenuItem item = getItemEntity(id);
         accessGuard.requireBranchAccess(item.getRestaurantId(), item.getBranchId());
         item.setAvailable(available);
-        return withBranchState(item, branchService.resolveBranchForDisplay(item.getRestaurantId()));
+        return MenuItemResponse.from(item);
     }
 
     @Transactional
@@ -354,35 +301,12 @@ public class MenuService {
     /**
      * Which branch a menu <em>list</em> is about.
      *
-     * <p>A branch-scoped member is pinned to their own, the same way {@code OrderService} and
-     * {@code StockService} pin theirs — these two lists were the one place that read the
-     * requested id first, so a member of one shop could ask for the other shop's menu and its
-     * per-branch daily limits by changing a query parameter. It is not treated as an error,
-     * because the dashboard's branch switcher can legitimately be sitting on another branch; it
-     * is simply answered with the branch the member actually works in.
+     * <p>A branch-scoped member is pinned to their own, the same way {@code OrderService} pins
+     * theirs — this list was the one place that read the requested id first, so a member of one
+     * shop could ask for the other shop's menu by changing a query parameter. It is not treated
+     * as an error, because the dashboard's branch switcher can legitimately be sitting on
+     * another branch; it is simply answered with the branch the member actually works in.
      */
-    /**
-     * Which branch's shelf the per-branch figures are about.
-     *
-     * <p>Three answers in order of authority. A member pinned to a shop gets their own branch
-     * whatever they ask for. Otherwise the caller may say which branch it is showing — the
-     * dashboard's branch switcher knows, and the server cannot guess it for a cafe with two
-     * shops; it is checked against the restaurant, so naming somebody else's branch is a
-     * not-found rather than a peek at their stock. Failing both, the branch is inferred, which
-     * only works for a cafe that has exactly one.
-     *
-     * <p>Note this never decides which items are listed. The menu is one menu.
-     */
-    private Long displayBranch(Long restaurantId, Long branchScope, Long requestedDisplayBranch) {
-        if (branchScope != null) {
-            return branchScope;
-        }
-        if (requestedDisplayBranch != null) {
-            return branchService.getEntityInRestaurant(restaurantId, requestedDisplayBranch).getId();
-        }
-        return branchService.resolveBranchForDisplay(restaurantId);
-    }
-
     private Long listBranchScope(Long requestedBranchId) {
         Long scoped = accessGuard.scopedBranchId();
         return scoped != null ? scoped : requestedBranchId;
@@ -482,10 +406,8 @@ public class MenuService {
      * Reconciles an item's option groups against the submitted list.
      *
      * <p>Rows are matched by English name and <em>updated in place</em> rather than dropped and
-     * recreated. That matters because option ids are now referenced from outside the menu: a
-     * modifier's stock recipe and its packaging rule both hang off {@code menu_item_options.id}
-     * with ON DELETE CASCADE. Recreating an option on an unrelated edit — renaming the item,
-     * changing its price — would silently delete the café's recipe work.
+     * recreated, so an unrelated edit — renaming the item, changing its price — does not hand
+     * every modifier a new id that nothing else in the system was expecting.
      *
      * <p>Anything not matched is removed, so orphanRemoval still does the real deleting.
      */

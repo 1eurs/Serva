@@ -118,7 +118,7 @@ class PlanFeatureGateTest {
     void aFeatureWithNoRowIsNotIncluded() {
         service();
 
-        assertThat(entitlementsFor(Plan.PRO).has(Feature.STOCK_INSIGHTS)).isFalse();
+        assertThat(entitlementsFor(Plan.PRO).has(Feature.MULTI_BRANCH)).isFalse();
     }
 
     /** A platform admin has no café of their own, and sees everything they sell. */
@@ -136,12 +136,12 @@ class PlanFeatureGateTest {
 
     @Test
     void requireThrows402WhenTheTierDoesNotCoverIt() {
-        seed(Plan.STANDARD, Feature.STOCK_INSIGHTS, false);
+        seed(Plan.STANDARD, Feature.LOYALTY, false);
         service();
 
-        assertThatThrownBy(() -> entitlementsFor(Plan.STANDARD).require(Feature.STOCK_INSIGHTS))
+        assertThatThrownBy(() -> entitlementsFor(Plan.STANDARD).require(Feature.LOYALTY))
                 .isInstanceOf(PlanRequiredException.class)
-                .hasMessageContaining("Stock insights");
+                .hasMessageContaining("Loyalty");
     }
 
     /**

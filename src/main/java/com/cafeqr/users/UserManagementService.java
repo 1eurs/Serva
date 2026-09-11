@@ -246,7 +246,7 @@ public class UserManagementService {
             }
             if (!creator.isPlatformAdmin() && !creator.hasPermission(p)) {
                 // Named in the words the team editor uses, not the enum's: the person reading
-                // this is a café owner looking at a screen that says "Stock", not "STOCK".
+                // this is a café owner looking at a screen that says "Menu", not "MENU".
                 throw new ForbiddenException(
                         "You can only give access you have yourself, and " + label(p) + " is not yours to give.");
             }
@@ -266,7 +266,6 @@ public class UserManagementService {
             case ANALYTICS -> "Analytics";
             case PROFILE -> "Restaurant settings";
             case BRANCHES -> "Branches";
-            case STOCK -> "Stock";
             case PLATFORM_ADMIN -> "platform admin";
             case BILLING -> "Billing";
         };
@@ -317,7 +316,7 @@ public class UserManagementService {
      *
      * <p>Administering an account and becoming one are different powers, and only the second can
      * be used to climb. {@link #grantable} already refuses to hand out access the creator lacks;
-     * without this, a manager with TEAM but no STOCK would simply reset the storekeeper's
+     * without this, a manager with TEAM but no PAYMENTS would simply reset the cashier's
      * password and sign in as them, arriving at the same place by another door. So a takeover
      * additionally requires that the account holds nothing the actor could not have granted it.
      */

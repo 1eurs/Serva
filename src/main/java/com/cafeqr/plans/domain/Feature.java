@@ -27,9 +27,6 @@ public enum Feature {
     /** Run a loyalty programme: stamps, rewards, member admin. */
     LOYALTY,
 
-    /** Stock insights — variance, usage and the costed views built on the stock ledger. */
-    STOCK_INSIGHTS,
-
     /** More than one branch. */
     MULTI_BRANCH,
 

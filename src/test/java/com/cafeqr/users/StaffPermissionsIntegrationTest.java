@@ -149,7 +149,6 @@ class StaffPermissionsIntegrationTest {
         forbidden(get("/api/users"), cashier);                                 // TEAM
         forbidden(get("/api/users/invites"), cashier);                         // TEAM
         forbidden(get("/api/dashboard/analytics/today"), cashier);             // ANALYTICS
-        forbidden(get("/api/dashboard/stock/overview"), cashier);              // STOCK
         forbidden(get("/api/branches/" + mainBranch + "/tables"), cashier);    // QR_TABLES
         forbidden(patch("/api/restaurants/" + cafe), cashier);                 // PROFILE
         forbidden(post("/api/restaurants/" + cafe + "/branches"), cashier);    // BRANCHES
@@ -230,7 +229,7 @@ class StaffPermissionsIntegrationTest {
 
         send(post("/api/users"), manager, staffPayload(name("escalated"), List.of("ORDERS", "MENU"), null))
                 .andExpect(status().isForbidden());
-        send(post("/api/users/invites"), manager, invitePayload(name("escalated2"), List.of("STOCK"), null))
+        send(post("/api/users/invites"), manager, invitePayload(name("escalated2"), List.of("BRANCHES"), null))
                 .andExpect(status().isForbidden());
 
         // What they do hold, they may pass on.
@@ -459,20 +458,6 @@ class StaffPermissionsIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
-    /**
-     * Stock answers for the branch the member belongs to, not the one the URL asked for. Asking
-     * for the other shop is not an error here — every screen a branch member opens is implicitly
-     * about their own branch — but it must never be answered with the other shop's numbers.
-     */
-    @Test
-    void branchStaffAlwaysGetTheirOwnBranchesStock() throws Exception {
-        String keeper = staffToken(ownerToken, name("keeper"), List.of("STOCK"), mainBranch);
-
-        send(get("/api/dashboard/stock/overview?branchId=" + secondBranch), keeper, null)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.branchId").value(mainBranch));
-    }
-
     // ============================================================ the owner, and the café next door
 
     /** Handing someone TEAM must not hand them the owner's account. */
@@ -480,7 +465,7 @@ class StaffPermissionsIntegrationTest {
     void theOwnerAccountIsOutOfStaffReach() throws Exception {
         String manager = staffToken(ownerToken, name("gm"),
                 List.of("ORDERS", "PAYMENTS", "MENU", "QR_TABLES", "TEAM", "ANALYTICS", "PROFILE",
-                        "BRANCHES", "STOCK"), null);
+                        "BRANCHES"), null);
 
         send(patch("/api/users/" + ownerUserId + "/deactivate"), manager, null)
                 .andExpect(status().isForbidden());
@@ -554,7 +539,7 @@ class StaffPermissionsIntegrationTest {
         String manager = staffToken(ownerToken, name("widelead"), List.of("ORDERS", "TEAM"), null);
 
         Number inviteId = json(send(post("/api/users/invites"), ownerToken,
-                invitePayload(name("incomingchef"), List.of("STOCK"), null))
+                invitePayload(name("incomingchef"), List.of("MENU"), null))
                 .andExpect(status().isOk()).andReturn(), "$.data.id");
 
         MvcResult pending = send(get("/api/users/invites"), manager, null)
@@ -567,22 +552,22 @@ class StaffPermissionsIntegrationTest {
     }
 
     /**
-     * Setting someone's password is signing in as them. A manager with TEAM but no STOCK could
-     * otherwise reset the storekeeper's password and arrive at STOCK through the back door —
+     * Setting someone's password is signing in as them. A manager with TEAM but no MENU could
+     * otherwise reset the menu editor's password and arrive at MENU through the back door —
      * the grant rule has to hold on that path too.
      */
     @Test
     void aManagerCannotResetThePasswordOfSomeoneWithMoreAccess() throws Exception {
         String manager = staffToken(ownerToken, name("teamonly"), List.of("ORDERS", "TEAM"), null);
-        Number storekeeper = createStaff(ownerToken, name("storekeeper"), List.of("ORDERS", "STOCK"), null);
+        Number menuEditor = createStaff(ownerToken, name("menueditor"), List.of("ORDERS", "MENU"), null);
 
-        send(patch("/api/users/" + storekeeper), manager, map("password", "Hijacked1!"))
+        send(patch("/api/users/" + menuEditor), manager, map("password", "Hijacked1!"))
                 .andExpect(status().isForbidden());
 
         // Managing them in ways that cannot escalate is still allowed: they run the rota, after all.
-        send(patch("/api/users/" + storekeeper), manager, map("phone", "96890000009"))
+        send(patch("/api/users/" + menuEditor), manager, map("phone", "96890000009"))
                 .andExpect(status().isOk());
-        send(patch("/api/users/" + storekeeper + "/deactivate"), manager, null)
+        send(patch("/api/users/" + menuEditor + "/deactivate"), manager, null)
                 .andExpect(status().isOk());
     }
 
@@ -870,14 +855,14 @@ class StaffPermissionsIntegrationTest {
     @Test
     void anEmailCannotBeMovedOnAnAccountWithMoreAccess() throws Exception {
         String manager = staffToken(ownerToken, name("mailmanager"), List.of("ORDERS", "TEAM"), null);
-        Number storekeeper = createStaff(ownerToken, name("mailkeeper"), List.of("ORDERS", "STOCK"), null);
+        Number menuEditor = createStaff(ownerToken, name("mailmenu"), List.of("ORDERS", "MENU"), null);
 
-        send(patch("/api/users/" + storekeeper), manager, map("email", name("hijack") + "@perm.test"))
+        send(patch("/api/users/" + menuEditor), manager, map("email", name("hijack") + "@perm.test"))
                 .andExpect(status().isForbidden());
 
         // But the editor sends every field it shows on every save, so an email that hasn't
         // actually moved must not turn an ordinary edit into a refusal.
-        send(patch("/api/users/" + storekeeper), manager, map("phone", "96890000123", "email", ""))
+        send(patch("/api/users/" + menuEditor), manager, map("phone", "96890000123", "email", ""))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.phone").value("96890000123"));
     }
@@ -1031,8 +1016,7 @@ class StaffPermissionsIntegrationTest {
                 new Area("TEAM", "GET", "/api/users"),
                 new Area("ANALYTICS", "GET", "/api/dashboard/analytics/today"),
                 new Area("PROFILE", "GET", "/api/restaurants/{cafe}/subscription"),
-                new Area("BRANCHES", "PATCH", "/api/branches/{branch}"),
-                new Area("STOCK", "GET", "/api/dashboard/stock/overview?branchId={branch}"));
+                new Area("BRANCHES", "PATCH", "/api/branches/{branch}"));
     }
 
     private int statusFor(Area area, String token) throws Exception {

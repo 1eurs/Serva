@@ -65,7 +65,6 @@ class OrderServiceTest {
     @Mock private OtpService otpService;
     @Mock private EventLogService eventLogService;
     @Mock private LoyaltyService loyaltyService;
-    @Mock private com.cafeqr.stock.StockConsumptionService stockConsumptionService;
     @Mock private PaymentService paymentService;
     @Mock private com.cafeqr.orders.print.PrintJobService printJobService;
 
@@ -75,7 +74,7 @@ class OrderServiceTest {
     void setUp() {
         orderService = new OrderService(orderRepository, restaurantService, branchService, tableService,
                 menuService, accessGuard, notificationService, streamService, events, customerService,
-                otpService, eventLogService, loyaltyService, stockConsumptionService, paymentService,
+                otpService, eventLogService, loyaltyService, paymentService,
                 printJobService, new ObjectMapper());
         lenient().when(otpService.isPhoneTokenValid(any(), any())).thenReturn(true);
     }
@@ -205,8 +204,6 @@ class OrderServiceTest {
         // Skips "in progress": the kitchen works off the printed ticket, the board is the hand-over list.
         assertThat(response.status()).isEqualTo(OrderStatus.READY);
         assertThat(response.readyAt()).isNotNull();
-        // Stock still moves — READY counts as accepted to the stock rule.
-        verify(stockConsumptionService).onOrderAccepted(any(Order.class), any(Restaurant.class));
         verify(paymentService).markPaid(1L, PaymentMethod.CASH);
         // The arrival ticket is queued for the station, durably, in the same transaction.
         verify(printJobService).enqueueIfEnabled(any(Order.class));
@@ -260,7 +257,6 @@ class OrderServiceTest {
 
         // The ticket prints at the counter on arrival, so nobody taps Accept; payment is unknown.
         assertThat(response.status()).isEqualTo(OrderStatus.ACCEPTED);
-        verify(stockConsumptionService).onOrderAccepted(any(Order.class), any(Restaurant.class));
         // ...and "prints on arrival" means a durable job, not a hope that a tablet is watching.
         verify(printJobService).enqueueIfEnabled(any(Order.class));
     }

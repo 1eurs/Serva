@@ -1,7 +1,6 @@
 package com.cafeqr.menus.repository;
 
 import com.cafeqr.menus.domain.MenuItem;
-import com.cafeqr.stock.domain.StockMode;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -33,7 +32,4 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
     /** {@code [restaurantId, itemCount]} for the platform admin console. */
     @Query("SELECT i.restaurantId, COUNT(i) FROM MenuItem i GROUP BY i.restaurantId")
     List<Object[]> countPerRestaurant();
-
-    /** Every item opted into any kind of stock tracking; the rest can be skipped entirely. */
-    List<MenuItem> findByRestaurantIdAndStockModeNot(Long restaurantId, StockMode stockMode);
 }

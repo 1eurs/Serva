@@ -42,7 +42,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.cafeqr.restaurants.RestaurantService;
 import com.cafeqr.restaurants.domain.Restaurant;
-import com.cafeqr.stock.StockConsumptionService;
 import com.cafeqr.tables.domain.RestaurantTable;
 import com.cafeqr.tables.TableService;
 import org.springframework.data.domain.Page;
@@ -80,7 +79,6 @@ public class OrderService {
     private final OtpService otpService;
     private final EventLogService eventLogService;
     private final LoyaltyService loyaltyService;
-    private final StockConsumptionService stockConsumptionService;
     private final PaymentService paymentService;
     private final PrintJobService printJobService;
     private final ObjectMapper objectMapper;
@@ -98,7 +96,6 @@ public class OrderService {
                         OtpService otpService,
                         EventLogService eventLogService,
                         LoyaltyService loyaltyService,
-                        StockConsumptionService stockConsumptionService,
                         PaymentService paymentService,
                         PrintJobService printJobService,
                         ObjectMapper objectMapper) {
@@ -115,7 +112,6 @@ public class OrderService {
         this.otpService = otpService;
         this.eventLogService = eventLogService;
         this.loyaltyService = loyaltyService;
-        this.stockConsumptionService = stockConsumptionService;
         this.paymentService = paymentService;
         this.printJobService = printJobService;
         this.objectMapper = objectMapper;
@@ -196,8 +192,6 @@ public class OrderService {
         loyaltyService.applyRedemption(saved, request.redeemReward(), request.redeemItemId());
 
         if (counter) {
-            // Opened accepted, so it draws stock now — same moment a tapped Accept would.
-            stockConsumptionService.onOrderAccepted(saved, restaurant);
             // Counter mode prints the ticket on arrival, and the queue is what makes that
             // survive the print station being asleep, reloading or off the Wi-Fi.
             printJobService.enqueueIfEnabled(saved);
@@ -255,8 +249,7 @@ public class OrderService {
         // is only the hand-over list — and payment is what moves an order along it. Paid at
         // the counter: skip "in progress", open READY (it clears itself later). Not paid yet:
         // open ACCEPTED as an open tab; a Collect tap on the board pays it and moves it on.
-        // READY must never mean "we haven't been paid". Stock moves either way — both states
-        // count as accepted to the stock rule.
+        // READY must never mean "we haven't been paid".
         boolean paid = Boolean.TRUE.equals(request.paid());
         Instant now = Instant.now();
         order.setStatus(branch.isCounterMode() && paid ? OrderStatus.READY : OrderStatus.ACCEPTED);
@@ -275,8 +268,6 @@ public class OrderService {
         order.setTrackingToken(Tokens.random(18));
 
         Order saved = orderRepository.save(order);
-        // A staff order opens accepted (or ready), so it draws stock the moment it is taken.
-        stockConsumptionService.onOrderAccepted(saved, restaurant);
         eventLogService.recordOrderEvent(saved, saved.getStatus(), "Manual order (staff)");
         if (paid) {
             paymentService.markPaid(saved.getId(),
@@ -345,10 +336,6 @@ public class OrderService {
         if (request != null && request.prepTimeMinutes() != null) {
             order.setPrepTimeMinutes(request.prepTimeMinutes());
         }
-        // Accepting is the moment the kitchen commits to making it, so it is where stock moves —
-        // earlier would drain inventory for orders that end up declined, later would be too late
-        // to stop the next customer ordering the last croissant.
-        stockConsumptionService.onOrderAccepted(order, restaurantService.getEntity(order.getRestaurantId()));
         eventLogService.recordOrderEvent(order, OrderStatus.ACCEPTED, null);
         notifyAndStream(order, NotificationType.ORDER_ACCEPTED, "order.accepted",
                 "Order " + order.getOrderNumber() + " accepted");
@@ -360,13 +347,9 @@ public class OrderService {
         // "Decline" is the pre-accept reject; it now lands in the merged CANCELLED state (the
         // reason is still surfaced to the customer), so cafés have one "didn't happen" bucket.
         Order order = loadGuarded(orderId);
-        OrderStatus previous = order.getStatus();
         transition(order, OrderStatus.CANCELLED);
         order.setCancelledAt(Instant.now());
         loyaltyService.onOrderCancelled(order); // return any reserved reward
-        if (StockConsumptionService.hadBeenAccepted(previous)) {
-            stockConsumptionService.onOrderCancelled(order); // give back what it drew
-        }
         String trimmed = (reason == null || reason.isBlank()) ? null : reason.trim();
         order.setDeclineReason(trimmed);
         eventLogService.recordOrderEvent(order, OrderStatus.CANCELLED, trimmed);
@@ -418,13 +401,9 @@ public class OrderService {
     @Transactional
     public OrderResponse cancel(Long orderId, String reason) {
         Order order = loadGuarded(orderId);
-        OrderStatus previous = order.getStatus();
         transition(order, OrderStatus.CANCELLED);
         order.setCancelledAt(Instant.now());
         loyaltyService.onOrderCancelled(order); // return any reserved reward
-        if (StockConsumptionService.hadBeenAccepted(previous)) {
-            stockConsumptionService.onOrderCancelled(order); // give back what it drew
-        }
         String trimmed = (reason == null || reason.isBlank()) ? null : reason.trim();
         if (trimmed != null) {
             order.setInternalNote(trimmed);
@@ -491,13 +470,6 @@ public class OrderService {
             MenuItem menuItem = menuService.getOrderableItem(restaurant.getId(), branch.getId(), line.menuItemId());
             ResolvedOptions resolved = resolveOptions(menuItem, line.selectedOptions());
 
-            // Stock is checked here rather than in getOrderableItem because only here do we know
-            // the quantity, the chosen options and the service style — which is what catches
-            // "no oat milk left" on a drink whose dairy version is perfectly makeable.
-            stockConsumptionService.requireSellable(menuItem, branch.getId(), line.quantity(),
-                    selectedOptionIds(line.selectedOptions()), order.getOrderType(),
-                    restaurant.isDisposablesForDineIn());
-
             // effectivePrice honours any active discount/window; option deltas stack on top.
             BigDecimal unitPrice = menuItem.effectivePrice(pricedAt).add(resolved.priceDelta());
             BigDecimal lineTotal = unitPrice
@@ -520,14 +492,6 @@ public class OrderService {
             subtotal = subtotal.add(lineTotal);
         }
         return subtotal;
-    }
-
-    /** Just the option ids from a request line — what the stock check needs from the selection. */
-    private static List<Long> selectedOptionIds(List<CreateOrderRequest.SelectedOption> selections) {
-        if (selections == null || selections.isEmpty()) {
-            return List.of();
-        }
-        return selections.stream().map(CreateOrderRequest.SelectedOption::optionId).toList();
     }
 
     private static String blankToNull(String s) {

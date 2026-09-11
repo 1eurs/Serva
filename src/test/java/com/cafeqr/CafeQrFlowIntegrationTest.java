@@ -97,7 +97,7 @@ class CafeQrFlowIntegrationTest {
                 "username", "owner@cafeqr.test", "password", "Owner123!",
                 "fullName", "Owner", "email", "owner@cafeqr.test",
                 "permissions", List.of("ORDERS", "PAYMENTS", "MENU", "QR_TABLES", "TEAM",
-                        "ANALYTICS", "PROFILE", "BRANCHES", "STOCK"),
+                        "ANALYTICS", "PROFILE", "BRANCHES"),
                 "restaurantId", restaurantId)), adminToken))
                 .andExpect(status().isOk());
 
@@ -192,7 +192,7 @@ class CafeQrFlowIntegrationTest {
                 "username", "owner2@cafeqr.test", "password", "Owner123!",
                 "fullName", "Owner2", "email", "owner2@cafeqr.test",
                 "permissions", List.of("ORDERS", "PAYMENTS", "MENU", "QR_TABLES", "TEAM",
-                        "ANALYTICS", "PROFILE", "BRANCHES", "STOCK"),
+                        "ANALYTICS", "PROFILE", "BRANCHES"),
                 "restaurantId", restaurantId2)), adminToken))
                 .andExpect(status().isOk());
         String owner2Token = read(post("/api/auth/login", Map.of(

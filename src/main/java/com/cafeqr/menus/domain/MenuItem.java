@@ -1,7 +1,6 @@
 package com.cafeqr.menus.domain;
 
 import com.cafeqr.common.domain.BaseEntity;
-import com.cafeqr.stock.domain.StockMode;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -10,7 +9,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
-import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
@@ -70,32 +68,6 @@ public class MenuItem extends BaseEntity {
 
     @Column(name = "available", nullable = false)
     private boolean available = true;
-
-    /**
-     * How much inventory tracking this item opts into. See {@link StockMode} — the ladder runs
-     * NONE -> DAILY_LIMIT -> SIMPLE -> RECIPE and every rung is useful on its own.
-     */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "stock_mode", nullable = false, length = 16)
-    private StockMode stockMode = StockMode.NONE;
-
-    /** SIMPLE mode only: the countable good backing this item (auto-created when the mode is set). */
-    @Column(name = "stock_item_id")
-    private Long stockItemId;
-
-    /**
-     * DAILY_LIMIT mode only: the cap. Null means uncapped even while the mode is set.
-     *
-     * <p>The cap is a property of the item — "we bake twenty a day" reads the same at every
-     * branch — while the tally against it is per branch and lives in
-     * {@code MenuItemDailyTally}. See {@code DailyLimitService}.
-     */
-    @Column(name = "daily_limit")
-    private Integer dailyLimit;
-
-    /** Disposables consumed when this item has no size option carrying its own rule. */
-    @Column(name = "packaging_rule_id")
-    private Long packagingRuleId;
 
     @Column(name = "preparation_time_minutes")
     private Integer preparationTimeMinutes;
@@ -256,40 +228,6 @@ public class MenuItem extends BaseEntity {
 
     public void setAvailable(boolean available) {
         this.available = available;
-    }
-
-    // --------------------------------------------------------------- stock
-
-    public StockMode getStockMode() {
-        return stockMode;
-    }
-
-    public void setStockMode(StockMode stockMode) {
-        this.stockMode = stockMode;
-    }
-
-    public Long getStockItemId() {
-        return stockItemId;
-    }
-
-    public void setStockItemId(Long stockItemId) {
-        this.stockItemId = stockItemId;
-    }
-
-    public Integer getDailyLimit() {
-        return dailyLimit;
-    }
-
-    public void setDailyLimit(Integer dailyLimit) {
-        this.dailyLimit = dailyLimit;
-    }
-
-    public Long getPackagingRuleId() {
-        return packagingRuleId;
-    }
-
-    public void setPackagingRuleId(Long packagingRuleId) {
-        this.packagingRuleId = packagingRuleId;
     }
 
     public Integer getPreparationTimeMinutes() {

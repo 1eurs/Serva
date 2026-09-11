@@ -95,9 +95,6 @@
 
 /* ---- reduced motion ----------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
-  #neo .animate-spin-slow,
-  #neo .animate-bounce,
-  #neo .animate-pulse,
   .neo-marquee-track {
     animation: none !important;
   }

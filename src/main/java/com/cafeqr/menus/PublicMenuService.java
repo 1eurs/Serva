@@ -14,9 +14,6 @@ import com.cafeqr.menus.repository.MenuCategoryRepository;
 import com.cafeqr.menus.repository.MenuItemRepository;
 import com.cafeqr.restaurants.RestaurantService;
 import com.cafeqr.restaurants.domain.Restaurant;
-import com.cafeqr.stock.RecipeService;
-import com.cafeqr.stock.StockConsumptionService;
-import com.cafeqr.stock.domain.Allergen;
 import com.cafeqr.tables.TableService;
 import com.cafeqr.tables.domain.RestaurantTable;
 import org.springframework.stereotype.Service;
@@ -25,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /** Builds the bilingual public menu served to customers (no authentication). */
@@ -37,23 +33,17 @@ public class PublicMenuService {
     private final RestaurantService restaurantService;
     private final BranchService branchService;
     private final TableService tableService;
-    private final StockConsumptionService stockConsumptionService;
-    private final RecipeService recipeService;
 
     public PublicMenuService(MenuCategoryRepository categoryRepository,
                              MenuItemRepository itemRepository,
                              RestaurantService restaurantService,
                              BranchService branchService,
-                             TableService tableService,
-                             StockConsumptionService stockConsumptionService,
-                             RecipeService recipeService) {
+                             TableService tableService) {
         this.categoryRepository = categoryRepository;
         this.itemRepository = itemRepository;
         this.restaurantService = restaurantService;
         this.branchService = branchService;
         this.tableService = tableService;
-        this.stockConsumptionService = stockConsumptionService;
-        this.recipeService = recipeService;
     }
 
     @Transactional(readOnly = true)
@@ -95,22 +85,13 @@ public class PublicMenuService {
 
         // Evaluate every item's discount window against one timestamp so the whole menu is consistent.
         Instant now = Instant.now();
-        // Stock is physical, so "sold out" only means something once we know which branch the
-        // customer is standing in. On the restaurant-wide menu nothing is marked out.
-        Set<Long> soldOut = branch == null
-                ? Set.of()
-                : stockConsumptionService.soldOutItemIds(restaurant.getId(), branch.getId());
-        Map<Long, Set<Allergen>> allergens = recipeService.allergensByMenuItem(restaurant.getId(), items);
 
         List<PublicCategory> publicCategories = categories.stream()
                 .map(category -> {
                     List<PublicItem> publicItems = itemsByCategory
                             .getOrDefault(category.getId(), List.of())
                             .stream()
-                            .map(item -> PublicItem.from(item, now,
-                                    soldOut.contains(item.getId()),
-                                    allergens.getOrDefault(item.getId(), Set.of())
-                                            .stream().map(Allergen::name).sorted().toList()))
+                            .map(item -> PublicItem.from(item, now))
                             .toList();
                     return PublicCategory.of(category, publicItems);
                 })

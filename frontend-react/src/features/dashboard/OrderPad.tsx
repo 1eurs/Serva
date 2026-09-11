@@ -199,10 +199,8 @@ export default function OrderPad({ branchId, onPlaced }: { branchId?: number; on
               {visibleItems.map((it) => {
                 const onSale = it.salePrice != null;
                 const inCart = lines.filter((l) => l.item.id === it.id).reduce((s, l) => s + l.qty, 0);
-                /* The kitchen cannot make it, so the counter must not sell it: the order would
-                   be refused on the way to the ticket, in front of a customer who has already
-                   been told a price. Greyed rather than dropped from the grid — a tile that
-                   simply vanishes reads as a bug in the pad, not as an empty shelf. */
+                /* Switched off, so the counter must not sell it. Greyed rather than dropped
+                   from the grid — a tile that simply vanishes reads as a bug in the pad. */
                 const out = !sellable(it);
                 return (
                   <button key={it.id} className={'pad-item' + (onSale ? ' sale' : '') + (out ? ' out' : '')}

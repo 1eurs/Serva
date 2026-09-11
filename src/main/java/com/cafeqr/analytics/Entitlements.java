@@ -82,7 +82,6 @@ public class Entitlements {
             case PRO_ANALYTICS -> "This insight is not part of your plan. Upgrade to unlock it.";
             case FULL_HISTORY -> "Your plan covers a recent window. Upgrade to query any date range.";
             case LOYALTY -> "Loyalty is not part of your plan. Upgrade to run a programme.";
-            case STOCK_INSIGHTS -> "Stock insights are not part of your plan. Upgrade to unlock them.";
             case MULTI_BRANCH -> "Your plan covers one branch. Upgrade to open another.";
             case QR_CUSTOMIZATION -> "Customising the QR badge is not part of your plan.";
         };

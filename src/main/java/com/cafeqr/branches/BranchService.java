@@ -9,7 +9,6 @@ import com.cafeqr.branches.repository.BranchRepository;
 import com.cafeqr.common.exception.BadRequestException;
 import com.cafeqr.common.exception.ErrorCode;
 import com.cafeqr.common.exception.ForbiddenException;
-import com.cafeqr.common.exception.PlanRequiredException;
 import com.cafeqr.common.exception.ResourceNotFoundException;
 import com.cafeqr.analytics.Entitlements;
 import com.cafeqr.common.util.Names;
@@ -92,29 +91,6 @@ public class BranchService {
         accessGuard.requireRestaurantAccess(restaurantId);
         return branchRepository.findByRestaurantIdOrderByNameAsc(restaurantId)
                 .stream().map(BranchResponse::from).toList();
-    }
-
-    /**
-     * The branch a per-branch display figure should speak for, or null when no single branch
-     * can speak for the café.
-     *
-     * <p>Same reasoning as {@code StockService.resolveBranch} — a branch-scoped user has
-     * exactly one branch, and so does a café that only ever opened one — but a multi-branch
-     * owner gets null instead of a "Pick a branch" error, because the screens that ask this
-     * (the menu list, the recipe editor) are not about one branch and simply show nothing
-     * rather than a number that is true nowhere.
-     */
-    @Transactional(readOnly = true)
-    public Long resolveBranchForDisplay(Long restaurantId) {
-        Long scoped = accessGuard.scopedBranchId();
-        if (scoped != null) {
-            return scoped;
-        }
-        if (restaurantId == null) {
-            return null;
-        }
-        List<Branch> branches = branchRepository.findByRestaurantIdOrderByNameAsc(restaurantId);
-        return branches.size() == 1 ? branches.get(0).getId() : null;
     }
 
     @Transactional(readOnly = true)

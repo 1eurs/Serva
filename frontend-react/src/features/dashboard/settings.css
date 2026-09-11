@@ -27,7 +27,7 @@
    overflow-x:auto so its tabs can scroll sideways, and a scroll container's automatic
    minimum size is 0. Any pane taller than the viewport therefore squeezed the nav from
    38px down to its 12px of padding — buttons clipped, tabs unreachable, and no way to
-   leave the pane you were on. Same guard .tables-wrap.stock-page > * already carries. */
+   leave the pane you were on. */
 .settings-page > *{flex:0 0 auto}
 
 /* ---- sub-nav: the pane switcher, weighted like the rest of the chrome ---- */

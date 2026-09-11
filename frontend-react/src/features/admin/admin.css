@@ -358,14 +358,6 @@ html[data-input="touch"] .adm .icon-btn{min-width:var(--tap);min-height:var(--ta
   border-radius:var(--r-sm);padding:12px 14px}
 .pw-reveal code{flex:1;font-family:var(--font-mono);font-size:17px;letter-spacing:.06em;user-select:all}
 
-/* ---- audit ---- */
-.minilog{display:flex;flex-direction:column;gap:1px}
-.logrow{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:12.5px}
-.logrow:last-child{border-bottom:0}
-.logrow .when{color:var(--faint);font-size:11.5px}
-.logrow .what{font-weight:600}
-.logrow .who{grid-column:2}
-.logrow .det{grid-column:2;color:var(--muted)}
 
 /* ---- health: one small chart, three series ---- */
 .chart-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px 18px}

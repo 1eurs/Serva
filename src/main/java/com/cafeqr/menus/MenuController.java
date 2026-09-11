@@ -81,15 +81,8 @@ public class MenuController {
     public ApiResponse<List<MenuItemResponse>> listItems(
             @RequestParam(required = false) Long restaurantId,
             @RequestParam(required = false) Long branchId,
-            @RequestParam(required = false) Long categoryId,
-            /* Which branch the caller is looking at, as opposed to which branch's items it
-               wants. The menu is one menu — items are restaurant-wide unless somebody scopes
-               one — but "sold out" and "left today" are facts about a shelf, and a shelf
-               belongs to a branch. Without this the server can only infer the branch, which
-               it can do for a one-branch cafe and for staff pinned to a shop, and cannot do
-               for the owner of two. Never narrows the list. */
-            @RequestParam(required = false) Long displayBranchId) {
-        return ApiResponse.ok(menuService.listItems(restaurantId, branchId, categoryId, displayBranchId));
+            @RequestParam(required = false) Long categoryId) {
+        return ApiResponse.ok(menuService.listItems(restaurantId, branchId, categoryId));
     }
 
     @Operation(summary = "Get a menu item")

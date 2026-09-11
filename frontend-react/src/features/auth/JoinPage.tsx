@@ -58,7 +58,6 @@ export default function JoinPage() {
     ANALYTICS: { ar: 'التحليلات', en: 'Analytics' },
     PROFILE: { ar: 'إعدادات المقهى', en: 'Café settings' },
     BRANCHES: { ar: 'الفروع', en: 'Branches' },
-    STOCK: { ar: 'المخزون', en: 'Stock' },
   };
   const permLabel = (p: string) => PERM_LABELS[p]?.[lang] ?? p;
 

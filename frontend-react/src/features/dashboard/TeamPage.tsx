@@ -25,7 +25,7 @@ const DICT: Dict = {
     pwHint: 'انسخ كلمة المرور وأعطها للموظف — لن تظهر مرة أخرى.',
     email: 'البريد الإلكتروني (اختياري)',
     emailHint: 'يُستخدم لاستعادة كلمة المرور. بدونه لن يستطيع الموظف استعادتها بنفسه.',
-    branchHint: 'الفرع يحدّد ما يراه: طلبات ومخزون فرعه فقط. «كل الفروع» يعني المقهى كامل.',
+    branchHint: 'الفرع يحدّد ما يراه: طلبات فرعه فقط. «كل الفروع» يعني المقهى كامل.',
     needUsername: 'اسم الدخول لا يقل عن ٣ أحرف.',
     needPassword: 'كلمة المرور ٨ أحرف على الأقل.',
     needAccess: 'اختر صلاحية واحدة على الأقل — بدونها ستكون لوحته فارغة.',
@@ -45,8 +45,6 @@ const DICT: Dict = {
     g_front: 'واجهة الخدمة', g_catalog: 'القائمة والطاولات', g_manage: 'الإدارة',
     p_ORDERS: 'الطلبات', p_PAYMENTS: 'الدفع', p_MENU: 'القائمة', p_QR_TABLES: 'الطاولات / QR',
     p_TEAM: 'الفريق', p_ANALYTICS: 'التحليلات', p_PROFILE: 'إعدادات المطعم', p_BRANCHES: 'الفروع',
-    p_STOCK: 'المخزون', h_STOCK: 'المخزون والوصفات والجرد والشراء', g_stock: 'المخزون',
-    role_kitchen: 'مطبخ', role_kitchen_sub: 'الطلبات والمخزون',
     h_ORDERS: 'اللوحة المباشرة وقبول وتحضير وإكمال الطلبات',
     h_PAYMENTS: 'تحصيل الدفع وتعليم الطلب مدفوعًا', h_MENU: 'تعديل الأصناف والمظهر والثيم',
     h_QR_TABLES: 'إدارة الطاولات ورموز QR', h_TEAM: 'إضافة وإدارة حسابات الموظفين',
@@ -69,7 +67,7 @@ const DICT: Dict = {
     pwHint: 'Copy the password and hand it to the staff member — it won’t be shown again.',
     email: 'Email (optional)',
     emailHint: 'Used for password reset. Without it they can’t recover their own password.',
-    branchHint: 'Branch decides what they see: only that shop’s orders and stock. “All branches” is the whole café.',
+    branchHint: 'Branch decides what they see: only that shop’s orders. “All branches” is the whole café.',
     needUsername: 'The sign-in name needs 3 characters or more.',
     needPassword: 'Password must be at least 8 characters.',
     needAccess: 'Pick at least one area — with none, their dashboard is empty.',
@@ -89,8 +87,6 @@ const DICT: Dict = {
     g_front: 'Front of house', g_catalog: 'Menu & tables', g_manage: 'Management',
     p_ORDERS: 'Orders', p_PAYMENTS: 'Payments', p_MENU: 'Menu', p_QR_TABLES: 'Tables / QR',
     p_TEAM: 'Team', p_ANALYTICS: 'Analytics', p_PROFILE: 'Restaurant settings', p_BRANCHES: 'Branches',
-    p_STOCK: 'Stock', h_STOCK: 'Stock levels, recipes, counts & purchasing', g_stock: 'Inventory',
-    role_kitchen: 'Kitchen', role_kitchen_sub: 'Orders & stock',
     h_ORDERS: 'Live board — accept, prepare, complete & cancel orders',
     h_PAYMENTS: 'Take payment & mark orders paid', h_MENU: 'Edit menu items, look & theme',
     h_QR_TABLES: 'Manage tables & QR codes', h_TEAM: 'Add & manage staff accounts',
@@ -103,18 +99,16 @@ const DICT: Dict = {
 const PERM_GROUPS: { key: string; perms: Permission[] }[] = [
   { key: 'g_front', perms: ['ORDERS', 'PAYMENTS'] },
   { key: 'g_catalog', perms: ['MENU', 'QR_TABLES'] },
-  { key: 'g_stock', perms: ['STOCK'] },
   { key: 'g_manage', perms: ['TEAM', 'BRANCHES', 'ANALYTICS', 'PROFILE'] },
 ];
 const TOGGLEABLE: Permission[] = PERM_GROUPS.flatMap((g) => g.perms);
 
 // Role = a one-click bundle of permissions. "Manager" is everything the creator can give,
-// because that is what its own subtitle promises — it used to quietly leave out Stock and
+// because that is what its own subtitle promises — it used to quietly leave out
 // Restaurant settings while reading "Run the whole restaurant".
 const ROLES: { key: string; perms: Permission[] }[] = [
   { key: 'role_waiter', perms: ['ORDERS'] },
   { key: 'role_cashier', perms: ['ORDERS', 'PAYMENTS'] },
-  { key: 'role_kitchen', perms: ['ORDERS', 'STOCK'] },
   { key: 'role_manager', perms: TOGGLEABLE },
 ];
 
@@ -519,8 +513,8 @@ function StaffModal({
   const valid = !missing;
   const showPw = mode === 'create' || (mode === 'edit' && !!f.password);
   // Setting someone's password is signing in as them, so the server refuses it for an account
-  // holding access the editor lacks — a manager with TEAM but no STOCK cannot reset the
-  // storekeeper's password and walk in. Don't offer the field that will only be refused.
+  // holding access the editor lacks — a manager with TEAM but no MENU cannot reset the
+  // menu editor's password and walk in. Don't offer the field that will only be refused.
   const canSetPassword = !staff || staff.permissions.every((p) => grantable.includes(p));
 
   return (

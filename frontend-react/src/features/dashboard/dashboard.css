@@ -462,12 +462,6 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
 .mitem-disc.on{color:var(--accent-ink);background:var(--accent)}
 .mitem-disc.sched{color:var(--muted);background:var(--surface);border:1px solid var(--line-2)}
 .mitem-disc.ended{color:var(--faint);background:var(--surface);border:1px solid var(--line-2)}
-/* Sold out by the shelf, not by the owner. Amber rather than red: nothing is broken and
-   nothing needs undoing — it is a fact about the fridge that expires with the next delivery.
-   --amber is a FILL grade (#F5B83D reads at 1.9:1 on this page), so the text takes the
-   darker grade the pro skin already ships — the same split the stock page makes for out. */
-.dash{--out-ink:#B45309}   /* amber-700 · 5.02:1 on white */
-.mitem-out{font-family:var(--font-ar);font-weight:700;font-size:10.5px;letter-spacing:.02em;padding:2px 7px;border-radius:999px;white-space:nowrap;color:var(--out-ink);background:var(--tint-warn);border:1px solid var(--edge-warn)}
 /* Discount block in the item editor. */
 /* Item editor can run tall (photos + options + discount): scroll inside the modal,
    widen a touch so paired fields sit side-by-side, and keep the actions reachable. */
@@ -686,11 +680,6 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 .switch span{position:absolute;top:2px;inset-inline-start:2px;width:20px;height:20px;border-radius:50%;background:var(--muted);transition:.22s}
 .switch.on{background:var(--accent);border-color:var(--accent)}
 .switch.on span{inset-inline-start:22px;background:var(--accent-ink)}
-/* Held off by stock. It reads as an off switch, because that is what the customer sees,
-   and refuses the drag because the only thing a click could write here is the owner's own
-   "off" — a decision they did not make and would then have to remember to undo. */
-.switch.locked{cursor:not-allowed;border-style:dashed;border-color:var(--edge-warn);background:var(--tint-warn)}
-.switch.locked span{background:var(--out-ink,#B45309)}
 
 /* item editor */
 .itemedit{display:flex;gap:14px;margin-bottom:6px}
@@ -707,7 +696,6 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 .imgthumb-star{inset-block-end:5px;inset-inline-end:5px;font-size:13px}
 .imgthumb-x:hover,.imgthumb-star:hover{background:rgba(0,0,0,.8)}
 .imghint{font-size:11px;color:var(--faint);line-height:1.3}
-.imgpick-load{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.5);color:#fff}
 .checkrow{display:flex;align-items:center;gap:9px;font-size:14px;color:var(--text);cursor:pointer;margin-top:4px}
 .checkrow.sm{font-size:12.5px;margin-top:0}
 
@@ -718,7 +706,6 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 .optedit-hint{display:block;font-size:11.5px;color:var(--faint);margin-top:2px}
 .optgroup{border:1px solid var(--line-2);border-radius:12px;padding:11px;display:flex;flex-direction:column;gap:8px;background:var(--bg-2)}
 .optgroup-top{display:flex;gap:7px;align-items:center}
-.num-flex{flex:1;min-width:0}
 .optgroup-ctl{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .optseg{display:inline-flex;background:var(--surface);border:1px solid var(--line-2);border-radius:9px;padding:2px;gap:2px}
 .optseg button{border:0;background:transparent;color:var(--muted);font-family:var(--font-ar);font-size:12px;font-weight:700;padding:5px 11px;border-radius:7px;cursor:pointer}
@@ -1050,7 +1037,7 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 .dash .newbanner .nb-dot{background:var(--ink)}
 
 /* ---- tables, menu, profile & look panels ---- */
-.dash .tcard,.dash .profile-hero,.dash .psub-item,.dash .profile-status,.dash .profile-check,
+.dash .tcard,.dash .profile-hero,.dash .profile-status,.dash .profile-check,
 .dash .look-control-block,.dash .look-controls-head{border:var(--bw) solid var(--keyline);border-radius:8px;box-shadow:var(--hard-sm)}
 .dash .tbl{border:var(--bw) solid var(--keyline);border-radius:8px;box-shadow:var(--hard-sm)}
 .dash .tbl th{color:var(--ink);border-bottom:var(--bw) solid var(--keyline);font-family:var(--bold);font-weight:900}
@@ -1075,8 +1062,6 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 .dash .switch{border:var(--bw) solid var(--keyline)}
 .dash .switch.on{background:var(--lime);border-color:var(--keyline)}
 .dash .switch.on span{background:var(--ink)}
-/* The skin's flat keyline would swallow the dashed edge that says this one will not move. */
-.dash .switch.locked{border:var(--bw) dashed var(--edge-warn);background:var(--tint-warn)}
 .dash .sndtgl{border:var(--bw) solid var(--keyline);border-radius:8px}
 .dash .sndtgl.on{background:var(--lime);color:var(--fill-ink);border-color:var(--keyline)}
 .dash .chip{border: var(--bw-hair) solid var(--keyline);border-radius:6px}

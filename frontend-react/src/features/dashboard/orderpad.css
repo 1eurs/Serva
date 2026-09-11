@@ -20,7 +20,7 @@
    but not a target: the order would come back refused with the customer already waiting. */
 .pad-item.out{opacity:.5;cursor:not-allowed;border-style:dashed}
 @media (hover:hover){.pad-item.out:hover{border-color:var(--line);background:var(--surface)}}
-.pad-item-sold{position:absolute;top:8px;inset-inline-end:8px;font-weight:800;font-size:10.5px;letter-spacing:.02em;padding:2px 6px;border-radius:999px;color:var(--out-ink,#B45309);background:var(--tint-warn);border:1px solid var(--edge-warn)}
+.pad-item-sold{position:absolute;top:8px;inset-inline-end:8px;font-weight:800;font-size:10.5px;letter-spacing:.02em;padding:2px 6px;border-radius:999px;color:#B45309;background:var(--tint-warn);border:1px solid var(--edge-warn)}
 .pad-item-nm{font-size:13.5px;font-weight:700;color:var(--text);line-height:1.3;padding-inline-end:34px}
 .pad-item-pr{display:flex;align-items:baseline;gap:6px;font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin-top:auto}
 .pad-item-pr .pad-was{color:var(--faint);text-decoration:line-through;font-size:11px}

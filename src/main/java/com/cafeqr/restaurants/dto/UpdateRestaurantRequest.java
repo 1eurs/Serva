@@ -25,8 +25,5 @@ public record UpdateRestaurantRequest(
         @Size(min = 3, max = 3) String currency,
         Boolean vatEnabled,
         @DecimalMin("0.0") @DecimalMax("100.0") BigDecimal vatRate,
-        Boolean paymentMethodSelectionEnabled,
-        /** Whether dine-in orders burn disposables — ceramic cafés leave this off. */
-        Boolean disposablesForDineIn,
-        Boolean autoHideOutOfStock
+        Boolean paymentMethodSelectionEnabled
 ) {}
