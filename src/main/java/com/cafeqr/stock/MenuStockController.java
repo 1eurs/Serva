@@ -1,6 +1,7 @@
 package com.cafeqr.stock;
 
 import com.cafeqr.common.api.ApiResponse;
+import com.cafeqr.stock.dto.MenuStockDtos.OptionLineResponse;
 import com.cafeqr.stock.dto.MenuStockDtos.RecipeLineResponse;
 import com.cafeqr.stock.dto.MenuStockDtos.RecipeRequest;
 import com.cafeqr.stock.dto.MenuStockDtos.RuleRequest;
@@ -57,7 +58,14 @@ public class MenuStockController {
         return ApiResponse.ok(menuStockService.recipes(branchId));
     }
 
-    @Operation(summary = "Replace a menu item's recipe at a branch — an empty list clears it")
+    @Operation(summary = "Every option rule at a branch — what a customer's choice changes")
+    @PreAuthorize("hasAuthority('MENU')")
+    @GetMapping("/api/branches/{branchId}/recipes/options")
+    public ApiResponse<List<OptionLineResponse>> optionRecipes(@PathVariable Long branchId) {
+        return ApiResponse.ok(menuStockService.optionRecipes(branchId));
+    }
+
+    @Operation(summary = "Replace a menu item's recipe at a branch, options included — an empty list clears it")
     @PreAuthorize("hasAuthority('MENU')")
     @PutMapping("/api/branches/{branchId}/recipes/{menuItemId}")
     public ApiResponse<List<RecipeLineResponse>> setRecipe(@PathVariable Long branchId, @PathVariable Long menuItemId,

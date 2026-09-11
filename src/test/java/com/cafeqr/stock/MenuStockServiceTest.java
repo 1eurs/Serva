@@ -5,17 +5,21 @@ import com.cafeqr.branches.BranchService;
 import com.cafeqr.branches.domain.Branch;
 import com.cafeqr.common.exception.BadRequestException;
 import com.cafeqr.menus.domain.MenuItem;
+import com.cafeqr.menus.domain.MenuItemOption;
+import com.cafeqr.menus.domain.MenuItemOptionGroup;
 import com.cafeqr.menus.repository.MenuItemRepository;
 import com.cafeqr.stock.domain.MenuItemStock;
 import com.cafeqr.stock.domain.RecipeLine;
 import com.cafeqr.stock.domain.StockItem;
 import com.cafeqr.stock.domain.StockUnit;
+import com.cafeqr.stock.dto.MenuStockDtos.OptionLineInput;
 import com.cafeqr.stock.dto.MenuStockDtos.RecipeLineInput;
 import com.cafeqr.stock.dto.MenuStockDtos.RecipeLineResponse;
 import com.cafeqr.stock.dto.MenuStockDtos.RecipeRequest;
 import com.cafeqr.stock.dto.MenuStockDtos.RuleRequest;
 import com.cafeqr.stock.dto.MenuStockDtos.RuleResponse;
 import com.cafeqr.stock.repository.MenuItemStockRepository;
+import com.cafeqr.stock.repository.OptionRecipeLineRepository;
 import com.cafeqr.stock.repository.RecipeLineRepository;
 import com.cafeqr.stock.repository.StockItemRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +47,7 @@ class MenuStockServiceTest {
 
     @Mock private MenuItemStockRepository rules;
     @Mock private RecipeLineRepository recipes;
+    @Mock private OptionRecipeLineRepository optionRecipes;
     @Mock private StockItemRepository stockItems;
     @Mock private MenuItemRepository menuItems;
     @Mock private BranchService branchService;
@@ -54,7 +59,7 @@ class MenuStockServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new MenuStockService(rules, recipes, stockItems, menuItems, branchService, accessGuard);
+        service = new MenuStockService(rules, recipes, optionRecipes, stockItems, menuItems, branchService, accessGuard);
 
         Branch here = new Branch();
         here.setId(2L);
@@ -64,6 +69,15 @@ class MenuStockServiceTest {
         MenuItem latte = new MenuItem();
         latte.setId(10L);
         latte.setRestaurantId(1L);
+        // The latte offers one choice: Almond Milk.
+        MenuItemOptionGroup g = new MenuItemOptionGroup();
+        g.setNameEn("Options");
+        g.setNameAr("خيارات");
+        MenuItemOption almondChoice = new MenuItemOption();
+        almondChoice.setNameEn("Almond Milk");
+        almondChoice.setNameAr("حليب لوز");
+        g.getOptions().add(almondChoice);
+        latte.getOptionGroups().add(g);
         lenient().when(menuItems.findById(10L)).thenReturn(Optional.of(latte));
 
         MenuItem foreign = new MenuItem();
@@ -87,6 +101,7 @@ class MenuStockServiceTest {
 
         lenient().when(rules.save(any(MenuItemStock.class))).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(recipes.saveAll(anyList())).thenAnswer(inv -> inv.getArgument(0));
+        lenient().when(optionRecipes.saveAll(anyList())).thenAnswer(inv -> inv.getArgument(0));
     }
 
     @Test
@@ -107,7 +122,7 @@ class MenuStockServiceTest {
     @Test
     void aRecipeCannotNameATinFromAnotherBranch() {
         assertThatThrownBy(() -> service.setRecipe(2L, 10L, new RecipeRequest(List.of(
-                new RecipeLineInput(6L, BigDecimal.ONE, StockUnit.L)))))
+                new RecipeLineInput(6L, BigDecimal.ONE, StockUnit.L)), null)))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("another branch");
     }
@@ -122,13 +137,13 @@ class MenuStockServiceTest {
     void aRecipeMayUseTheTinsThousandthSiblingAndNothingElse() {
         // 18 g against a shelf in kilos: that is the whole point.
         List<RecipeLineResponse> ok = service.setRecipe(2L, 10L, new RecipeRequest(List.of(
-                new RecipeLineInput(5L, new BigDecimal("18"), StockUnit.G))));
+                new RecipeLineInput(5L, new BigDecimal("18"), StockUnit.G)), null));
         assertThat(ok).hasSize(1);
         assertThat(ok.get(0).unit()).isEqualTo(StockUnit.G);
 
         // 18 ml against a shelf in kilos: a mistake, refused before it can mean anything.
         assertThatThrownBy(() -> service.setRecipe(2L, 10L, new RecipeRequest(List.of(
-                new RecipeLineInput(5L, new BigDecimal("18"), StockUnit.ML)))))
+                new RecipeLineInput(5L, new BigDecimal("18"), StockUnit.ML)), null)))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("counted in KG");
     }
@@ -146,29 +161,79 @@ class MenuStockServiceTest {
 
         // 200 ml against a shelf counted in 1 L bottles: the whole reason contents exist.
         List<RecipeLineResponse> ok = service.setRecipe(2L, 10L, new RecipeRequest(List.of(
-                new RecipeLineInput(7L, new BigDecimal("200"), StockUnit.ML))));
+                new RecipeLineInput(7L, new BigDecimal("200"), StockUnit.ML)), null));
         assertThat(ok.get(0).unit()).isEqualTo(StockUnit.ML);
 
         // Grams against a bottle of milk are still nonsense, and the refusal names the bottle.
         assertThatThrownBy(() -> service.setRecipe(2L, 10L, new RecipeRequest(List.of(
-                new RecipeLineInput(7L, new BigDecimal("18"), StockUnit.G)))))
+                new RecipeLineInput(7L, new BigDecimal("18"), StockUnit.G)), null)))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("PIECE of 1 L");
+    }
+
+    @Test
+    void anOptionMayStandInForABaseIngredientIfItCanReadTheSameUnit() {
+        StockItem milk = bottles(7L, "Milk");
+        StockItem almond = bottles(8L, "Almond milk");
+        when(stockItems.findById(7L)).thenReturn(Optional.of(milk));
+        when(stockItems.findById(8L)).thenReturn(Optional.of(almond));
+
+        service.setRecipe(2L, 10L, new RecipeRequest(
+                List.of(new RecipeLineInput(7L, new BigDecimal("200"), StockUnit.ML)),
+                List.of(new OptionLineInput("Options", "Almond Milk", 8L, 7L, null, null))));
+
+        verify(optionRecipes).saveAll(org.mockito.ArgumentMatchers.argThat(l ->
+                ((List<?>) l).size() == 1));
+    }
+
+    @Test
+    void anOptionCannotReplaceSomethingTheRecipeDoesNotUse() {
+        StockItem almond = bottles(8L, "Almond milk");
+        when(stockItems.findById(8L)).thenReturn(Optional.of(almond));
+
+        assertThatThrownBy(() -> service.setRecipe(2L, 10L, new RecipeRequest(
+                List.of(new RecipeLineInput(5L, new BigDecimal("18"), StockUnit.G)),
+                List.of(new OptionLineInput("Options", "Almond Milk", 8L, 7L, null, null)))))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("does not use");
+    }
+
+    @Test
+    void anOptionRuleForAChoiceTheItemDoesNotOfferIsRefused() {
+        StockItem almond = bottles(8L, "Almond milk");
+        lenient().when(stockItems.findById(8L)).thenReturn(Optional.of(almond));
+
+        assertThatThrownBy(() -> service.setRecipe(2L, 10L, new RecipeRequest(
+                List.of(),
+                List.of(new OptionLineInput("Options", "Oat Milk", 8L, null, BigDecimal.ONE, StockUnit.L)))))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("no option");
     }
 
     @Test
     void aRecipeCannotListTheSameIngredientTwice() {
         assertThatThrownBy(() -> service.setRecipe(2L, 10L, new RecipeRequest(List.of(
                 new RecipeLineInput(5L, BigDecimal.ONE, StockUnit.KG),
-                new RecipeLineInput(5L, BigDecimal.TEN, StockUnit.G)))))
+                new RecipeLineInput(5L, BigDecimal.TEN, StockUnit.G)), null)))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("twice");
         verify(recipes, never()).deleteByMenuItemIdAndBranchId(any(), any());
     }
 
+    private static StockItem bottles(long id, String name) {
+        StockItem s = new StockItem();
+        s.setId(id);
+        s.setBranchId(2L);
+        s.setNameEn(name);
+        s.setUnit(StockUnit.PIECE);
+        s.setPackSize(BigDecimal.ONE);
+        s.setPackUnit(StockUnit.L);
+        return s;
+    }
+
     @Test
     void anEmptyRecipeClearsWhatWasThere() {
-        service.setRecipe(2L, 10L, new RecipeRequest(List.of()));
+        service.setRecipe(2L, 10L, new RecipeRequest(List.of(), List.of()));
 
         verify(recipes).deleteByMenuItemIdAndBranchId(10L, 2L);
         verify(recipes).saveAll(List.<RecipeLine>of());

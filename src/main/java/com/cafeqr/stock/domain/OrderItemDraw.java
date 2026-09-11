@@ -26,9 +26,13 @@ public class OrderItemDraw extends BaseEntity {
     @Column(name = "stock_item_id")
     private Long stockItemId;
 
-    /** In the tin's own unit; less than the recipe asked for when the count was clamped at zero. */
+    /** What was taken, in the tin's own unit; less than {@code wanted} when the count was clamped. */
     @Column(name = "quantity", nullable = false, precision = 14, scale = 3)
     private BigDecimal quantity;
+
+    /** What the recipe asked for. The shelf is restored from {@code quantity}; usage reads this. */
+    @Column(name = "wanted", nullable = false, precision = 14, scale = 3)
+    private BigDecimal wanted;
 
     public Long getOrderItemId() {
         return orderItemId;
@@ -52,5 +56,13 @@ public class OrderItemDraw extends BaseEntity {
 
     public void setQuantity(BigDecimal quantity) {
         this.quantity = quantity;
+    }
+
+    public BigDecimal getWanted() {
+        return wanted;
+    }
+
+    public void setWanted(BigDecimal wanted) {
+        this.wanted = wanted;
     }
 }

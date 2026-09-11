@@ -4,7 +4,7 @@ import { api } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import { useI18n, pick } from '../../../lib/i18n';
 import { useToast } from '../../../lib/toast';
-import type { CategoryResponse, MenuItemResponse, MenuStockRule, RecipeLineRow, Restaurant, StockItemRow } from '../../../lib/types';
+import type { CategoryResponse, MenuItemResponse, MenuStockRule, OptionRecipeLineRow, RecipeLineRow, Restaurant, StockItemRow } from '../../../lib/types';
 import { fill } from './copy';
 import { Sheet } from './sheets';
 import { StockRules, saveStockDraft, type StockDraft } from './StockRules';
@@ -51,6 +51,10 @@ export default function MenuRules({ t, branchId, shelf }: {
     queryKey: ['recipes', branchId],
     queryFn: () => api.get<RecipeLineRow[]>(`/api/branches/${branchId}/recipes`),
   });
+  const optionRulesQ = useQuery({
+    queryKey: ['recipe-options', branchId],
+    queryFn: () => api.get<OptionRecipeLineRow[]>(`/api/branches/${branchId}/recipes/options`),
+  });
   const restaurantQ = useQuery({
     queryKey: ['restaurant', rid],
     queryFn: () => api.get<Restaurant>(`/api/restaurants/${rid}`),
@@ -75,6 +79,15 @@ export default function MenuRules({ t, branchId, shelf }: {
     for (const l of recipesQ.data ?? []) m.set(l.menuItemId, [...(m.get(l.menuItemId) ?? []), l]);
     return m;
   }, [recipesQ.data]);
+  /* How many of an item's choices have a rule — one per (group, option), not per row. */
+  const choicesRuled = useMemo(() => {
+    const m = new Map<number, Set<string>>();
+    for (const o of optionRulesQ.data ?? []) {
+      if (!m.has(o.menuItemId)) m.set(o.menuItemId, new Set());
+      m.get(o.menuItemId)!.add(`${o.groupName}/${o.optionName}`);
+    }
+    return m;
+  }, [optionRulesQ.data]);
 
   /* Items sold at this branch: restaurant-wide ones and this branch's own. Another branch's
      pinned items are not this branch's business. */
@@ -98,6 +111,8 @@ export default function MenuRules({ t, branchId, shelf }: {
       }).filter(Boolean);
       parts.push(shown.join(', ') + (lines.length > 3 ? ` +${lines.length - 3}` : ''));
     }
+    const ruled = choicesRuled.get(i.id)?.size ?? 0;
+    if (ruled > 0) parts.push(fill(t('optSum'), { n: ruled }));
     if (rule?.dailyLimit != null) parts.push(fill(t('aDay'), { n: rule.dailyLimit }));
     return parts.length ? { text: parts.join(' · '), set: true } : { text: t('notSetUp'), set: false };
   };
@@ -110,6 +125,7 @@ export default function MenuRules({ t, branchId, shelf }: {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['menu-stock', branchId] });
       qc.invalidateQueries({ queryKey: ['recipes', branchId] });
+      qc.invalidateQueries({ queryKey: ['recipe-options', branchId] });
       qc.invalidateQueries({ queryKey: ['stock-usage', branchId] });
       qc.invalidateQueries({ queryKey: ['pad-menu'] });
       toast(t('savedToast'));
@@ -118,7 +134,7 @@ export default function MenuRules({ t, branchId, shelf }: {
     onError: (e: Error) => toast(e.message),
   });
 
-  const loading = catsQ.isLoading || itemsQ.isLoading || rulesQ.isLoading || recipesQ.isLoading;
+  const loading = catsQ.isLoading || itemsQ.isLoading || rulesQ.isLoading || recipesQ.isLoading || optionRulesQ.isLoading;
 
   return (
     <div className="stk-menu">
@@ -166,7 +182,8 @@ export default function MenuRules({ t, branchId, shelf }: {
         <Sheet title={pick(open, 'name', lang)} onClose={close}
           onSubmit={() => save.mutate()} submitLabel={t('save')}
           busy={save.isPending} problem={draft ? null : t('rulesLoading')}>
-          <StockRules branchId={branchId} menuItemId={open.id} draft={draft} onChange={setDraft} />
+          <StockRules branchId={branchId} menuItemId={open.id} optionGroups={open.optionGroups ?? []}
+            draft={draft} onChange={setDraft} />
         </Sheet>
       )}
     </div>

@@ -1,10 +1,12 @@
 package com.cafeqr.stock.dto;
 
 import com.cafeqr.stock.domain.MenuItemStock;
+import com.cafeqr.stock.domain.OptionRecipeLine;
 import com.cafeqr.stock.domain.RecipeLine;
 import com.cafeqr.stock.domain.StockUnit;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
@@ -47,10 +49,48 @@ public final class MenuStockDtos {
             @NotNull StockUnit unit
     ) {}
 
-    /** The whole recipe, sent whole: what arrives replaces what was there. Empty clears it. */
-    public record RecipeRequest(
-            @NotNull @Size(max = 60) List<@Valid RecipeLineInput> lines
+    /**
+     * What a customer's choice does to the recipe. A substitution names the base tin it stands in
+     * for ({@code replacesStockItemId}) and pours the same quantity from {@code stockItemId}
+     * instead; an addition leaves that null and says how much on top.
+     */
+    public record OptionLineInput(
+            @NotBlank @Size(max = 150) String groupName,
+            @NotBlank @Size(max = 150) String optionName,
+            @NotNull Long stockItemId,
+            Long replacesStockItemId,
+            @Positive @DecimalMax("99999999999") BigDecimal quantity,
+            StockUnit unit
     ) {}
+
+    /**
+     * The whole recipe, sent whole: what arrives replaces what was there, options included.
+     * Empty clears it.
+     */
+    public record RecipeRequest(
+            @NotNull @Size(max = 60) List<@Valid RecipeLineInput> lines,
+            @Size(max = 200) List<@Valid OptionLineInput> options
+    ) {
+        public List<OptionLineInput> optionsOrEmpty() {
+            return options == null ? List.of() : options;
+        }
+    }
+
+    public record OptionLineResponse(
+            Long id,
+            Long menuItemId,
+            String groupName,
+            String optionName,
+            Long stockItemId,
+            Long replacesStockItemId,
+            BigDecimal quantity,
+            StockUnit unit
+    ) {
+        public static OptionLineResponse from(OptionRecipeLine o) {
+            return new OptionLineResponse(o.getId(), o.getMenuItemId(), o.getGroupName(), o.getOptionName(),
+                    o.getStockItemId(), o.getReplacesStockItemId(), o.getQuantity(), o.getUnit());
+        }
+    }
 
     public record RecipeLineResponse(
             Long id,

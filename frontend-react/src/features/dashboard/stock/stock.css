@@ -514,3 +514,19 @@ html[data-posture="counter"] .stk-qty b { font-size: 31px; }
 @media (max-width: 639px) {
   .stk-nudge { flex-direction: column; align-items: stretch; }
 }
+
+/* ---------------------------------------------------------------- what a choice changes */
+
+.stk-opt {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 12px; border-radius: 8px;
+  background: var(--surface-2);
+}
+/* The choice's name and its "adds" link on one line; what it stands in for on the next. */
+.stk-opt-row { display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; align-items: center; }
+.stk-opt-name { font-size: 13px; }
+.stk-opt-row > .stk-link { padding-block: 0; min-block-size: 0; }
+.stk-opt-swap { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.stk-opt-word { font-size: 12px; color: var(--muted); }
+.stk-opt-swap .stk-select { flex: 1 1 6rem; min-inline-size: 6rem; }
+.stk-opt .stk-line { padding-inline-start: 12px; }

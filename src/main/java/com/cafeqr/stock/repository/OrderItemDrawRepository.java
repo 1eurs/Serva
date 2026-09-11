@@ -27,4 +27,18 @@ public interface OrderItemDrawRepository extends JpaRepository<OrderItemDraw, Lo
               and d.stockItemId = :tin and o.stockDrawnAt >= :since
             """)
     BigDecimal usedSince(@Param("tin") Long stockItemId, @Param("since") Instant since);
+
+    /**
+     * What sales asked of every tin at a branch since a moment — the rate a shelf is going at.
+     * Reads {@code wanted}, not {@code quantity}: a tin that had run out was still used, and only
+     * the draw knows whether that latte was almond.
+     */
+    @Query("""
+            select d.stockItemId, coalesce(sum(d.wanted), 0)
+            from OrderItemDraw d, OrderItem oi, Order o
+            where d.orderItemId = oi.id and oi.order = o
+              and o.branchId = :branchId and o.stockDrawnAt >= :since and d.stockItemId is not null
+            group by d.stockItemId
+            """)
+    List<Object[]> wantedByTinSince(@Param("branchId") Long branchId, @Param("since") Instant since);
 }

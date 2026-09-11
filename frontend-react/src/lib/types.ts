@@ -476,6 +476,19 @@ export interface RecipeLineRow {
   unit: StockUnit;
 }
 
+/** What a customer's choice changes about a recipe. Mirrors MenuStockDtos.OptionLineResponse. */
+export interface OptionRecipeLineRow {
+  id: number;
+  menuItemId: number;
+  groupName: string;
+  optionName: string;
+  stockItemId: number;
+  /** Set for a substitution: the base tin this choice stands in for, same quantity. */
+  replacesStockItemId?: number | null;
+  quantity?: number | null;
+  unit?: StockUnit | null;
+}
+
 /** What a shelf row is being used at. Mirrors MenuStockDtos.UsageRow. */
 export interface StockUsageRow {
   stockItemId: number;

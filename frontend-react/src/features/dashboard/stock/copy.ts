@@ -43,7 +43,7 @@ export const DICT: Dict = {
     unitWarn: 'الرقم سيبقى {n} — تغيير الوحدة لا يحوّله.',
 
     uKG: 'كيلو', uG: 'جرام', uL: 'لتر', uML: 'مليلتر', uPIECE: 'حبة',
-    fPack: 'كل حبة تحوي', fPackHint: 'اختياري. ليتمكن الوصف من قول «200 مل» بينما يعدّ المخزون الزجاجات.',
+    fPack: 'كل حبة تحوي', fPackHint: 'اختياري، لما يُسكب أو يُغرف منه — زجاجة حليب، كيس بن. اتركه فارغًا للأكواب والأغطية والمعجنات.',
     each: 'كل حبة {q}',
 
     /* usage, on the wall and in the sheet */
@@ -57,6 +57,8 @@ export const DICT: Dict = {
     addLine: 'إضافة مكوّن', pickTin: 'اختر…', plateCost: 'تكلفته حوالي',
     rulesLoading: 'جارٍ التحميل…', rulesNoShelf: 'أضف أصنافًا للمخزون أولًا لربطها من هنا.',
     usedSince: '≈ {q} استُهلك منذ آخر عدّ',
+    optT: 'ماذا يغيّر اختيار العميل', optHint: 'اختيار بلا قاعدة لا يغيّر شيئًا — هذا معنى «الحليب العادي».',
+    insteadOf: 'بدلًا من', useTin: 'استخدم', optNone: '— لا شيء —', addsLink: 'يضيف…', optSum: '{n} خيارات',
     nudgeT: 'الآن حدّد ما يأخذه كل صنف من المخزون', nudgeS: 'اضغط على «القائمة» واختر صنفًا.',
 
     /* the menu, seen from the shelf */
@@ -101,7 +103,7 @@ export const DICT: Dict = {
     unitWarn: 'The figure stays {n} — changing the unit doesn’t convert it.',
 
     uKG: 'Kilos', uG: 'Grams', uL: 'Litres', uML: 'Millilitres', uPIECE: 'Pieces',
-    fPack: 'Each piece holds', fPackHint: 'Optional. So a recipe can say “200 ml” while the shelf counts bottles.',
+    fPack: 'Each piece holds', fPackHint: 'Optional, for things you pour or scoop from — a bottle of milk, a bag of beans. Leave it empty for cups, lids and pastries.',
     each: '{q} each',
 
     /* usage, on the wall and in the sheet */
@@ -115,6 +117,8 @@ export const DICT: Dict = {
     addLine: 'Add ingredient', pickTin: 'Choose…', plateCost: 'Costs about',
     rulesLoading: 'Loading…', rulesNoShelf: 'Add items to the shelf first to link them here.',
     usedSince: '≈ {q} used since you last counted',
+    optT: 'What a choice changes', optHint: 'A choice with no rule changes nothing — that is what “regular milk” means.',
+    insteadOf: 'instead of', useTin: 'use', optNone: '— nothing —', addsLink: 'adds…', optSum: '{n} choices',
     nudgeT: 'Now say what each item takes from the shelf', nudgeS: 'Open Menu and tap an item.',
 
     /* the menu, seen from the shelf */

@@ -9,15 +9,18 @@ import com.cafeqr.restaurants.domain.Restaurant;
 import com.cafeqr.stock.StockDrawService.ItemAvailability;
 import com.cafeqr.stock.domain.MenuItemDailyTally;
 import com.cafeqr.stock.domain.MenuItemStock;
+import com.cafeqr.stock.domain.OptionRecipeLine;
 import com.cafeqr.stock.domain.OrderItemDraw;
 import com.cafeqr.stock.domain.RecipeLine;
 import com.cafeqr.stock.domain.StockItem;
 import com.cafeqr.stock.domain.StockUnit;
 import com.cafeqr.stock.repository.MenuItemDailyTallyRepository;
 import com.cafeqr.stock.repository.MenuItemStockRepository;
+import com.cafeqr.stock.repository.OptionRecipeLineRepository;
 import com.cafeqr.stock.repository.OrderItemDrawRepository;
 import com.cafeqr.stock.repository.RecipeLineRepository;
 import com.cafeqr.stock.repository.StockItemRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -62,9 +65,11 @@ class StockDrawServiceTest {
     private static final long BOX = 5L;
     private static final long MILK = 6L;         // bottles of 1 L
     private static final long BEANS = 7L;        // kilos
+    private static final long ALMOND = 8L;       // cartons of 1 L
 
     @Mock private MenuItemStockRepository caps;
     @Mock private RecipeLineRepository recipes;
+    @Mock private OptionRecipeLineRepository optionRecipes;
     @Mock private StockItemRepository stockItems;
     @Mock private OrderItemDrawRepository draws;
     @Mock private MenuItemDailyTallyRepository tallies;
@@ -74,12 +79,14 @@ class StockDrawServiceTest {
     private StockItem box;
     private StockItem milk;
     private StockItem beans;
+    private StockItem almond;
     private final List<RecipeLine> allRecipes = new ArrayList<>();
+    private final List<OptionRecipeLine> allOptions = new ArrayList<>();
     private final List<OrderItemDraw> savedDraws = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
-        service = new StockDrawService(caps, recipes, stockItems, draws, tallies);
+        service = new StockDrawService(caps, recipes, optionRecipes, stockItems, draws, tallies, new ObjectMapper());
 
         restaurant = new Restaurant();
         restaurant.setHideWhenOutOfStock(true);
@@ -89,10 +96,16 @@ class StockDrawServiceTest {
         milk.setPackSize(BigDecimal.ONE);
         milk.setPackUnit(StockUnit.L);
         beans = tin(BEANS, "Beans", StockUnit.KG, "2");
+        almond = tin(ALMOND, "Almond milk", StockUnit.PIECE, "3");
+        almond.setPackSize(BigDecimal.ONE);
+        almond.setPackUnit(StockUnit.L);
 
         allRecipes.add(recipe(CROISSANT, BOX, "1", StockUnit.PIECE));
         allRecipes.add(recipe(LATTE, MILK, "200", StockUnit.ML));
         allRecipes.add(recipe(LATTE, BEANS, "18", StockUnit.G));
+        // "Almond Milk" sends the latte's milk to the almond carton; "Extra shot" adds beans.
+        allOptions.add(substitute(LATTE, "Options", "Almond Milk", MILK, ALMOND));
+        allOptions.add(addition(LATTE, "Extras", "Extra shot", BEANS, "18", StockUnit.G));
         MenuItemStock teaCap = new MenuItemStock();
         teaCap.setMenuItemId(TEA);
         teaCap.setBranchId(BRANCH);
@@ -102,15 +115,19 @@ class StockDrawServiceTest {
             Collection<?> ids = inv.getArgument(1);
             return allRecipes.stream().filter(r -> ids.contains(r.getMenuItemId())).toList();
         });
+        lenient().when(optionRecipes.findByBranchIdAndMenuItemIdIn(eq(BRANCH), anyCollection())).thenAnswer(inv -> {
+            Collection<?> ids = inv.getArgument(1);
+            return allOptions.stream().filter(o -> ids.contains(o.getMenuItemId())).toList();
+        });
         lenient().when(caps.findByBranchIdAndMenuItemIdIn(eq(BRANCH), anyCollection())).thenAnswer(inv -> {
             Collection<?> ids = inv.getArgument(1);
             return ids.contains(TEA) ? List.of(teaCap) : List.of();
         });
         lenient().when(stockItems.findByIdIn(anyCollection())).thenAnswer(inv -> {
             Collection<?> ids = inv.getArgument(0);
-            return List.of(box, milk, beans).stream().filter(t -> ids.contains(t.getId())).toList();
+            return List.of(box, milk, beans, almond).stream().filter(t -> ids.contains(t.getId())).toList();
         });
-        for (StockItem t : List.of(box, milk, beans)) {
+        for (StockItem t : List.of(box, milk, beans, almond)) {
             lenient().when(stockItems.findByIdForUpdate(t.getId())).thenReturn(Optional.of(t));
         }
         lenient().when(tallies.findByBranchIdAndCafeDayAndMenuItemIdIn(eq(BRANCH), any(), anyCollection()))
@@ -190,6 +207,58 @@ class StockDrawServiceTest {
 
         assertThat(savedDraws).isEmpty();
         assertThat(order.getStockDrawnAt()).isNotNull();   // still marked: the tally was made
+    }
+
+    @Test
+    void anAlmondLattePoursAlmondMilkAndLeavesTheMilkAlone() {
+        Order order = order(chosen(1L, LATTE, 1, "Options", "Almond Milk"));
+
+        service.draw(order);
+
+        assertThat(almond.getQuantity()).isEqualByComparingTo("2.8");
+        assertThat(milk.getQuantity()).isEqualByComparingTo("4");
+        assertThat(beans.getQuantity()).isEqualByComparingTo("1.982");
+    }
+
+    @Test
+    void anExtraShotAddsOnTopOfTheRecipe() {
+        Order order = order(chosen(1L, LATTE, 1, "Extras", "Extra shot"));
+
+        service.draw(order);
+
+        assertThat(beans.getQuantity()).isEqualByComparingTo("1.964");   // 18 g + 18 g
+        assertThat(milk.getQuantity()).isEqualByComparingTo("3.8");
+    }
+
+    @Test
+    void aChoiceWithNoRuleChangesNothing() {
+        // "Regular milk" — or a choice the owner never wrote a rule for.
+        Order order = order(chosen(1L, LATTE, 1, "Options", "Free Fat Milk"));
+
+        service.draw(order);
+
+        assertThat(milk.getQuantity()).isEqualByComparingTo("3.8");
+        assertThat(almond.getQuantity()).isEqualByComparingTo("3");
+    }
+
+    @Test
+    void theGuardJudgesTheLineAsOrdered() {
+        milk.setQuantity(BigDecimal.ZERO);   // regular milk is out; almond is not
+
+        assertThatThrownBy(() -> service.requireAvailable(restaurant, BRANCH, List.of(line(1L, LATTE, 1))))
+                .isInstanceOf(BadRequestException.class);
+        service.requireAvailable(restaurant, BRANCH, List.of(chosen(1L, LATTE, 1, "Options", "Almond Milk")));
+    }
+
+    @Test
+    void theDrawRecordsWhatWasAskedBesideWhatWasTaken() {
+        box.setQuantity(new BigDecimal("1"));
+        Order order = order(line(1L, CROISSANT, 4));
+
+        service.draw(order);
+
+        assertThat(savedDraws.get(0).getWanted()).isEqualByComparingTo("4");
+        assertThat(savedDraws.get(0).getQuantity()).isEqualByComparingTo("1");
     }
 
     // ------------------------------------------------------------------ restore
@@ -374,6 +443,37 @@ class StockDrawServiceTest {
         r.setQuantity(new BigDecimal(qty));
         r.setUnit(unit);
         return r;
+    }
+
+    private static OptionRecipeLine substitute(long menuItemId, String group, String option, long from, long to) {
+        OptionRecipeLine o = new OptionRecipeLine();
+        o.setMenuItemId(menuItemId);
+        o.setBranchId(BRANCH);
+        o.setGroupName(group);
+        o.setOptionName(option);
+        o.setStockItemId(to);
+        o.setReplacesStockItemId(from);
+        return o;
+    }
+
+    private static OptionRecipeLine addition(long menuItemId, String group, String option, long tin, String qty, StockUnit unit) {
+        OptionRecipeLine o = new OptionRecipeLine();
+        o.setMenuItemId(menuItemId);
+        o.setBranchId(BRANCH);
+        o.setGroupName(group);
+        o.setOptionName(option);
+        o.setStockItemId(tin);
+        o.setQuantity(new BigDecimal(qty));
+        o.setUnit(unit);
+        return o;
+    }
+
+    /** A line with a choice on it, snapshotted the way the order service writes it. */
+    private static OrderItem chosen(long id, long menuItemId, int qty, String group, String option) {
+        OrderItem i = line(id, menuItemId, qty);
+        i.setSelectedOptionsJson("[{\"groupId\":1,\"groupNameEn\":\"" + group + "\",\"groupNameAr\":\"x\","
+                + "\"optionId\":2,\"optionNameEn\":\"" + option + "\",\"optionNameAr\":\"y\",\"priceDelta\":0.3}]");
+        return i;
     }
 
     private static OrderItem line(long id, long menuItemId, int qty) {

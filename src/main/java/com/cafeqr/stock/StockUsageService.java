@@ -4,37 +4,29 @@ import com.cafeqr.auth.security.AccessGuard;
 import com.cafeqr.branches.BranchService;
 import com.cafeqr.branches.domain.Branch;
 import com.cafeqr.common.util.TimeZones;
-import com.cafeqr.stock.domain.MenuItemDailyTally;
-import com.cafeqr.stock.domain.RecipeLine;
 import com.cafeqr.stock.domain.StockItem;
 import com.cafeqr.stock.dto.MenuStockDtos.UsageRow;
-import com.cafeqr.stock.repository.MenuItemDailyTallyRepository;
 import com.cafeqr.stock.repository.OrderItemDrawRepository;
-import com.cafeqr.stock.repository.RecipeLineRepository;
 import com.cafeqr.stock.repository.StockItemRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Where the beans went, and how long the milk will last.
  *
- * <p>The rate is worked out from what was sold, not from what was counted: every accepted line
- * lands in the daily tally, and a recipe says what each of those took. Sum it over a window,
- * divide by the days, divide the shelf by that — days of cover. What was <em>sold</em> is the
- * honest rate even on a day the count was wrong and the draw clamped.
- *
- * <p>"Used since you last counted" reads the draws instead, because that figure has to match
- * the shelf exactly: it is the explanation for the number on the tile.
+ * <p>Both figures come from the draws, because only the draw knows what a line actually took —
+ * an almond latte took almond milk. The rate reads what the recipe <em>asked</em> for, so a tin
+ * that had run out still counts as used; "since you last counted" reads what was <em>taken</em>,
+ * because that figure has to match the shelf exactly — it is the explanation for the number on
+ * the tile.
  *
  * <p>The window is inclusive of today. A café that opened this morning divides by one day and
  * gets a noisy figure; that is the truth of one day's data, and it settles by the weekend.
@@ -42,22 +34,16 @@ import java.util.stream.Collectors;
 @Service
 public class StockUsageService {
 
-    private final MenuItemDailyTallyRepository tallies;
-    private final RecipeLineRepository recipes;
     private final OrderItemDrawRepository draws;
     private final StockItemRepository stockItems;
     private final BranchService branchService;
     private final AccessGuard accessGuard;
 
-    public StockUsageService(MenuItemDailyTallyRepository tallies,
-                             RecipeLineRepository recipes,
-                             OrderItemDrawRepository draws,
+    public StockUsageService(OrderItemDrawRepository draws,
                              StockItemRepository stockItems,
                              BranchService branchService,
                              AccessGuard accessGuard) {
-        this.tallies = tallies;
         this.draws = draws;
-        this.recipes = recipes;
         this.stockItems = stockItems;
         this.branchService = branchService;
         this.accessGuard = accessGuard;
@@ -69,26 +55,19 @@ public class StockUsageService {
         accessGuard.requireBranchAccess(branch.getRestaurantId(), branch.getId());
         int window = Math.max(1, Math.min(days, 90));
 
-        LocalDate today = LocalDate.now(TimeZones.CAFES);
-        Map<Long, Integer> sold = new HashMap<>();
-        for (MenuItemDailyTally t : tallies.findByBranchIdAndCafeDayBetween(branchId, today.minusDays(window - 1L), today)) {
-            sold.merge(t.getMenuItemId(), t.getSold(), Integer::sum);
-        }
+        // The window starts at the café's own midnight, window-1 days back.
+        Instant since = LocalDate.now(TimeZones.CAFES).minusDays(window - 1L)
+                .atStartOfDay(TimeZones.CAFES).toInstant();
 
-        Map<Long, StockItem> shelf = stockItems.findByBranchIdOrderByIdAsc(branchId).stream()
-                .collect(Collectors.toMap(StockItem::getId, Function.identity()));
+        Map<Long, StockItem> shelf = new LinkedHashMap<>();
+        for (StockItem s : stockItems.findByBranchIdOrderByIdAsc(branchId)) shelf.put(s.getId(), s);
 
-        // Used per tin, in the tin's own unit. Keyed in shelf order so the answer is stable.
+        // Asked of each tin, in the tin's own unit. Keyed in shelf order so the answer is stable.
         Map<Long, BigDecimal> used = new LinkedHashMap<>();
-        for (RecipeLine line : recipes.findByBranchId(branchId)) {
-            StockItem tin = shelf.get(line.getStockItemId());
-            if (tin == null) continue;
-            BigDecimal factor = tin.factorFrom(line.getUnit());
-            if (factor == null) continue;   // refused on the way in; belt and braces
-            BigDecimal perSale = line.getQuantity().multiply(factor);
-            used.merge(line.getStockItemId(),
-                    perSale.multiply(BigDecimal.valueOf(sold.getOrDefault(line.getMenuItemId(), 0))),
-                    BigDecimal::add);
+        for (StockItem s : shelf.values()) used.put(s.getId(), BigDecimal.ZERO);
+        for (Object[] row : draws.wantedByTinSince(branchId, since)) {
+            Long tin = (Long) row[0];
+            if (shelf.containsKey(tin)) used.merge(tin, (BigDecimal) row[1], BigDecimal::add);
         }
 
         BigDecimal daysBd = BigDecimal.valueOf(window);

@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { useI18n, useT, pick } from '../../../lib/i18n';
 import { Money } from '../../../lib/Money';
-import type { MenuStockRule, RecipeLineRow, StockItemRow, StockUnit } from '../../../lib/types';
-import { DICT } from './copy';
+import type { MenuItemOptionGroupRow, MenuStockRule, OptionRecipeLineRow, RecipeLineRow, StockItemRow, StockUnit } from '../../../lib/types';
+import { DICT, fill } from './copy';
 import { recipeUnitsFor, unitFactor, unitWord } from './units';
 import './stock.css';
 
@@ -13,12 +13,20 @@ import './stock.css';
  * Null means "never loaded" — and a save is refused until it has, so a sheet that opened while
  * the network was down can never wipe a recipe by re-sending an empty one.
  */
+export type DraftLine = { stockItemId: number | null; quantity: string; unit: StockUnit };
+/** What one of the item's choices changes: stand in for a base tin, and/or add lines on top. */
+export type DraftOption = {
+  groupName: string; optionName: string;
+  replaces: number | null; stockItemId: number | null;
+  adds: DraftLine[];
+};
 export type StockDraft = {
-  lines: { stockItemId: number | null; quantity: string; unit: StockUnit }[];
+  lines: DraftLine[];
+  options: DraftOption[];
   dailyLimit: string;
 };
 
-export const emptyDraft = (): StockDraft => ({ lines: [], dailyLimit: '' });
+export const emptyDraft = (): StockDraft => ({ lines: [], options: [], dailyLimit: '' });
 
 /**
  * Persist the draft. Two PUTs, each a whole replacement, so what is on the server is exactly
@@ -29,7 +37,19 @@ export async function saveStockDraft(branchId: number, menuItemId: number, d: St
   const lines = d.lines
     .filter((l) => l.stockItemId != null && Number(l.quantity) > 0)
     .map((l) => ({ stockItemId: l.stockItemId, quantity: Number(l.quantity), unit: l.unit }));
-  await api.put(`/api/branches/${branchId}/recipes/${menuItemId}`, { lines });
+  const options = d.options.flatMap((o) => {
+    const rows: object[] = [];
+    if (o.replaces != null && o.stockItemId != null) {
+      rows.push({ groupName: o.groupName, optionName: o.optionName, stockItemId: o.stockItemId, replacesStockItemId: o.replaces });
+    }
+    for (const a of o.adds) {
+      if (a.stockItemId != null && Number(a.quantity) > 0) {
+        rows.push({ groupName: o.groupName, optionName: o.optionName, stockItemId: a.stockItemId, quantity: Number(a.quantity), unit: a.unit });
+      }
+    }
+    return rows;
+  });
+  await api.put(`/api/branches/${branchId}/recipes/${menuItemId}`, { lines, options });
   const limit = Number(d.dailyLimit);
   await api.put(`/api/branches/${branchId}/menu-stock/${menuItemId}`, {
     dailyLimit: Number.isInteger(limit) && limit > 0 ? limit : null,
@@ -44,9 +64,11 @@ export async function saveStockDraft(branchId: number, menuItemId: number, d: St
  * <p>Owned by whoever opens it: this component renders and edits the draft its owner holds, and
  * loads the current answers into it once. It saves nothing itself.
  */
-export function StockRules({ branchId, menuItemId, draft, onChange }: {
+export function StockRules({ branchId, menuItemId, optionGroups, draft, onChange }: {
   branchId: number;
   menuItemId: number;
+  /** The item's own choices, as the menu defines them; each gets a row here. */
+  optionGroups: MenuItemOptionGroupRow[];
   draft: StockDraft | null;
   onChange: (d: StockDraft) => void;
 }) {
@@ -65,19 +87,36 @@ export function StockRules({ branchId, menuItemId, draft, onChange }: {
     queryKey: ['recipes', branchId],
     queryFn: () => api.get<RecipeLineRow[]>(`/api/branches/${branchId}/recipes`),
   });
+  const optionsQ = useQuery({
+    queryKey: ['recipe-options', branchId],
+    queryFn: () => api.get<OptionRecipeLineRow[]>(`/api/branches/${branchId}/recipes/options`),
+  });
 
-  /* Load the current answers into the draft exactly once, and only when both reads are in, so
-     a half-loaded draft can never be saved over the server's whole one. */
-  const loaded = rulesQ.data != null && recipesQ.data != null;
+  /* Load the current answers into the draft exactly once, and only when every read is in, so a
+     half-loaded draft can never be saved over the server's whole one. Every choice the menu
+     offers gets a row, rule or no rule, so the owner sees what is unanswered. */
+  const loaded = rulesQ.data != null && recipesQ.data != null && optionsQ.data != null;
   useEffect(() => {
     if (draft != null || !loaded) return;
     const rule = rulesQ.data!.find((r) => r.menuItemId === menuItemId);
     const lines = recipesQ.data!.filter((l) => l.menuItemId === menuItemId);
+    const rows = optionsQ.data!.filter((o) => o.menuItemId === menuItemId);
+    const options: DraftOption[] = optionGroups.flatMap((g) => g.options.map((o) => {
+      const mine = rows.filter((r) => r.groupName === g.nameEn && r.optionName === o.nameEn);
+      const swap = mine.find((r) => r.replacesStockItemId != null);
+      return {
+        groupName: g.nameEn, optionName: o.nameEn,
+        replaces: swap?.replacesStockItemId ?? null, stockItemId: swap?.stockItemId ?? null,
+        adds: mine.filter((r) => r.replacesStockItemId == null)
+          .map((r) => ({ stockItemId: r.stockItemId, quantity: String(r.quantity), unit: r.unit as StockUnit })),
+      };
+    }));
     onChange({
       lines: lines.map((l) => ({ stockItemId: l.stockItemId, quantity: String(l.quantity), unit: l.unit })),
+      options,
       dailyLimit: rule?.dailyLimit != null ? String(rule.dailyLimit) : '',
     });
-  }, [draft, loaded, menuItemId, rulesQ.data, recipesQ.data, onChange]);
+  }, [draft, loaded, menuItemId, optionGroups, rulesQ.data, recipesQ.data, optionsQ.data, onChange]);
 
   const shelf = shelfQ.data ?? [];
   const byId = useMemo(() => new Map(shelf.map((s) => [s.id, s])), [shelf]);
@@ -101,44 +140,52 @@ export function StockRules({ branchId, menuItemId, draft, onChange }: {
   if (shelf.length === 0) return <div className="stk-rules"><p className="stk-hint">{t('rulesNoShelf')}</p></div>;
 
   const set = (patch: Partial<StockDraft>) => onChange({ ...draft, ...patch });
-  const setLine = (i: number, patch: Partial<StockDraft['lines'][number]>) =>
+  const setLine = (i: number, patch: Partial<DraftLine>) =>
     set({ lines: draft.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
+  const setOption = (i: number, patch: Partial<DraftOption>) =>
+    set({ options: draft.options.map((o, j) => (j === i ? { ...o, ...patch } : o)) });
+  const setAdd = (oi: number, ai: number, patch: Partial<DraftLine>) =>
+    setOption(oi, { adds: draft.options[oi].adds.map((a, j) => (j === ai ? { ...a, ...patch } : a)) });
+
+  /* The base recipe's tins — what a choice can stand in for. */
+  const baseTins = draft.lines.map((l) => l.stockItemId).filter((id): id is number => id != null);
+
+  /** One ingredient row: which tin, how much, in which unit, and a way to take it off. */
+  const lineRow = (l: DraftLine, key: string, patch: (p: Partial<DraftLine>) => void, remove: () => void) => {
+    const tin = l.stockItemId != null ? byId.get(l.stockItemId) : undefined;
+    const units = tin ? recipeUnitsFor(tin) : [];
+    return (
+      <div className="stk-line" key={key}>
+        <select className="stk-select" value={l.stockItemId ?? ''}
+          onChange={(e) => {
+            const id = e.target.value ? Number(e.target.value) : null;
+            const next = id != null ? byId.get(id) : undefined;
+            const unit = next ? recipeUnitsFor(next)[0] : l.unit;
+            /* The unit follows the tin: a recipe against kilos is spoken in grams. And a whole
+               thing — a croissant from the box — is almost always one, so it is filled in. */
+            patch({ stockItemId: id, unit, quantity: l.quantity || (unit === 'PIECE' ? '1' : '') });
+          }}>
+          <option value="">{t('pickTin')}</option>
+          {shelf.map((s) => <option key={s.id} value={s.id}>{name(s)}</option>)}
+        </select>
+        <input className="num" type="number" inputMode="decimal" min="0" step="0.01" dir="ltr"
+          value={l.quantity} onChange={(e) => patch({ quantity: e.target.value })} aria-label={t('fHave')} />
+        <select className="stk-select stk-unit-pick" value={l.unit} disabled={!tin}
+          onChange={(e) => patch({ unit: e.target.value as StockUnit })} aria-label={t('fUnit')}>
+          {(units.length ? units : [l.unit]).map((u) => <option key={u} value={u}>{unitWord(u, lang)}</option>)}
+        </select>
+        <button type="button" className="stk-x" aria-label={t('removeItem')} onClick={remove}>✕</button>
+      </div>
+    );
+  };
 
   return (
     <div className="stk-rules">
       <div className="stk-f">
         <span>{t('recipeT')}</span>
         <em className="stk-hint">{t('recipeHint')}</em>
-        {draft.lines.map((l, i) => {
-          const tin = l.stockItemId != null ? byId.get(l.stockItemId) : undefined;
-          const units = tin ? recipeUnitsFor(tin) : [];
-          return (
-            <div className="stk-line" key={i}>
-              <select className="stk-select" value={l.stockItemId ?? ''}
-                onChange={(e) => {
-                  const id = e.target.value ? Number(e.target.value) : null;
-                  const next = id != null ? byId.get(id) : undefined;
-                  const unit = next ? recipeUnitsFor(next)[0] : l.unit;
-                  /* The unit follows the tin: a recipe against kilos is spoken in grams. And a
-                     whole thing — a croissant from the box — is almost always one, so it is
-                     filled in rather than asked for. */
-                  setLine(i, { stockItemId: id, unit, quantity: l.quantity || (unit === 'PIECE' ? '1' : '') });
-                }}>
-                <option value="">{t('pickTin')}</option>
-                {shelf.map((s) => <option key={s.id} value={s.id}>{name(s)}</option>)}
-              </select>
-              <input className="num" type="number" inputMode="decimal" min="0" step="0.01" dir="ltr"
-                value={l.quantity} onChange={(e) => setLine(i, { quantity: e.target.value })}
-                aria-label={t('fHave')} />
-              <select className="stk-select stk-unit-pick" value={l.unit} disabled={!tin}
-                onChange={(e) => setLine(i, { unit: e.target.value as StockUnit })} aria-label={t('fUnit')}>
-                {(units.length ? units : [l.unit]).map((u) => <option key={u} value={u}>{unitWord(u, lang)}</option>)}
-              </select>
-              <button type="button" className="stk-x" aria-label={t('removeItem')}
-                onClick={() => set({ lines: draft.lines.filter((_, j) => j !== i) })}>✕</button>
-            </div>
-          );
-        })}
+        {draft.lines.map((l, i) => lineRow(l, `b${i}`,
+          (p) => setLine(i, p), () => set({ lines: draft.lines.filter((_, j) => j !== i) })))}
         <button type="button" className="stk-link" onClick={() =>
           set({ lines: [...draft.lines, { stockItemId: null, quantity: '', unit: 'PIECE' }] })}>
           ＋ {t('addLine')}
@@ -147,6 +194,44 @@ export function StockRules({ branchId, menuItemId, draft, onChange }: {
           <p className="stk-lands">{t('plateCost')} <Money value={plateCost} /></p>
         )}
       </div>
+
+      {/* Every choice the menu offers, rule or no rule. "Almond Milk — instead of Milk, use
+          Almond milk" is one row and two picks; a choice left blank changes nothing. */}
+      {draft.options.length > 0 && (
+        <div className="stk-f">
+          <span>{t('optT')}</span>
+          <em className="stk-hint">{t('optHint')}</em>
+          {draft.options.map((o, oi) => (
+            <div className="stk-opt" key={`${o.groupName}/${o.optionName}`}>
+              <div className="stk-opt-row">
+                <b className="stk-opt-name">{o.optionName}</b>
+                <button type="button" className="stk-link" onClick={() =>
+                  setOption(oi, { adds: [...o.adds, { stockItemId: null, quantity: '', unit: 'PIECE' }] })}>
+                  ＋ {t('addsLink')}
+                </button>
+                <div className="stk-opt-swap">
+                  <span className="stk-opt-word">{t('insteadOf')}</span>
+                  <select className="stk-select" value={o.replaces ?? ''} disabled={baseTins.length === 0}
+                    onChange={(e) => setOption(oi, { replaces: e.target.value ? Number(e.target.value) : null })}>
+                    <option value="">{t('optNone')}</option>
+                    {baseTins.map((id) => <option key={id} value={id}>{byId.get(id) ? name(byId.get(id)!) : id}</option>)}
+                  </select>
+                  {o.replaces != null && <>
+                    <span className="stk-opt-word">{t('useTin')}</span>
+                    <select className="stk-select" value={o.stockItemId ?? ''}
+                      onChange={(e) => setOption(oi, { stockItemId: e.target.value ? Number(e.target.value) : null })}>
+                      <option value="">{t('pickTin')}</option>
+                      {shelf.map((s) => <option key={s.id} value={s.id}>{name(s)}</option>)}
+                    </select>
+                  </>}
+                </div>
+              </div>
+              {o.adds.map((a, ai) => lineRow(a, `o${oi}a${ai}`,
+                (p) => setAdd(oi, ai, p), () => setOption(oi, { adds: o.adds.filter((_, j) => j !== ai) })))}
+            </div>
+          ))}
+        </div>
+      )}
 
       <label className="stk-f">
         <span>{t('limitL')}</span>
