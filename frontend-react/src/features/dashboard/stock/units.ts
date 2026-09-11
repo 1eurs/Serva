@@ -131,3 +131,28 @@ export const agoWords = (iso: string | null | undefined, lang: Lang): string | n
     : 'days';
   return lang === 'ar' ? `قبل ${days} ${dayWord}` : `${days} ${dayWord} ago`;
 };
+
+/** "day" / "days" — and in Arabic the dual as well, plus the 3–10 plural. */
+export const daysWord = (n: number, lang: Lang): string => {
+  if (lang !== 'ar') return n === 1 ? 'day' : 'days';
+  if (n === 1) return 'يوم';
+  if (n === 2) return 'يومين';
+  return n >= 3 && n <= 10 ? 'أيام' : 'يوم';
+};
+
+/**
+ * The units a recipe may be written in for a shelf row counted in {@code u}: the row's own unit
+ * and its ×1000 sibling, smaller one first because "18 g" is how a recipe is spoken.
+ */
+export const recipeUnitsFor = (u: StockUnit): StockUnit[] =>
+  u === 'KG' || u === 'G' ? ['G', 'KG'] : u === 'L' || u === 'ML' ? ['ML', 'L'] : ['PIECE'];
+
+/** Multiply a quantity in `from` by this to express it in `to`; null when they don't match. */
+export const unitFactor = (from: StockUnit, to: StockUnit): number | null => {
+  if (from === to) return 1;
+  if (from === 'G' && to === 'KG') return 0.001;
+  if (from === 'KG' && to === 'G') return 1000;
+  if (from === 'ML' && to === 'L') return 0.001;
+  if (from === 'L' && to === 'ML') return 1000;
+  return null;
+};

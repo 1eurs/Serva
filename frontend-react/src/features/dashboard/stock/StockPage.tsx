@@ -3,10 +3,10 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { useI18n, useT, pick } from '../../../lib/i18n';
 import { Money } from '../../../lib/Money';
-import type { StockItemRow } from '../../../lib/types';
+import type { StockItemRow, StockUsageRow } from '../../../lib/types';
 import { DICT, fill } from './copy';
 import { ItemForm, ItemSheet } from './sheets';
-import { LINE_AT, PRESETS, axisPct, levelOf, parts, shelfValue, type Level, type Preset } from './units';
+import { LINE_AT, PRESETS, axisPct, daysWord, levelOf, parts, shelfValue, type Level, type Preset } from './units';
 import './stock.css';
 
 type T = (k: string) => string;
@@ -44,6 +44,15 @@ export default function StockPage({ branchId }: { branchId?: number }) {
     queryFn: () => api.get<StockItemRow[]>(`/api/branches/${branchId}/stock`),
     enabled: !!branchId,
   });
+  /* How fast each tin is going, from a week of sales and the recipes behind them. Its own
+     query: it is slower than the shelf and the wall must not wait for it. */
+  const usageQ = useQuery({
+    queryKey: ['stock-usage', branchId],
+    queryFn: () => api.get<StockUsageRow[]>(`/api/branches/${branchId}/stock/usage?days=7`),
+    enabled: !!branchId,
+  });
+  const usage = useMemo(
+    () => new Map((usageQ.data ?? []).map((u) => [u.stockItemId, u])), [usageQ.data]);
 
   const [q, setQ] = useState('');
   const [onlyLow, setOnlyLow] = useState(false);
@@ -103,7 +112,7 @@ export default function StockPage({ branchId }: { branchId?: number }) {
       ) : (
         <>
           <div className="stk-wall">
-            {shown.map((i) => <Tile key={i.id} t={t} item={i} onOpen={() => setOpenId(i.id)} />)}
+            {shown.map((i) => <Tile key={i.id} t={t} item={i} usage={usage.get(i.id)} onOpen={() => setOpenId(i.id)} />)}
           </div>
 
           {/* Quiet, and last. It is the payoff for having typed prices in, not a headline —
@@ -115,7 +124,7 @@ export default function StockPage({ branchId }: { branchId?: number }) {
       )}
 
       {open && (
-        <ItemSheet t={t} item={open} queryKey={queryKey}
+        <ItemSheet t={t} item={open} usage={usage.get(open.id)} queryKey={queryKey}
           onClose={() => setOpenId(null)}
           onEdit={() => { setOpenId(null); setForm({ item: open }); }} />
       )}
@@ -139,13 +148,22 @@ export default function StockPage({ branchId }: { branchId?: number }) {
  * a saturated colour — the fill is a wash — so a tile stays readable at every level, including
  * the one that matters most, which is nearly empty.
  */
-function Tile({ t, item, onOpen }: { t: T; item: StockItemRow; onOpen: () => void }) {
+function Tile({ t, item, usage, onOpen }: {
+  t: T; item: StockItemRow; usage?: StockUsageRow; onOpen: () => void;
+}) {
   const { lang } = useI18n();
   const state = levelOf(item);
   const pct = axisPct(Number(item.quantity), item.reorderPoint);
   const amount = parts(item.quantity, item.unit, lang);
   const name = pick(item, 'name', lang);
   const word = t(STATE_WORD[state]);
+  /* A tile that is fine has nothing to warn about, so its line can carry the one thing worth
+     a glance: how long the tin lasts at this week's pace. A tile that wants buying keeps its
+     warning — "order more" outranks "three days". */
+  const days = usage?.daysLeft != null ? Math.floor(usage.daysLeft) : null;
+  const quiet = state === 'ok' && days != null
+    ? fill(t('stDays'), { n: days, d: daysWord(days, lang) })
+    : '';
 
   return (
     /* The label always names the state, including the "fine" the tile leaves unsaid: a
@@ -168,7 +186,7 @@ function Tile({ t, item, onOpen }: { t: T; item: StockItemRow; onOpen: () => voi
       </span>
       {/* Only the tiles wanting something speak. A wall where every healthy tile also reads
           "Fine" spends its words on the items that need none. */}
-      <span className="stk-state" data-tone={state}>{state === 'ok' ? '' : word}</span>
+      <span className="stk-state" data-tone={state}>{state === 'ok' ? quiet : word}</span>
     </button>
   );
 }

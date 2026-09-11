@@ -279,6 +279,11 @@ function useLiveOrderAlerts(branchId: number | undefined, ping: () => void, t: (
       } else {
         qc.invalidateQueries({ queryKey: liveKey });
       }
+      // An order moving is the shelf moving: accepted draws, cancelled restores. Refetch what
+      // reads the shelf so the wall and the pad's sold-out tiles never sit a poll behind.
+      qc.invalidateQueries({ queryKey: ['stock', branchId] });
+      qc.invalidateQueries({ queryKey: ['stock-usage', branchId] });
+      qc.invalidateQueries({ queryKey: ['pad-menu'] });
       if (name === 'order.created') {
         ping();
         setUnacked((n) => n + 1);
@@ -737,7 +742,7 @@ function Shell() {
         {page === 'board' && <KdsBoard branchId={branchId} focusSignal={focusBoard} />}
         {page === 'neworder' && <OrderPad branchId={branchId} onPlaced={() => setPage('board')} />}
         {page === 'orders' && <OrdersPage branchId={branchId} />}
-        {page === 'menu' && <MenuManager />}
+        {page === 'menu' && <MenuManager branchId={branchId} />}
         {page === 'team' && <TeamPage branches={branches} branchId={branchId} />}
         {page === 'analytics' && <Suspense fallback={<div className="an-msg">…</div>}><AnalyticsPage branches={isManager(user) && pinnedBranch == null ? activeBranches : []} /></Suspense>}
         {page === 'stock' && <StockPage branchId={branchId} />}

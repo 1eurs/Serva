@@ -30,7 +30,7 @@ const DICT: Dict = {
     p_place: 'إرسال للمطبخ', p_placing: 'جارٍ…', p_sent: 'تم إرسال الطلب', p_clear: 'تفريغ',
     p_addOpts: 'اختر الخيارات', p_add: 'إضافة', p_required: 'مطلوب', p_qty: 'الكمية',
     p_search: 'بحث في القائمة…', p_all: 'الكل', p_noItems: 'لا أصناف متاحة', p_loading: 'جارٍ التحميل…',
-    p_soldout: 'نفد',
+    p_soldout: 'نفد', p_left: 'بقي {n}',
     p_close: 'إغلاق',
     p_pay: 'الدفع', p_unpaid: 'لم يدفع', p_paid: 'مدفوع', p_cash: 'نقداً', p_card: 'بطاقة',
     p_placePaid: 'مدفوع · إرسال', p_send: 'إرسال', p_sendUnpaid: 'إرسال دون دفع',
@@ -44,7 +44,7 @@ const DICT: Dict = {
     p_place: 'Send to kitchen', p_placing: 'Sending…', p_sent: 'Order sent', p_clear: 'Clear',
     p_addOpts: 'Choose options', p_add: 'Add', p_required: 'required', p_qty: 'Qty',
     p_search: 'Search the menu…', p_all: 'All', p_noItems: 'No available items', p_loading: 'Loading…',
-    p_soldout: 'Sold out',
+    p_soldout: 'Sold out', p_left: '{n} left',
     p_close: 'Close',
     p_pay: 'Payment', p_unpaid: 'Not paid', p_paid: 'Paid', p_cash: 'Cash', p_card: 'Card',
     p_placePaid: 'Paid · Send', p_send: 'Send', p_sendUnpaid: 'Send, not paid',
@@ -199,14 +199,18 @@ export default function OrderPad({ branchId, onPlaced }: { branchId?: number; on
               {visibleItems.map((it) => {
                 const onSale = it.salePrice != null;
                 const inCart = lines.filter((l) => l.item.id === it.id).reduce((s, l) => s + l.qty, 0);
-                /* Switched off, so the counter must not sell it. Greyed rather than dropped
-                   from the grid — a tile that simply vanishes reads as a bug in the pad. */
+                /* The shelf says it has run out. Greyed and flagged, but still tappable: the
+                   person at the counter can see the shelf, and a pad that refuses to sell the
+                   croissant they are holding is a pad that gets switched off. The count simply
+                   stays at zero. Items the owner switched off never reach this list at all. */
                 const out = !sellable(it);
+                const left = it.remainingToday;
                 return (
                   <button key={it.id} className={'pad-item' + (onSale ? ' sale' : '') + (out ? ' out' : '')}
-                    disabled={out} onClick={() => onItemClick(it)}>
+                    onClick={() => onItemClick(it)}>
                     {out && <span className="pad-item-sold">{t('p_soldout')}</span>}
-                    {!out && onSale && <span className="pad-item-off"><Ltr>−{discountPercent(it.price, it.salePrice!)}%</Ltr></span>}
+                    {!out && left != null && <span className="pad-item-sold pad-item-left">{t('p_left').replace('{n}', String(left))}</span>}
+                    {!out && left == null && onSale && <span className="pad-item-off"><Ltr>−{discountPercent(it.price, it.salePrice!)}%</Ltr></span>}
                     {inCart > 0 && <span className="pad-item-incart">{inCart}</span>}
                     <span className="pad-item-nm">{nm(it.nameEn, it.nameAr)}</span>
                     <span className="pad-item-pr">

@@ -111,6 +111,7 @@ a.c-fact:hover{border-color:var(--accent);color:var(--text)}
 .c-qty .n{min-width:24px;text-align:center;color:var(--accent-text);font-family:var(--font-mono);font-weight:600}
 .c-badge{position:absolute;inset-block-start:12px;inset-inline-start:12px;background:rgba(255,107,90,.15);color:var(--bad);
   font-size:10px;font-weight:600;padding:3px 8px;border-radius:8px;border:1px solid rgba(255,107,90,.3)}
+.c-badge-left{background:rgba(245,184,61,.16);color:#B45309;border-color:rgba(245,184,61,.5)}
 
 /* cart bar — a contrast pill that each theme tunes via --cart-* (defaults below
    reproduce the original always-dark lime pill so the CTA stays legible). */

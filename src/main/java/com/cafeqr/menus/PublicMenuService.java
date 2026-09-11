@@ -14,6 +14,8 @@ import com.cafeqr.menus.repository.MenuCategoryRepository;
 import com.cafeqr.menus.repository.MenuItemRepository;
 import com.cafeqr.restaurants.RestaurantService;
 import com.cafeqr.restaurants.domain.Restaurant;
+import com.cafeqr.stock.StockDrawService;
+import com.cafeqr.stock.StockDrawService.ItemAvailability;
 import com.cafeqr.tables.TableService;
 import com.cafeqr.tables.domain.RestaurantTable;
 import org.springframework.stereotype.Service;
@@ -33,17 +35,20 @@ public class PublicMenuService {
     private final RestaurantService restaurantService;
     private final BranchService branchService;
     private final TableService tableService;
+    private final StockDrawService stockDrawService;
 
     public PublicMenuService(MenuCategoryRepository categoryRepository,
                              MenuItemRepository itemRepository,
                              RestaurantService restaurantService,
                              BranchService branchService,
-                             TableService tableService) {
+                             TableService tableService,
+                             StockDrawService stockDrawService) {
         this.categoryRepository = categoryRepository;
         this.itemRepository = itemRepository;
         this.restaurantService = restaurantService;
         this.branchService = branchService;
         this.tableService = tableService;
+        this.stockDrawService = stockDrawService;
     }
 
     @Transactional(readOnly = true)
@@ -86,12 +91,22 @@ public class PublicMenuService {
         // Evaluate every item's discount window against one timestamp so the whole menu is consistent.
         Instant now = Instant.now();
 
+        // The shelf is per branch, so only a branch menu can carry its verdict. The restaurant-wide
+        // menu (no branch chosen yet) says nothing — which is the same as "not sold out".
+        Map<Long, ItemAvailability> shelf = branch == null ? Map.of()
+                : stockDrawService.availability(restaurant, branch.getId(),
+                        items.stream().map(MenuItem::getId).toList());
+
         List<PublicCategory> publicCategories = categories.stream()
                 .map(category -> {
                     List<PublicItem> publicItems = itemsByCategory
                             .getOrDefault(category.getId(), List.of())
                             .stream()
-                            .map(item -> PublicItem.from(item, now))
+                            .map(item -> {
+                                ItemAvailability a = shelf.get(item.getId());
+                                return a == null ? PublicItem.from(item, now)
+                                        : PublicItem.from(item, now, a.soldOut(), a.remainingToday());
+                            })
                             .toList();
                     return PublicCategory.of(category, publicItems);
                 })

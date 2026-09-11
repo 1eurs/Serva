@@ -42,6 +42,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.cafeqr.restaurants.RestaurantService;
 import com.cafeqr.restaurants.domain.Restaurant;
+import com.cafeqr.stock.StockDrawService;
 import com.cafeqr.tables.domain.RestaurantTable;
 import com.cafeqr.tables.TableService;
 import org.springframework.data.domain.Page;
@@ -81,6 +82,7 @@ public class OrderService {
     private final LoyaltyService loyaltyService;
     private final PaymentService paymentService;
     private final PrintJobService printJobService;
+    private final StockDrawService stockDrawService;
     private final ObjectMapper objectMapper;
 
     public OrderService(OrderRepository orderRepository,
@@ -98,6 +100,7 @@ public class OrderService {
                         LoyaltyService loyaltyService,
                         PaymentService paymentService,
                         PrintJobService printJobService,
+                        StockDrawService stockDrawService,
                         ObjectMapper objectMapper) {
         this.orderRepository = orderRepository;
         this.restaurantService = restaurantService;
@@ -114,6 +117,7 @@ public class OrderService {
         this.loyaltyService = loyaltyService;
         this.paymentService = paymentService;
         this.printJobService = printJobService;
+        this.stockDrawService = stockDrawService;
         this.objectMapper = objectMapper;
     }
 
@@ -177,6 +181,9 @@ public class OrderService {
         }
 
         BigDecimal subtotal = addItems(order, restaurant, branch, request.items());
+        // The shelf gets its say only on a customer's order: a stale phone can still try to buy
+        // the croissant that went ten seconds ago, and this is where it is told.
+        stockDrawService.requireAvailable(restaurant, branch.getId(), order.getItems());
 
         BigDecimal vatAmount = computeVat(restaurant, subtotal);
         order.setSubtotal(subtotal);
@@ -192,6 +199,8 @@ public class OrderService {
         loyaltyService.applyRedemption(saved, request.redeemReward(), request.redeemItemId());
 
         if (counter) {
+            // Already accepted, so the shelf is spoken for now — the same moment accept() would.
+            stockDrawService.draw(saved);
             // Counter mode prints the ticket on arrival, and the queue is what makes that
             // survive the print station being asleep, reloading or off the Wi-Fi.
             printJobService.enqueueIfEnabled(saved);
@@ -268,6 +277,9 @@ public class OrderService {
         order.setTrackingToken(Tokens.random(18));
 
         Order saved = orderRepository.save(order);
+        // Opens accepted, so it draws on arrival. No availability check: the person at the
+        // counter is looking at the shelf, and the draw simply clamps at zero.
+        stockDrawService.draw(saved);
         eventLogService.recordOrderEvent(saved, saved.getStatus(), "Manual order (staff)");
         if (paid) {
             paymentService.markPaid(saved.getId(),
@@ -333,6 +345,7 @@ public class OrderService {
         Order order = loadGuarded(orderId);
         transition(order, OrderStatus.ACCEPTED);
         order.setAcceptedAt(Instant.now());
+        stockDrawService.draw(order);
         if (request != null && request.prepTimeMinutes() != null) {
             order.setPrepTimeMinutes(request.prepTimeMinutes());
         }
@@ -349,6 +362,7 @@ public class OrderService {
         Order order = loadGuarded(orderId);
         transition(order, OrderStatus.CANCELLED);
         order.setCancelledAt(Instant.now());
+        stockDrawService.restore(order); // a declined order was never drawn; this is a no-op then
         loyaltyService.onOrderCancelled(order); // return any reserved reward
         String trimmed = (reason == null || reason.isBlank()) ? null : reason.trim();
         order.setDeclineReason(trimmed);
@@ -403,6 +417,7 @@ public class OrderService {
         Order order = loadGuarded(orderId);
         transition(order, OrderStatus.CANCELLED);
         order.setCancelledAt(Instant.now());
+        stockDrawService.restore(order); // put back what accept took
         loyaltyService.onOrderCancelled(order); // return any reserved reward
         String trimmed = (reason == null || reason.isBlank()) ? null : reason.trim();
         if (trimmed != null) {

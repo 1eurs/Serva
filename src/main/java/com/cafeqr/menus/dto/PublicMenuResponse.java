@@ -105,16 +105,25 @@ public record PublicMenuResponse(
             String imageUrl,
             List<String> images,
             boolean available,
+            /** The shelf's verdict at this branch, right now. Independent of {@code available},
+             *  which is the owner's own switch and stays theirs. */
+            boolean soldOut,
+            /** How many can still go out today, when the owner has capped it. Null = no cap. */
+            Integer remainingToday,
             Integer preparationTimeMinutes,
             int displayOrder,
             List<PublicOptionGroup> optionGroups
     ) {
         public static PublicItem from(MenuItem i, Instant now) {
+            return from(i, now, false, null);
+        }
+
+        public static PublicItem from(MenuItem i, Instant now, boolean soldOut, Integer remainingToday) {
             BigDecimal salePrice = i.discountActive(now) ? i.effectivePrice(now) : null;
             return new PublicItem(i.getId(), i.getNameEn(), i.getNameAr(),
                     i.getDescriptionEn(), i.getDescriptionAr(), i.getPrice(), salePrice, i.getImageUrl(),
                     i.getImages().stream().map(MenuItemImage::getUrl).toList(),
-                    i.isAvailable(), i.getPreparationTimeMinutes(), i.getDisplayOrder(),
+                    i.isAvailable(), soldOut, remainingToday, i.getPreparationTimeMinutes(), i.getDisplayOrder(),
                     i.getOptionGroups().stream().map(PublicOptionGroup::from).toList());
         }
     }

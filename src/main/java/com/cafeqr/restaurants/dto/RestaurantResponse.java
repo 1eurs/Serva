@@ -21,6 +21,7 @@ public record RestaurantResponse(
         boolean vatEnabled,
         BigDecimal vatRate,
         boolean paymentMethodSelectionEnabled,
+        boolean hideWhenOutOfStock,
         String theme,
         String themeCustomJson,
         String receiptSettingsJson,
@@ -34,7 +35,7 @@ public record RestaurantResponse(
         return new RestaurantResponse(
                 r.getId(), r.getName(), r.getNameEn(), r.getNameAr(), r.getSlug(), r.getLogoUrl(), r.getPhone(), r.getEmail(),
                 r.getInstagramUrl(), r.getCurrency(), r.isVatEnabled(), r.getVatRate(),
-                r.isPaymentMethodSelectionEnabled(),
+                r.isPaymentMethodSelectionEnabled(), r.isHideWhenOutOfStock(),
                 r.getTheme(), r.getThemeCustomJson(),
                 r.getReceiptSettingsJson(), r.getMenuInfoJson(), r.isActive(),
                 r.getPlan(), r.getCreatedAt(), r.getUpdatedAt());

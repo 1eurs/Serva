@@ -93,6 +93,9 @@ public class RestaurantService {
         if (request.paymentMethodSelectionEnabled() != null) {
             restaurant.setPaymentMethodSelectionEnabled(request.paymentMethodSelectionEnabled());
         }
+        if (request.hideWhenOutOfStock() != null) {
+            restaurant.setHideWhenOutOfStock(request.hideWhenOutOfStock());
+        }
         return RestaurantResponse.from(restaurant);
     }
 

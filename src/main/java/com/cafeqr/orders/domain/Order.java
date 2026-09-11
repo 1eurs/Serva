@@ -114,6 +114,14 @@ public class Order extends BaseEntity {
     @Column(name = "cancelled_at")
     private Instant cancelledAt;
 
+    /**
+     * When this order's stock draw was made; null once it has been put back, or if it never
+     * happened. One mark for the whole draw — shelf and daily tally together — so a double
+     * accept or a double cancel moves nothing twice. See {@code StockDrawService}.
+     */
+    @Column(name = "stock_drawn_at")
+    private Instant stockDrawnAt;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id ASC")
     private List<OrderItem> items = new ArrayList<>();
@@ -353,6 +361,14 @@ public class Order extends BaseEntity {
 
     public void setCancelledAt(Instant cancelledAt) {
         this.cancelledAt = cancelledAt;
+    }
+
+    public Instant getStockDrawnAt() {
+        return stockDrawnAt;
+    }
+
+    public void setStockDrawnAt(Instant stockDrawnAt) {
+        this.stockDrawnAt = stockDrawnAt;
     }
 
     public List<OrderItem> getItems() {

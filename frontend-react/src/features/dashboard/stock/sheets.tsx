@@ -5,9 +5,9 @@ import { useConfirm } from '../../../lib/confirm';
 import { useI18n, pick } from '../../../lib/i18n';
 import { Money } from '../../../lib/Money';
 import { useToast } from '../../../lib/toast';
-import type { StockItemPayload, StockItemRow, StockUnit } from '../../../lib/types';
+import type { StockItemPayload, StockItemRow, StockUnit, StockUsageRow } from '../../../lib/types';
 import { fill } from './copy';
-import { UNITS, agoWords, parts, qty, unitWord, type Preset } from './units';
+import { UNITS, agoWords, daysWord, parts, qty, unitWord, type Preset } from './units';
 
 type T = (k: string) => string;
 
@@ -73,8 +73,8 @@ const STEPS: Record<StockUnit, number[]> = {
  * other true thing that can happen to a number and hiding it would leave a typo permanent.
  * The two are never one control: a delivery of 6 and a shelf holding 6 are different facts.
  */
-export function ItemSheet({ t, item, queryKey, onClose, onEdit }: {
-  t: T; item: StockItemRow; queryKey: unknown[]; onClose: () => void; onEdit: () => void;
+export function ItemSheet({ t, item, usage, queryKey, onClose, onEdit }: {
+  t: T; item: StockItemRow; usage?: StockUsageRow; queryKey: unknown[]; onClose: () => void; onEdit: () => void;
 }) {
   const { lang } = useI18n();
   const qc = useQueryClient();
@@ -146,6 +146,17 @@ export function ItemSheet({ t, item, queryKey, onClose, onEdit }: {
         <span>{t('onShelf')}</span>
         <b><i className="num">{on.n}</i> <em>{on.u}</em></b>
         <small>{when ? fill(t('updatedAgo'), { when }) : t('notCounted')}</small>
+        {/* Where it is going, worked out from sales rather than counts — which is why it can
+            speak for a tin nobody has recounted this week. Silent until something has sold. */}
+        {usage && usage.perDay > 0 && (
+          <small className="stk-pace">
+            {fill(t('usesPerDay'), { q: `${qty(usage.perDay, item.unit)} ${unitName}` })}
+            {' · '}
+            {usage.daysLeft != null && usage.daysLeft < 1
+              ? t('lessThanDay')
+              : fill(t('daysLeft'), { n: Math.floor(usage.daysLeft ?? 0), d: daysWord(Math.floor(usage.daysLeft ?? 0), lang) })}
+          </small>
+        )}
       </div>
 
       <div className="stk-tabs" role="tablist">

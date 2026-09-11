@@ -55,6 +55,14 @@ public class Restaurant extends BaseEntity implements BilingualNamed {
     @Column(name = "payment_method_selection_enabled", nullable = false)
     private boolean paymentMethodSelectionEnabled = false;
 
+    /**
+     * Take an item off the customer menu when the shelf row backing it reads zero. Off by
+     * default: until an owner trusts their counts, a stale zero must not cost them a sale.
+     * Daily limits are not behind this switch — typing "12 today" already said what you want.
+     */
+    @Column(name = "hide_when_out_of_stock", nullable = false)
+    private boolean hideWhenOutOfStock = false;
+
     @Column(name = "menu_theme", nullable = false, length = 40)
     private String theme = "onyx";
 
@@ -206,6 +214,14 @@ public class Restaurant extends BaseEntity implements BilingualNamed {
 
     public void setPaymentMethodSelectionEnabled(boolean paymentMethodSelectionEnabled) {
         this.paymentMethodSelectionEnabled = paymentMethodSelectionEnabled;
+    }
+
+    public boolean isHideWhenOutOfStock() {
+        return hideWhenOutOfStock;
+    }
+
+    public void setHideWhenOutOfStock(boolean hideWhenOutOfStock) {
+        this.hideWhenOutOfStock = hideWhenOutOfStock;
     }
 
     public String getTheme() {

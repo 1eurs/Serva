@@ -208,7 +208,11 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
             <div className="c-qty">
               <button type="button" aria-label={t('qtyMinus')} onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
               <span className="n num">{qty}</span>
-              <button type="button" aria-label={t('qtyPlus')} onClick={() => setQty((q) => q + 1)}>+</button>
+              {/* Capped at what can still go out today, so the cart never holds an order the
+                  server is bound to refuse. */}
+              <button type="button" aria-label={t('qtyPlus')}
+                disabled={item.remainingToday != null && qty >= item.remainingToday}
+                onClick={() => setQty((q) => (item.remainingToday != null ? Math.min(item.remainingToday, q + 1) : q + 1))}>+</button>
             </div>
             <button className="btn c-modal-add" disabled={!canAdd} onClick={submit}>
               {!sellable(item) ? t('soldout')

@@ -22,14 +22,14 @@ import './loyalty.css';
 
 const DICT: Dict = {
   ar: { table: 'طاولة', viewCart: 'عرض السلة', items: 'أصناف', cur: 'ر.ع', min: 'د', from: 'يبدأ من',
-        soldout: 'غير متوفر', unavailable: 'القائمة غير متاحة حالياً', retry: 'إعادة المحاولة', car: 'طلب من السيارة', added: 'أُضيف ✓', menuOnly: 'القائمة',
+        soldout: 'غير متوفر', left: 'بقي {n}', unavailable: 'القائمة غير متاحة حالياً', retry: 'إعادة المحاولة', car: 'طلب من السيارة', added: 'أُضيف ✓', menuOnly: 'القائمة',
         ordersPaused: 'الطلبات متوقفة مؤقتاً', ordersPausedSub: 'يمكنك تصفح القائمة، لكن هذا الفرع لا يستقبل طلبات جديدة حالياً.',
         browseHint: 'امسح رمز طاولتك أو رمز خدمة السيارة لإرسال طلب.',
         welcome: 'أهلاً بعودتك', usual: 'طلبك المعتاد', addUsual: '＋ أضف', lastOrderLbl: 'طلبك السابق', reorderLast: '↻ أضِفه للسلة', lastAdded: 'أُضيف طلبك السابق إلى السلة ✓',
         loyStamps: 'أختام', loyReady: 'مكافأتك جاهزة! 🎉', loyReadySub: 'استبدل مكافأتك المجانية عند الدفع', loyMinTag: 'الحد الأدنى',
         loyPickAny: 'اختر أي صنف:', loyRewardBadge: 'مكافأة الولاء', loyFreeBadge: 'مجاني بمكافأتك' },
   en: { table: 'Table', viewCart: 'View cart', items: 'items', cur: 'OMR', min: 'min', from: 'from',
-        soldout: 'Sold out', unavailable: 'Menu is unavailable right now', retry: 'Try again', car: 'Car order', added: 'Added ✓', menuOnly: 'Menu',
+        soldout: 'Sold out', left: '{n} left', unavailable: 'Menu is unavailable right now', retry: 'Try again', car: 'Car order', added: 'Added ✓', menuOnly: 'Menu',
         ordersPaused: 'Orders are paused', ordersPausedSub: 'You can browse the menu, but this branch is not accepting new orders right now.',
         browseHint: 'Scan your table’s QR or the car-service QR to place an order.',
         welcome: 'Welcome back', usual: 'Your usual', addUsual: '＋ Add', lastOrderLbl: 'Your last order', reorderLast: '↻ Add to cart', lastAdded: 'Your last order is in the cart ✓',
@@ -358,6 +358,11 @@ export default function MenuPage() {
                     {it.images && it.images.length > 1 && <span className="c-thumb-more">＋{it.images.length}</span>}
                   </button>
                   {!sellable(it) && <span className="c-badge">{t('soldout')}</span>}
+                  {/* A cap with a few left is worth a word — the last three cheesecakes sell
+                      themselves. Silent above five; a badge on every item is a badge on none. */}
+                  {sellable(it) && it.remainingToday != null && it.remainingToday <= 5 && (
+                    <span className="c-badge c-badge-left">{t('left').replace('{n}', String(it.remainingToday))}</span>
+                  )}
                   <div className="c-body">
                     <button className="c-body-btn" type="button" onClick={open}>
                       <h3>{pick(it, 'name', lang)}</h3>

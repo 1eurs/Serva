@@ -73,12 +73,17 @@ export interface PublicItem {
   id: number; nameEn: string; nameAr: string; descriptionEn?: string | null; descriptionAr?: string | null;
   price: number; salePrice?: number | null; // discounted base price when a discount is currently active
   imageUrl?: string | null; images?: string[] | null; available: boolean;
+  /** The shelf's verdict at this branch right now — a linked tin at zero with the café's switch
+   *  on, or a daily cap reached. Independent of `available`, which stays the owner's own. */
+  soldOut?: boolean;
+  /** How many can still go out today, when the owner has capped it. Null/absent = no cap. */
+  remainingToday?: number | null;
   preparationTimeMinutes?: number | null; displayOrder: number; optionGroups?: PublicOptionGroup[];
 }
 
-/** Can a customer order this right now? The café's own switch is the whole answer. */
-export const sellable = (i: { available: boolean } | undefined | null): boolean =>
-  !!i && i.available;
+/** Can a customer order this right now? The café's own switch, and then the shelf's say. */
+export const sellable = (i: { available: boolean; soldOut?: boolean } | undefined | null): boolean =>
+  !!i && i.available && !i.soldOut;
 export interface PublicCategory {
   id: number; nameEn: string; nameAr: string; descriptionEn?: string | null; descriptionAr?: string | null;
   displayOrder: number; items: PublicItem[];
@@ -280,6 +285,8 @@ export interface Restaurant {
   /** House card above the menu categories — see menuInfo.ts. */
   menuInfoJson?: string | null;
   paymentMethodSelectionEnabled: boolean;
+  /** Hide a menu item from customers when the shelf row backing it reads zero. */
+  hideWhenOutOfStock?: boolean;
   active: boolean; plan?: Plan; createdAt?: string;
 }
 export type BillingCycle = 'ONE_TIME' | 'MONTHLY' | 'YEARLY';
@@ -444,4 +451,32 @@ export interface StockItemPayload {
   quantity?: number;
   reorderPoint?: number | null;
   unitPrice?: number | null;
+}
+
+/** How one menu item meets the shelf at one branch. Mirrors MenuStockDtos.RuleResponse. */
+export interface MenuStockRule {
+  menuItemId: number;
+  branchId: number;
+  /** One sale draws one of this. Null = not backed by the shelf. */
+  stockItemId?: number | null;
+  /** At most this many a café day. Null = no cap. */
+  dailyLimit?: number | null;
+}
+
+/** One ingredient of one menu item at one branch. Mirrors MenuStockDtos.RecipeLineResponse. */
+export interface RecipeLineRow {
+  id: number;
+  menuItemId: number;
+  stockItemId: number;
+  quantity: number;
+  unit: StockUnit;
+}
+
+/** What a shelf row is being used at. Mirrors MenuStockDtos.UsageRow. */
+export interface StockUsageRow {
+  stockItemId: number;
+  used: number;
+  perDay: number;
+  /** Null when nothing has been sold against it in the window. */
+  daysLeft?: number | null;
 }

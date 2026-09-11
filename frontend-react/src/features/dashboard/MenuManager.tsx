@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, upload, ApiError } from '../../lib/api';
-import { useAuth } from '../../lib/auth';
+import { useAuth, can } from '../../lib/auth';
 import { useI18n, useT, pick, nameOf, Ltr, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { useConfirm } from '../../lib/confirm';
@@ -10,6 +10,7 @@ import type { BranchResponse, CategoryResponse, MenuItemResponse, Restaurant } f
 import { sellable } from '../../lib/types';
 import { ensureGoogleFonts } from '../../lib/fonts';
 import { MenuDecorLayer } from '../customer/MenuDecor';
+import { StockRules, saveStockDraft, type StockDraft } from './stock/StockRules';
 import { parseMenuInfo, houseFacts } from '../customer/menuInfo';
 import { HouseCardToggle } from './RestaurantProfile';
 import {
@@ -165,7 +166,8 @@ type DeleteTarget =
   | { type: 'category'; id: number; name: string; itemCount: number }
   | { type: 'item'; id: number; name: string };
 
-export default function MenuManager() {
+/** `branchId` is the branch the shell has selected: the stock rules on an item are per branch. */
+export default function MenuManager({ branchId }: { branchId?: number }) {
   const { user } = useAuth();
   const rid = user!.restaurantId!;
   const { lang } = useI18n();
@@ -284,7 +286,7 @@ export default function MenuManager() {
       )}
 
       {catModal && <CategoryEditor rid={rid} cat={catModal === 'new' ? null : catModal} onClose={() => setCatModal(null)} onDone={() => { invalidate(); setCatModal(null); }} />}
-      {itemModal && <ItemEditor rid={rid} cats={cats} item={'id' in itemModal ? itemModal : null} defaultCat={'categoryId' in itemModal ? itemModal.categoryId : undefined} onClose={() => setItemModal(null)} onDone={() => { invalidate(); setItemModal(null); }} />}
+      {itemModal && <ItemEditor rid={rid} branchId={branchId} cats={cats} item={'id' in itemModal ? itemModal : null} defaultCat={'categoryId' in itemModal ? itemModal.categoryId : undefined} onClose={() => setItemModal(null)} onDone={() => { invalidate(); setItemModal(null); }} />}
     </div>
   );
 }
@@ -923,9 +925,16 @@ function CategoryEditor({ rid, cat, onClose, onDone }: { rid: number; cat: Categ
   );
 }
 
-function ItemEditor({ rid, cats, item, defaultCat, onClose, onDone }:
-  { rid: number; cats: CategoryResponse[]; item: MenuItemResponse | null; defaultCat?: number; onClose: () => void; onDone: () => void }) {
+function ItemEditor({ rid, branchId, cats, item, defaultCat, onClose, onDone }:
+  { rid: number; branchId?: number; cats: CategoryResponse[]; item: MenuItemResponse | null; defaultCat?: number; onClose: () => void; onDone: () => void }) {
   const t = useT(DICT); const toast = useToast();
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  // The shelf's corner of the editor needs a branch to be per-branch about, and a person who
+  // can see the shelf to pick from it. Without either it is simply not there, and a save
+  // leaves whatever rules exist exactly alone.
+  const shelfHere = branchId != null && can(user, 'STOCK');
+  const [stockDraft, setStockDraft] = useState<StockDraft | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const MAX_PHOTOS = 6;
@@ -1006,9 +1015,26 @@ function ItemEditor({ rid, cats, item, defaultCat, onClose, onDone }:
         })(),
       };
       if (item) body.removeImage = hadImage && f.images.length === 0;
-      return item ? api.patch(`/api/menu/items/${item.id}`, body) : api.post('/api/menu/items', { restaurantId: rid, ...body });
+      return item ? api.patch<MenuItemResponse>(`/api/menu/items/${item.id}`, body)
+        : api.post<MenuItemResponse>('/api/menu/items', { restaurantId: rid, ...body });
     },
-    onSuccess: onDone, onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
+    onSuccess: async (saved) => {
+      // The item is saved; now the shelf's answers, which needed its id. A draft that never
+      // loaded is skipped, never sent empty.
+      if (shelfHere && stockDraft) {
+        try {
+          await saveStockDraft(branchId!, saved.id, stockDraft);
+          qc.invalidateQueries({ queryKey: ['menu-stock', branchId] });
+          qc.invalidateQueries({ queryKey: ['recipes', branchId] });
+          qc.invalidateQueries({ queryKey: ['stock-usage', branchId] });
+        } catch (e) {
+          toast(e instanceof ApiError ? e.message : 'Error');
+          return;   // the item saved; the editor stays open so the rules can be retried
+        }
+      }
+      onDone();
+    },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
 
   // Live discounted price + validity, mirroring the server's rules (percent < 100, sale < price,
@@ -1099,6 +1125,10 @@ function ItemEditor({ rid, cats, item, defaultCat, onClose, onDone }:
         <div className="field"><label>{t('descAr')}</label><input value={f.descriptionAr} onChange={(e) => set('descriptionAr', e.target.value)} /></div>
         <div className="field"><label>{t('descEn')}</label><input value={f.descriptionEn} onChange={(e) => set('descriptionEn', e.target.value)} /></div>
         <label className="checkrow"><input type="checkbox" checked={f.available} onChange={(e) => set('available', e.target.checked)} /> {t('available')}</label>
+
+        {shelfHere && (
+          <StockRules branchId={branchId!} menuItemId={item?.id ?? null} draft={stockDraft} onChange={setStockDraft} />
+        )}
 
         <div className="optedit">
           <div className="optedit-hd">

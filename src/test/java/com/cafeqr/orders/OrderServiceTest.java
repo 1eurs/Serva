@@ -67,6 +67,7 @@ class OrderServiceTest {
     @Mock private LoyaltyService loyaltyService;
     @Mock private PaymentService paymentService;
     @Mock private com.cafeqr.orders.print.PrintJobService printJobService;
+    @Mock private com.cafeqr.stock.StockDrawService stockDrawService;
 
     private OrderService orderService;
 
@@ -75,7 +76,7 @@ class OrderServiceTest {
         orderService = new OrderService(orderRepository, restaurantService, branchService, tableService,
                 menuService, accessGuard, notificationService, streamService, events, customerService,
                 otpService, eventLogService, loyaltyService, paymentService,
-                printJobService, new ObjectMapper());
+                printJobService, stockDrawService, new ObjectMapper());
         lenient().when(otpService.isPhoneTokenValid(any(), any())).thenReturn(true);
     }
 

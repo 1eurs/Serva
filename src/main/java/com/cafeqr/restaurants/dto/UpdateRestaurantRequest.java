@@ -25,5 +25,7 @@ public record UpdateRestaurantRequest(
         @Size(min = 3, max = 3) String currency,
         Boolean vatEnabled,
         @DecimalMin("0.0") @DecimalMax("100.0") BigDecimal vatRate,
-        Boolean paymentMethodSelectionEnabled
+        Boolean paymentMethodSelectionEnabled,
+        /** Hide a menu item from customers when the shelf row backing it reads zero. */
+        Boolean hideWhenOutOfStock
 ) {}

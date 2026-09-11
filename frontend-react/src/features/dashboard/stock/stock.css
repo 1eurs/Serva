@@ -375,7 +375,7 @@
   border-radius: 8px; background: var(--accent-tint);
   color: var(--accent-text, var(--ink)); font-size: 12.5px; font-weight: 700;
 }
-.stk-hint { margin: -4px 0 0; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+.stk-hint { margin: -4px 0 0; font-size: 11.5px; font-style: normal; color: var(--muted); line-height: 1.5; }
 
 .stk-else {
   display: flex; gap: 14px; flex-wrap: wrap;
@@ -403,3 +403,54 @@ html[data-posture="counter"] .stk-qty b { font-size: 31px; }
   .stk-fill { transition: none; }
   .stk-tile, .stk-tile:hover { transition: none; transform: none; }
 }
+
+/* ---------------------------------------------------------------- the pace line */
+
+.stk-now .stk-pace { margin-block-start: 4px; color: var(--muted); }
+
+/* ---------------------------------------------------------------- rules, inside the menu item editor
+   The editor's own chrome (.field, .checkrow, .optedit) is the house style; this section
+   borrows its rhythm and adds only what a select and a three-part ingredient row need. */
+
+.stk-rules {
+  display: flex; flex-direction: column; gap: 14px;
+  margin-block: 16px 4px; padding: 14px 14px 16px;
+  border: var(--bw-hair) solid var(--line-2); border-radius: 10px;
+  background: var(--surface-2);
+}
+.stk-rules-hd { display: flex; flex-direction: column; gap: 2px; }
+.stk-rules-hd b { font-size: 13.5px; }
+.stk-rules-hd span { font-size: 11.5px; color: var(--muted); }
+.stk-rules .stk-f > .stk-hint { margin: 0; }
+.stk-rules .stk-lands { margin-block-start: 6px; }
+
+.stk-select {
+  flex: 1; min-inline-size: 0; min-block-size: var(--tap); padding: 8px 10px;
+  border: var(--bw) solid var(--keyline); border-radius: 8px;
+  background: var(--bg-2); color: var(--ink);
+  font-family: var(--font-ar); font-size: var(--fs-field); cursor: pointer;
+}
+.stk-select:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+.stk-select:disabled { opacity: .55; cursor: default; }
+
+/* One ingredient: what, how much, in which unit, and a way to take it off. The tin gets the
+   room; the figure and the unit take what they need. */
+.stk-line {
+  display: grid; grid-template-columns: 1fr 5.5rem 5.5rem auto; gap: var(--tap-gap, 8px);
+  align-items: center;
+}
+.stk-line input.num {
+  min-inline-size: 0; min-block-size: var(--tap); padding: 8px 10px;
+  border: var(--bw) solid var(--keyline); border-radius: 8px;
+  background: var(--bg-2); color: var(--ink);
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-field);
+}
+.stk-line input.num:focus-visible { outline: none; box-shadow: var(--focus-shadow); }
+.stk-unit-pick { flex: 0 0 auto; }
+@container (max-width: 26rem) {
+  .stk-line { grid-template-columns: 1fr 4.5rem 4.5rem auto; }
+}
+
+/* ---------------------------------------------------------------- settings */
+
+.stk-set-note { display: block; margin-block-start: 4px; font-size: 11px; color: var(--faint); }
