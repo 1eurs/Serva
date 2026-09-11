@@ -18,6 +18,14 @@ const DICT: Dict = {
         min: 'min', prep: 'Prep time', qtyMinus: 'Decrease quantity', qtyPlus: 'Increase quantity' },
 };
 
+// Hoisted so an item with no option groups keeps one array identity: inline `?? []` handed
+// the price and selection memos a new array every render, so neither ever hit its cache.
+const NO_GROUPS: NonNullable<PublicItem['optionGroups']> = [];
+
+/** A photo filename may hold a quote or a backslash; either one ends the CSS url() early. */
+const cssUrl = (src: string) =>
+  `url("${src.replace(/["\\]/g, (c) => '%' + c.charCodeAt(0).toString(16))}")`;
+
 interface Props {
   item: PublicItem;
   restaurantSlug: string;
@@ -38,6 +46,16 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
   const [multi, setMulti] = useState<Record<number, Set<number>>>({});
   const sentViewRef = useRef(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  // Which photo is in view. The dots used to be decoration — every one of them lit, whatever
+  // the customer had swiped to — so a four-photo cake looked like a one-photo cake.
+  // scrollLeft runs negative in RTL, hence the abs().
+  const [slide, setSlide] = useState(0);
+  const onSliderScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    if (el.clientWidth === 0) return;
+    const i = Math.round(Math.abs(el.scrollLeft) / el.clientWidth);
+    setSlide((cur) => (cur === i ? cur : i));
+  };
 
   // Fire ITEM_VIEW once when the modal opens — feeds the Pro conversion radar + funnel.
   useEffect(() => {
@@ -79,7 +97,7 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onClose]);
 
-  const groups = item.optionGroups ?? [];
+  const groups = item.optionGroups ?? NO_GROUPS;
   // Nothing is chosen until the customer chooses it. This used to pre-select the first option of
   // an optional group "so the customer sees a default price" — which, on a latte whose first
   // option is Almond Milk (+0.300), made every latte an almond latte with no way back to regular.
@@ -142,14 +160,14 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
         <div className="c-modal-scroll">
           {photos.length > 0 ? (
             <div className="c-slider">
-              <div className="c-slider-track">
+              <div className="c-slider-track" onScroll={onSliderScroll}>
                 {photos.map((src, i) => (
-                  <div className="c-slider-slide" key={i} style={{ backgroundImage: `url('${src}')` }} />
+                  <div className="c-slider-slide" key={i} style={{ backgroundImage: cssUrl(src) }} />
                 ))}
               </div>
               {photos.length > 1 && (
-                <div className="c-slider-dots">
-                  {photos.map((_, i) => <span key={i} />)}</div>
+                <div className="c-slider-dots" aria-hidden="true">
+                  {photos.map((_, i) => <span key={i} className={i === slide ? 'on' : ''} />)}</div>
               )}
             </div>
           ) : (
@@ -228,7 +246,7 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
             <button className="btn c-modal-add" disabled={!canAdd} onClick={submit}>
               {!sellable(item) ? t('soldout')
                 : missingRequired ? t('choose')
-                : <>{t('add')} · <Money value={lineTotal} className="num" /></>}
+                : <><span className="c-modal-add-lbl">{t('add')}</span><Money value={lineTotal} className="num" /></>}
             </button>
           </div>
         )}

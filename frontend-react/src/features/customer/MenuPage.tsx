@@ -22,19 +22,19 @@ import './loyalty.css';
 
 const DICT: Dict = {
   ar: { table: 'طاولة', viewCart: 'عرض السلة', items: 'أصناف', cur: 'ر.ع', min: 'د', from: 'يبدأ من',
-        soldout: 'غير متوفر', left: 'بقي {n}', unavailable: 'القائمة غير متاحة حالياً', retry: 'إعادة المحاولة', car: 'طلب من السيارة', added: 'أُضيف ✓', menuOnly: 'القائمة',
+        soldout: 'غير متوفر', left: 'بقي {n}', loading: 'جارٍ تحميل القائمة…', unavailable: 'القائمة غير متاحة حالياً', retry: 'إعادة المحاولة', car: 'طلب من السيارة', added: 'أُضيف ✓', menuOnly: 'القائمة',
         ordersPaused: 'الطلبات متوقفة مؤقتاً', ordersPausedSub: 'يمكنك تصفح القائمة، لكن هذا الفرع لا يستقبل طلبات جديدة حالياً.',
         browseHint: 'امسح رمز طاولتك أو رمز خدمة السيارة لإرسال طلب.',
         welcome: 'أهلاً بعودتك', usual: 'طلبك المعتاد', addUsual: '＋ أضف', lastOrderLbl: 'طلبك السابق', reorderLast: '↻ أضِفه للسلة', lastAdded: 'أُضيف طلبك السابق إلى السلة ✓',
         loyStamps: 'أختام', loyReady: 'مكافأتك جاهزة! 🎉', loyReadySub: 'استبدل مكافأتك المجانية عند الدفع', loyMinTag: 'الحد الأدنى',
-        loyPickAny: 'اختر أي صنف:', loyRewardBadge: 'مكافأة الولاء', loyFreeBadge: 'مجاني بمكافأتك' },
+        loyPickAny: 'اختر أي صنف:', qtyMinus: 'إنقاص الكمية', qtyPlus: 'زيادة الكمية', loyRewardBadge: 'مكافأة الولاء', loyFreeBadge: 'مجاني بمكافأتك' },
   en: { table: 'Table', viewCart: 'View cart', items: 'items', cur: 'OMR', min: 'min', from: 'from',
-        soldout: 'Sold out', left: '{n} left', unavailable: 'Menu is unavailable right now', retry: 'Try again', car: 'Car order', added: 'Added ✓', menuOnly: 'Menu',
+        soldout: 'Sold out', left: '{n} left', loading: 'Loading the menu…', unavailable: 'Menu is unavailable right now', retry: 'Try again', car: 'Car order', added: 'Added ✓', menuOnly: 'Menu',
         ordersPaused: 'Orders are paused', ordersPausedSub: 'You can browse the menu, but this branch is not accepting new orders right now.',
         browseHint: 'Scan your table’s QR or the car-service QR to place an order.',
         welcome: 'Welcome back', usual: 'Your usual', addUsual: '＋ Add', lastOrderLbl: 'Your last order', reorderLast: '↻ Add to cart', lastAdded: 'Your last order is in the cart ✓',
         loyStamps: 'stamps', loyReady: 'Your reward is ready! 🎉', loyReadySub: 'Redeem your free reward at checkout', loyMinTag: 'min order',
-        loyPickAny: 'Pick any:', loyRewardBadge: 'Loyalty reward', loyFreeBadge: 'Free with your reward' },
+        loyPickAny: 'Pick any:', qtyMinus: 'Decrease quantity', qtyPlus: 'Increase quantity', loyRewardBadge: 'Loyalty reward', loyFreeBadge: 'Free with your reward' },
 };
 
 const fallbackThumb = (it: PublicItem) => {
@@ -77,7 +77,10 @@ export default function MenuPage() {
 
   const cartKey = cartKeyOf(slug, bId, token, orderType);
   const cart = useCart(cartKey);
-  const { add, bump } = useCartStore();
+  // Select the two actions, not the whole store: an unselected useCartStore() subscribes the
+  // menu to every cart in localStorage, so another table's cart re-rendered this one.
+  const add = useCartStore((s) => s.add);
+  const bump = useCartStore((s) => s.bump);
   const toast = useToast();
   const [openItem, setOpenItem] = useState<PublicItem | null>(null);
   const fctx = { restaurantSlug: slug, branchId: bId, qrTableToken: token };
@@ -167,6 +170,7 @@ export default function MenuPage() {
   };
 
   const count = cart.reduce((s, l) => s + l.qty, 0);
+  const cartbarShown = count > 0 && orderable;
   const subtotal = cart.reduce((s, l) => {
     const it = itemsById.get(l.id);
     return s + (it ? lineUnitPrice(it, l.selectedOptions) : 0) * l.qty;
@@ -200,7 +204,13 @@ export default function MenuPage() {
 
   const gotoCat = (id: number) => document.getElementById('cat-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-  if (isLoading) return <Frame><div className="center"><div className="spinner" /></div></Frame>;
+  if (isLoading) return (
+    <Frame>
+      <div className="center" role="status">
+        <div className="spinner" /><span className="sr-only">{t('loading')}</span>
+      </div>
+    </Frame>
+  );
   if (isError || !data) {
     const msg = error instanceof ApiError ? error.message : t('unavailable');
     return (
@@ -346,8 +356,12 @@ export default function MenuPage() {
               // priority; everything below the fold lazy-loads as the customer scrolls.
               const eager = ci === 0 && idx < 4;
               const open = () => setOpenItem(it);
+              // The rise is a welcome, not a queue: the stagger stops after the first handful.
+              // Uncapped, item 25 of a long category sat at opacity 0 for a second and a half —
+              // a customer scrolling fast scrolled into nothing.
               return (
-                <article className={'c-item' + (sellable(it) ? '' : ' out')} style={{ animationDelay: `${idx * 60}ms` }} key={it.id}>
+                <article className={'c-item' + (sellable(it) ? '' : ' out')}
+                  style={{ animationDelay: `${Math.min(idx, 6) * 60}ms` }} key={it.id}>
                   <button className="c-thumb" type="button" onClick={open}
                     style={it.imageUrl ? undefined : fallbackThumb(it)} aria-label={pick(it, 'name', lang)}>
                     {it.imageUrl
@@ -396,9 +410,13 @@ export default function MenuPage() {
                             </button>
                           : noOptLine
                             ? <div className="c-qty">
-                                <button onClick={() => addItem(it.id)}>+</button>
+                                {/* Same order as the modal's stepper — the two used to run
+                                    opposite ways, so the button that added on the card
+                                    removed in the picker. Minus first mirrors correctly
+                                    in both directions. */}
+                                <button aria-label={t('qtyMinus')} onClick={() => bump(cartKey, String(it.id), -1)}>−</button>
                                 <span className="n num">{noOptLine.qty}</span>
-                                <button onClick={() => bump(cartKey, String(it.id), -1)}>−</button>
+                                <button aria-label={t('qtyPlus')} onClick={() => addItem(it.id)}>+</button>
                               </div>
                             : <button className="c-add" onClick={() => addItem(it.id)} aria-label="add">+</button>}
                     </div>
@@ -411,12 +429,21 @@ export default function MenuPage() {
         <div className="c-bottom-spacer" />
       </main>
 
-      <div className={'c-cartbar' + (count > 0 && orderable ? ' show' : '')} onClick={() => nav('/cart')}>
-        <div className="ico">🛒<span className="count">{count}</span></div>
-        <div className="lbl"><b>{t('viewCart')}</b><span>{count} {t('items')}</span></div>
+      {/* The menu's primary action, so it is a real button: tabbable, Enter/Space, focus ring.
+          Off-screen (empty cart) it is disabled, which takes it out of the tab order too —
+          a keyboard customer never tabs into a bar they cannot see. */}
+      <button
+        type="button"
+        className={'c-cartbar' + (cartbarShown ? ' show' : '')}
+        disabled={!cartbarShown}
+        aria-hidden={!cartbarShown}
+        onClick={() => nav('/cart')}
+      >
+        <span className="ico" aria-hidden="true">🛒<span className="count" key={count}>{count}</span></span>
+        <span className="lbl"><b>{t('viewCart')}</b><span>{count} {t('items')}</span></span>
         <Money value={subtotal} className="total num" />
-        <div className="go">‹</div>
-      </div>
+        <span className="go" aria-hidden="true">‹</span>
+      </button>
 
       {openItem && (
         <ItemDetailModal

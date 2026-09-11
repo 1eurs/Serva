@@ -48,7 +48,7 @@
   background:var(--glass);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
 .c-nav::-webkit-scrollbar{display:none}
 .c-nav button{white-space:nowrap;border:1px solid var(--line-2);background:transparent;color:var(--muted);font-family:var(--font-ar);
-  font-weight:500;font-size:13.5px;padding:8px 12px;border-radius:999px;cursor:pointer;transition:.22s;flex:0 0 auto;display:inline-flex;align-items:center;gap:7px}
+  font-weight:500;font-size:13.5px;padding:8px 12px;border-radius:999px;cursor:pointer;transition:background-color .22s,color .22s,border-color .22s;flex:0 0 auto;display:inline-flex;align-items:center;gap:7px}
 .c-nav button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
 .c-nav button em{min-width:20px;height:20px;border-radius:999px;display:grid;place-items:center;padding:0 6px;background:var(--surface);color:var(--muted);font-family:var(--font-mono);font-style:normal;font-size:11px;border:1px solid var(--line)}
 .c-nav button.on em{background:color-mix(in srgb,var(--accent-ink) 14%,transparent);color:var(--accent-ink);border-color:color-mix(in srgb,var(--accent-ink) 24%,transparent)}
@@ -116,6 +116,7 @@ a.c-fact:hover{border-color:var(--accent);color:var(--text)}
 /* cart bar — a contrast pill that each theme tunes via --cart-* (defaults below
    reproduce the original always-dark lime pill so the CTA stays legible). */
 .c-cartbar{position:absolute;inset-inline:14px;bottom:14px;z-index:30;display:flex;align-items:center;gap:12px;
+  width:auto;font-family:inherit;text-align:start;appearance:none;
   padding:11px 14px 11px 11px;border-radius:18px;cursor:pointer;color:var(--cart-ink,#F3F5F0);
   background:var(--cart-bg,rgba(21,23,28,.92));backdrop-filter:blur(18px);border:1px solid var(--cart-line,rgba(255,255,255,.14));box-shadow:0 16px 36px -16px rgba(0,0,0,.6);
   transform:translateY(150%);transition:transform .45s cubic-bezier(.2,.8,.2,1)}
@@ -200,7 +201,7 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
 .field input[aria-invalid="true"]{border-color:var(--bad,#ff6b5a)}
 
 .c-seg{display:flex;gap:8px}
-.c-seg button{flex:1;padding:11px;border-radius:12px;border:1px solid var(--line-2);background:transparent;font-family:var(--font-ar);font-weight:600;color:var(--muted);cursor:pointer;transition:.2s}
+.c-seg button{flex:1;padding:11px;border-radius:12px;border:1px solid var(--line-2);background:transparent;font-family:var(--font-ar);font-weight:600;color:var(--muted);cursor:pointer;transition:background-color .2s,color .2s,border-color .2s}
 .c-seg button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 
 .c-totals{margin-top:6px;padding:16px;border-radius:var(--r-md);background:var(--surface);border:1px solid var(--line)}
@@ -257,7 +258,7 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
 .car-colors{display:flex;flex-wrap:wrap;gap:8px}
 .car-sw{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:999px;
   border:1px solid var(--line-2);background:var(--bg-2);color:var(--muted);
-  font-family:var(--font-ar);font-size:12.5px;font-weight:600;cursor:pointer;transition:.18s}
+  font-family:var(--font-ar);font-size:12.5px;font-weight:600;cursor:pointer;transition:background-color .18s,color .18s,border-color .18s,box-shadow .18s}
 .car-sw .dot{width:15px;height:15px;border-radius:50%;background:var(--sw);flex:0 0 auto;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}
 .car-sw.light .dot{box-shadow:inset 0 0 0 1px rgba(0,0,0,.32)}
 @media (hover:hover){.car-sw:hover{color:var(--text);border-color:var(--line)}}
@@ -279,8 +280,8 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
 .c-stepper::before{content:"";position:absolute;inset-inline-start:23px;top:10px;bottom:10px;width:2px;background:var(--line-2)}
 .c-step{position:relative;display:flex;gap:16px;padding:11px 0;align-items:center}
 .c-step .dot{position:relative;z-index:1;width:32px;height:32px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;
-  background:var(--bg-2);border:1px solid var(--line-2);color:var(--faint);font-size:14px;font-family:var(--font-mono);transition:.4s}
-.c-step .txt b{display:block;font-size:15px;font-weight:600;color:var(--faint);transition:.3s}
+  background:var(--bg-2);border:1px solid var(--line-2);color:var(--faint);font-size:14px;font-family:var(--font-mono);transition:background-color .4s,border-color .4s,color .4s,box-shadow .4s,transform .4s}
+.c-step .txt b{display:block;font-size:15px;font-weight:600;color:var(--faint);transition:color .3s}
 .c-step.done .dot{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .c-step.done .txt b{color:var(--text)}
 .c-step.active .dot{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);box-shadow:0 0 0 6px var(--accent-glow);transform:scale(1.1)}
@@ -359,7 +360,7 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
 .c-slider-empty .glyph{font-size:64px;font-weight:700;color:var(--faint)}
 .c-slider-dots{position:absolute;bottom:10px;inset-inline:0;display:flex;gap:6px;justify-content:center;align-items:center;pointer-events:none}
 .c-slider-dots span{width:6px;height:6px;border-radius:999px;background:rgba(255,255,255,.5);transition:width .2s,background .2s}
-/* The active dot is the first child by default — kept simple; full sync needs scroll listening. */
+.c-slider-dots span.on{width:16px;background:#fff}
 
 .c-modal-title{font-family:var(--font-display);font-weight:700;font-size:21px;line-height:1.25;color:var(--text)}
 .c-modal-sub{font-family:var(--font-mono);font-size:12px;color:var(--faint);margin-top:3px;
@@ -394,9 +395,11 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
 .c-modal-foot{display:flex;align-items:center;gap:12px;padding:14px 18px;
   border-top:1px solid var(--line-2);background:var(--bg-2)}
 .c-modal-foot .c-qty{flex:0 0 auto}
-.c-modal-add{flex:1;height:46px;border:0;border-radius:var(--r-ctl,13px);
+.c-modal-add{flex:1;min-height:46px;border:0;border-radius:var(--r-ctl,13px);
   background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:15px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;gap:5px;font-family:var(--font-ar)}
+.c-modal-add{flex-wrap:wrap;gap:4px 8px;line-height:1.25;padding-inline:10px}
+.c-modal-add-lbl{white-space:nowrap}
 .c-modal-add .num{font-family:var(--font-mono)}
 .c-modal-add:disabled{background:var(--surface-2);color:var(--faint);cursor:not-allowed}
 
@@ -427,7 +430,32 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
    for tablets would be a redesign, not a touch fix. */
 html[data-input="touch"] .c-nav button,
 html[data-input="touch"] .c-opt,
+/* the house card's phone / Instagram / hours chips — tappable, so they meet the floor
+   too; the plain <span> facts next to them are text and stay the size they read at */
+html[data-input="touch"] a.c-fact,
 html[data-input="touch"] .car-sw{min-height:var(--tap)}
 html[data-input="touch"] .c-add,
 html[data-input="touch"] .c-modal-x{min-width:var(--tap);min-height:var(--tap)}
 html[data-input="touch"] .c-qty button{min-width:var(--tap);min-height:var(--tap)}
+
+/* ---- focus ----
+   Only inputs had a ring; every button fell back to the UA outline, which all but
+   vanishes against the darker menu papers. One ring, in the venue's own accent. */
+.phone :is(button,a,[tabindex]):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* The cart bar slides up on the first add and then sits still, so adds two and three
+   landed with no motion anywhere. The count bumps — keyed on the number in MenuPage,
+   so it replays on every change. */
+@keyframes c-count-pop{0%{transform:scale(1)}38%{transform:scale(1.32)}100%{transform:scale(1)}}
+.c-cartbar .count{animation:c-count-pop .32s cubic-bezier(.34,1.56,.64,1)}
+
+/* ---- reduced motion ----
+   A menu that rises, pulses and slides is a nice welcome and a problem for anyone who
+   asked their phone to stop moving things. Entrances land instantly; loops stop. */
+@media (prefers-reduced-motion:reduce){
+  .c-item{animation:none;opacity:1;transform:none}
+  .c-modal-card{animation:none}
+  .c-pulse{animation:none}
+  .c-cartbar .count{animation:none}
+  .c-cartbar{transition:none}
+}

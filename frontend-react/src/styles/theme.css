@@ -287,7 +287,7 @@ a{color:inherit;text-decoration:none}
 
 /* ---- language toggle ---- */
 .lang{display:inline-flex;background:var(--surface);border:1px solid var(--line-2);border-radius:999px;padding:3px;gap:2px;flex:0 0 auto}
-.lang button{font-family:var(--font-mono);font-weight:600;font-size:12px;border:0;background:transparent;color:var(--muted);padding:6px 12px;min-height:var(--tap-sm);border-radius:999px;cursor:pointer;transition:.2s}
+.lang button{font-family:var(--font-mono);font-weight:600;font-size:12px;border:0;background:transparent;color:var(--muted);padding:6px 12px;min-height:var(--tap-sm);border-radius:999px;cursor:pointer;transition:background-color .2s,color .2s}
 .lang button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
 
 /* ---- chips ---- */
@@ -299,6 +299,9 @@ a{color:inherit;text-decoration:none}
 
 /* ---- toast ---- */
 .toast{position:fixed;inset-inline:0;bottom:calc(24px + env(safe-area-inset-bottom));z-index:600;display:flex;justify-content:center;pointer-events:none}
+/* "Added ✓" used to land squarely on top of the cart bar, hiding the total it was
+   confirming. When the bar is up, the toast sits above it. */
+body:has(.c-cartbar.show) .toast{bottom:calc(90px + env(safe-area-inset-bottom))}
 .toast .pill{background:var(--bg-2);border:1px solid var(--line-2);color:var(--text);font-size:13px;font-weight:600;padding:10px 18px;border-radius:999px;box-shadow:var(--shadow-sm)}
 .toast .pill b{color:var(--accent-text)}
 
@@ -366,3 +369,14 @@ html[dir] .drawer.open{transform:none;visibility:visible}
 [data-skin="pro"] .confirm-card .btn.danger{border-width:1px}
 
 @keyframes fade{from{opacity:0}to{opacity:1}}
+
+/* Names a spinner or a state change for a screen reader without showing anything. */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip-path:inset(50%);white-space:nowrap;border:0}
+
+/* A phone set to reduce motion should get a still app: entrances arrive, loops hold.
+   The spinner keeps turning — a frozen spinner reads as a hung page — but slower. */
+@media (prefers-reduced-motion:reduce){
+  .modal-card,.drawer,.toast .pill{animation:none}
+  .spinner{animation-duration:1.6s}
+}

@@ -105,7 +105,11 @@ export const useCartStore = create<CartState>()(
   ),
 );
 
-export const useCart = (token: string): CartLine[] => useCartStore((s) => s.carts[token] || []);
+// One shared empty array: `|| []` built a fresh one on every selector run, so an empty
+// cart never compared equal to itself and re-rendered the menu on unrelated store writes.
+const NO_LINES: CartLine[] = [];
+
+export const useCart = (token: string): CartLine[] => useCartStore((s) => s.carts[token] ?? NO_LINES);
 
 /** Total quantity of a menu item across all its lines (used by the card "in cart" badge). */
 export const qtyForItem = (cart: CartLine[], menuItemId: number): number =>
