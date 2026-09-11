@@ -101,6 +101,10 @@
 }
 @media (hover:hover){ .loy-back:hover { background: color-mix(in srgb, var(--text, #fff) 12%, transparent); } }
 .loy-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+/* A scrolling column must scroll, not squash. Flex items shrink by default, and a card with
+   overflow:hidden has no minimum height to stop them — so three cards on a phone were being
+   crushed to fit the screen, each clipping its second row of stamps and its whole footer. */
+.loy-body > * { flex: none; }
 
 /* rewards-ready treat banner (only shown when something is claimable) — a little
    golden celebration: wiggling gift, shimmer sweep, warm copy. */
