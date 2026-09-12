@@ -59,6 +59,40 @@ Both screens are bilingual and styled already; nothing about them needs rewritin
 
 ---
 
+## Pausing customer orders — backend intact, no way in
+
+The till's sheet used to carry a pause button, and before the till existed the same
+switch sat in the dashboard header. It is gone from both as of 2026-09-12: the till
+is open, close, and the cash between them, and nothing in the product can now set a
+branch to "not accepting orders".
+
+**What still exists**
+
+| Piece | Where |
+| --- | --- |
+| `PATCH /api/branches/{id}/ordering-status` | `src/main/java/com/cafeqr/branches/BranchController.java:76` |
+| `BranchService.setAcceptingOrders` | `src/main/java/com/cafeqr/branches/BranchService.java` |
+| `branches.accepting_orders` column, default true | V1 |
+| The two readers: `requireAcceptingOrders` (QR orders) and `canOrderNow` (the public menu's Add button) | `BranchService` |
+| `BranchResponse.acceptingOrders`, `TillState.acceptingOrders` | both DTOs |
+
+Because nothing can set the flag false any more, both readers are effectively
+constant-true and the endpoint is reachable only by hand.
+
+**Two ways to finish it**
+
+- *Bring it back*: one button somewhere it belongs — most likely the branch's own
+  settings, not the till, since it is about the customer menu rather than the drawer.
+- *Delete it*: drop the column, the endpoint, the request DTO, both DTO fields and
+  the two guards. That changes the public menu contract (`PublicBranch.acceptingOrders`),
+  so the customer app has to stop reading it in the same pass.
+
+> Noted 2026-09-12, when the till was cut back to open/close/count. Deliberately not
+> deleted in that commit: removing it touches the customer menu's contract, which is a
+> wider change than the till asked for.
+
+---
+
 ## Verified but not acted on
 
 **~~Two integration tests cannot run on this machine.~~ They can — pass the API version.**

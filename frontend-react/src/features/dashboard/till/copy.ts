@@ -7,40 +7,34 @@ export const fill = (s: string, vars: Record<string, string | number>) =>
 /**
  * Everything the till says, in both languages.
  *
- * <p>Two questions, asked with the same words: how much cash is in the drawer when you open,
- * how much when you close. A drawer is short or over, which is a fact, never "wrong".
+ * <p>One question, asked twice in the same words — how much cash is in the drawer — and one
+ * answer. A drawer is short or over, which is a fact, never "wrong".
  */
 export const DICT: Dict = {
   ar: {
-    /* header + state */
+    /* the shop sign */
     till: 'الصندوق',
-    stOpen: 'يستقبل الطلبات', stPaused: 'الطلبات متوقفة', stClosed: 'الصندوق مغلق',
-    minShort: 'د', hourShort: 'س', dayShort: 'ي',
+    stOpen: 'الصندوق مفتوح', stClosed: 'الصندوق مغلق',
+
+    /* the question, asked at both ends of the day */
+    cashQ: 'كم النقد في الدرج؟',
+    openT: 'افتح الصندوق', openBtn: 'افتح الصندوق', openedToast: 'الصندوق مفتوح',
+    closeT: 'أغلق الصندوق', closeBtn: 'أغلق الصندوق', closedToast: 'الصندوق مغلق',
 
     /* the open drawer */
-    openedBy: 'فتحه {who} · منذ {t}', openedAt: 'مفتوح منذ {t}',
+    expectedNow: 'المفترض في الدرج',
+    openedBy: 'فتحه {who} · {t}', openedAt: 'فُتح {t}',
+    justNow: 'الآن', forMins: 'قبل {n} دقيقة', forHours: 'قبل {n} ساعة', forDays: 'قبل {n} يوم',
     floatIn: 'نقد البداية', cashSoFar: 'مبيعات نقدية', cardSoFar: 'مبيعات بالبطاقة', ordersSoFar: 'الطلبات',
-    expectedNow: 'المفترض في الدرج الآن',
 
-    /* opening */
-    openT: 'افتح الصندوق', floatLabel: 'كم النقد في الدرج الآن؟',
-    openBtn: 'افتح الصندوق', openedToast: 'الصندوق مفتوح',
-
-    /* pausing */
-    pauseBtn: 'إيقاف الطلبات', resumeBtn: 'استئناف الطلبات',
-    pausedToast: 'تم إيقاف طلبات العملاء', resumedToast: 'تم استئناف طلبات العملاء',
-
-    /* closing */
-    closeT: 'أغلق الصندوق', countLabel: 'كم النقد في الدرج الآن؟',
-    closeBtn: 'أغلق الصندوق', closedToast: 'الصندوق مغلق',
-
-    /* the count, after */
-    resultT: 'قفلة اليوم', counted: 'المعدود', expected: 'المفترض', diff: 'الفرق',
-    short: 'ناقص {v}', over: 'زائد {v}', exact: 'مطابق',
+    /* the answer */
+    resultT: 'قفلة اليوم', diff: 'الفرق',
+    shortWord: 'ناقص', overWord: 'زائد', exact: 'مطابق',
+    counted: 'المعدود', expected: 'المفترض',
     cashSales: 'نقد', cardSales: 'بطاقة', ordersDone: 'طلبات',
     done: 'تم',
 
-    /* history */
+    /* the nights before */
     recent: 'الإغلاقات السابقة', noHistory: 'لا يوجد إغلاق سابق بعد.',
 
     /* not allowed */
@@ -50,24 +44,20 @@ export const DICT: Dict = {
   },
   en: {
     till: 'Till',
-    stOpen: 'Accepting orders', stPaused: 'Orders paused', stClosed: 'Till closed',
-    minShort: 'm', hourShort: 'h', dayShort: 'd',
+    stOpen: 'Till open', stClosed: 'Till closed',
 
-    openedBy: 'Opened by {who} · {t} ago', openedAt: 'Open for {t}',
+    cashQ: 'How much cash is in the drawer?',
+    openT: 'Open the till', openBtn: 'Open the till', openedToast: 'Till open',
+    closeT: 'Close the till', closeBtn: 'Close the till', closedToast: 'Till closed',
+
+    expectedNow: 'Should be in the drawer',
+    openedBy: 'Opened by {who} · {t}', openedAt: 'Opened {t}',
+    justNow: 'just now', forMins: '{n}m ago', forHours: '{n}h ago', forDays: '{n}d ago',
     floatIn: 'Starting cash', cashSoFar: 'Cash sales', cardSoFar: 'Card sales', ordersSoFar: 'Orders',
-    expectedNow: 'Should be in the drawer now',
 
-    openT: 'Open the till', floatLabel: 'How much cash is in the drawer now?',
-    openBtn: 'Open the till', openedToast: 'Till open',
-
-    pauseBtn: 'Pause orders', resumeBtn: 'Resume orders',
-    pausedToast: 'Customer orders paused', resumedToast: 'Customer orders resumed',
-
-    closeT: 'Close the till', countLabel: 'How much cash is in the drawer now?',
-    closeBtn: 'Close the till', closedToast: 'Till closed',
-
-    resultT: 'Tonight’s count', counted: 'Counted', expected: 'Should be', diff: 'Difference',
-    short: '{v} short', over: '{v} over', exact: 'Exactly right',
+    resultT: 'Tonight’s count', diff: 'Difference',
+    shortWord: 'short', overWord: 'over', exact: 'Exactly right',
+    counted: 'Counted', expected: 'Should be',
     cashSales: 'Cash', cardSales: 'Card', ordersDone: 'Orders',
     done: 'Done',
 

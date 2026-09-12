@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../../lib/api';
 import { useAuth, can } from '../../../lib/auth';
@@ -6,6 +6,7 @@ import { useI18n, useT } from '../../../lib/i18n';
 import { Money } from '../../../lib/Money';
 import { useToast } from '../../../lib/toast';
 import type { TillSession, TillState } from '../../../lib/types';
+import omrSymbolUrl from '../../../assets/omr-symbol.svg';
 import { DICT, fill } from './copy';
 import './till.css';
 
@@ -15,23 +16,33 @@ type Mode = 'menu' | 'close' | 'result';
 /** How long the drawer has been open, in the biggest unit that fits. */
 const openFor = (iso: string, t: T): string => {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
-  if (mins < 60) return `${mins}${t('minShort')}`;
+  if (mins < 1) return t('justNow');
+  if (mins < 60) return fill(t('forMins'), { n: mins });
   const hours = Math.floor(mins / 60);
-  return hours < 24 ? `${hours}${t('hourShort')}` : `${Math.floor(hours / 24)}${t('dayShort')}`;
+  return hours < 24 ? fill(t('forHours'), { n: hours }) : fill(t('forDays'), { n: Math.floor(hours / 24) });
 };
 
-/** The word for the gap, and the class that colours it. */
-const gap = (variance: number, t: T) => ({
-  cls: variance === 0 ? 'exact' : variance < 0 ? 'short' : 'over',
-  word: variance === 0 ? t('exact') : fill(t(variance < 0 ? 'short' : 'over'), { v: Math.abs(variance).toFixed(3) }),
-});
+/** What to call the gap between counted and expected, and the colour that carries it. */
+const gapOf = (variance: number) =>
+  variance === 0 ? 'exact' as const : variance < 0 ? 'short' as const : 'over' as const;
+
+/** The gap in one line: the amount, then the word for it. Exactly right needs no amount. */
+function Gap({ variance, t }: { variance: number; t: T }) {
+  const cls = gapOf(variance);
+  if (cls === 'exact') return <>{t('exact')}</>;
+  return <>
+    <Money value={Math.abs(variance)} />
+    {' '}<em>{t(cls === 'short' ? 'shortWord' : 'overWord')}</em>
+  </>;
+}
 
 /**
  * The till, from the header.
  *
- * <p>Three states on the shop sign: selling, paused, closed. Behind it, two numbers a café
- * already knows — what was in the drawer this morning and what is in it tonight — and the
- * difference between them and what the day's cash sales say there should be.
+ * <p>The shop sign says open or shut, and shut means nothing can be sold — not from the menu,
+ * not at the counter. Behind it one question, asked at both ends of the day: how much cash is
+ * in the drawer. The till is the difference between the two answers and what the day's cash
+ * sales say there should be.
  */
 export default function TillControl({ branchId }: { branchId?: number }) {
   const t = useT(DICT);
@@ -53,19 +64,20 @@ export default function TillControl({ branchId }: { branchId?: number }) {
   if (branchId == null || !state) return null;
 
   const closed = !state.open;
-  const paused = state.open && !state.acceptingOrders;
-  const label = closed ? t('stClosed') : paused ? t('stPaused') : t('stOpen');
+  const label = closed ? t('stClosed') : t('stOpen');
 
   return (
     <>
       <button
         type="button"
-        className={'order-status-toggle' + (closed ? ' shut' : paused ? ' paused' : '')}
+        className={'order-status-toggle' + (closed ? ' shut' : '')}
         aria-label={`${t('till')} — ${label}`}
         title={label}
         aria-haspopup="dialog"
         aria-expanded={sheet}
-        onClick={() => setSheet(true)}
+        // The sign is allowed to be a minute stale; the figures behind it are not. Whoever
+        // opens this is asking what the drawer holds right now.
+        onClick={() => { setSheet(true); stateQ.refetch(); }}
       >
         <span className="status-dot" aria-hidden="true" />
         <span className="ost-label">{label}</span>
@@ -102,8 +114,7 @@ function TillSheet({ branchId, state, canCount, onClose, onChanged, toast, t }: 
   t: T;
 }) {
   const [mode, setMode] = useState<Mode>('menu');
-  const [float, setFloat] = useState('');
-  const [counted, setCounted] = useState('');
+  const [cash, setCash] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const [result, setResult] = useState<TillSession | null>(null);
 
@@ -119,33 +130,38 @@ function TillSheet({ branchId, state, canCount, onClose, onChanged, toast, t }: 
 
   const openTill = useMutation({
     mutationFn: () => api.post<TillSession>(`/api/branches/${branchId}/till/open`,
-      { openingFloat: Number(float || 0) }),
+      { openingFloat: Number(cash) }),
     onSuccess: () => { onChanged(); toast(t('openedToast')); onClose(); },
     onError: fail,
   });
 
   const closeTill = useMutation({
     mutationFn: () => api.post<TillSession>(`/api/branches/${branchId}/till/close`,
-      { countedCash: Number(counted || 0) }),
+      { countedCash: Number(cash) }),
     onSuccess: (session) => { onChanged(); toast(t('closedToast')); setResult(session); setMode('result'); },
     onError: fail,
   });
 
-  const setOrdering = useMutation({
-    mutationFn: (acceptingOrders: boolean) =>
-      api.patch(`/api/branches/${branchId}/ordering-status`, { acceptingOrders }),
-    onSuccess: (_d, acceptingOrders) => {
-      onChanged();
-      toast(t(acceptingOrders ? 'resumedToast' : 'pausedToast'));
-      onClose();
-    },
-    onError: fail,
-  });
-
-  const busy = openTill.isPending || closeTill.isPending || setOrdering.isPending;
+  const busy = openTill.isPending || closeTill.isPending;
   const session = state.session;
-  const paused = state.open && !state.acceptingOrders;
-  const title = mode === 'close' ? t('closeT') : mode === 'result' ? t('resultT') : t('till');
+  const counted = Number(cash);
+  const ready = cash.trim() !== '' && Number.isFinite(counted) && counted >= 0;
+  const title = mode === 'close' ? t('closeT')
+    : mode === 'result' ? t('resultT')
+    : session ? t('till') : t('openT');
+
+  const ask = (submit: () => void, label: string, back?: () => void) => (
+    <>
+      <CashLine label={t('cashQ')} value={cash} onChange={setCash}
+        onEnter={() => { if (ready && !busy) { setProblem(null); submit(); } }} />
+      {problem && <p className="till-problem" role="alert">{problem}</p>}
+      <div className="till-actions">
+        <button className="btn" disabled={busy || !ready}
+          onClick={() => { setProblem(null); submit(); }}>{label}</button>
+        {back && <button className="btn ghost" disabled={busy} onClick={back}>{t('cancel')}</button>}
+      </div>
+    </>
+  );
 
   return (
     <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -155,23 +171,13 @@ function TillSheet({ branchId, state, canCount, onClose, onChanged, toast, t }: 
           <button className="till-x" onClick={onClose} aria-label={t('cancel')}>✕</button>
         </div>
 
-        {problem && <p className="till-problem" role="alert">{problem}</p>}
-
-        {/* ---------------- closed: what is in the drawer this morning ---------------- */}
+        {/* ---------------- closed: the morning count ---------------- */}
         {mode === 'menu' && !session && (
           <div className="till-body">
             {canCount ? (
               <>
-                <label className="till-field">
-                  <span>{t('floatLabel')}</span>
-                  <input className="num" type="number" inputMode="decimal" min="0" step="0.001" dir="ltr"
-                    autoFocus value={float} onChange={(e) => setFloat(e.target.value)} />
-                </label>
-                <div className="till-actions">
-                  <button className="btn" disabled={busy || float.trim() === ''}
-                    onClick={() => { setProblem(null); openTill.mutate(); }}>{t('openBtn')}</button>
-                </div>
-                <History branchId={branchId} t={t} />
+                {ask(() => openTill.mutate(), t('openBtn'))}
+                <Past branchId={branchId} t={t} />
               </>
             ) : (
               <p className="till-note">{t('needPayments')}</p>
@@ -182,61 +188,58 @@ function TillSheet({ branchId, state, canCount, onClose, onChanged, toast, t }: 
         {/* ---------------- open: the day so far ---------------- */}
         {mode === 'menu' && session && (
           <div className="till-body">
-            <div className="till-open-card">
-              <p className="till-who">{session.openedBy
-                ? fill(t('openedBy'), { who: session.openedBy, t: openFor(session.openedAt, t) })
-                : fill(t('openedAt'), { t: openFor(session.openedAt, t) })}</p>
-              <dl className="till-figs">
-                {canCount && <div><dt>{t('floatIn')}</dt><dd><Money value={session.openingFloat} /></dd></div>}
+            {state.expectedCash != null ? (
+              <Hero label={t('expectedNow')} who={who(session, t)}>
+                <Money value={state.expectedCash} />
+              </Hero>
+            ) : (
+              <Hero label={t('ordersSoFar')} who={who(session, t)}>{state.orderCount}</Hero>
+            )}
+
+            {canCount && (
+              <dl className="till-ledger">
+                <div><dt>{t('floatIn')}</dt><dd><Money value={session.openingFloat} /></dd></div>
                 {state.cashTaken != null && (
                   <div><dt>{t('cashSoFar')}</dt><dd><Money value={state.cashTaken} /></dd></div>
                 )}
                 {state.cardTaken != null && (
-                  <div><dt>{t('cardSoFar')}</dt><dd><Money value={state.cardTaken} /></dd></div>
+                  <div className="till-cut"><dt>{t('cardSoFar')}</dt><dd><Money value={state.cardTaken} /></dd></div>
                 )}
-                <div><dt>{t('ordersSoFar')}</dt><dd className="till-plain">{state.orderCount}</dd></div>
-                {state.expectedCash != null && (
-                  <div className="till-expected">
-                    <dt>{t('expectedNow')}</dt><dd><Money value={state.expectedCash} /></dd>
-                  </div>
-                )}
+                <div><dt>{t('ordersSoFar')}</dt><dd>{state.orderCount}</dd></div>
               </dl>
-            </div>
+            )}
 
-            <div className="till-actions">
-              <button className={'btn' + (paused ? '' : ' ghost')} disabled={busy}
-                onClick={() => setOrdering.mutate(paused)}>
-                {t(paused ? 'resumeBtn' : 'pauseBtn')}
-              </button>
-              {canCount && (
-                <button className="btn ghost" onClick={() => { setProblem(null); setMode('close'); }}>
+            {canCount && (
+              <div className="till-actions">
+                <button className="btn ghost" disabled={busy}
+                  onClick={() => { setProblem(null); setCash(''); setMode('close'); }}>
                   {t('closeT')}
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* ---------------- closing: what is in the drawer tonight ---------------- */}
+        {/* ---------------- closing: the night count ---------------- */}
         {mode === 'close' && (
           <div className="till-body">
-            <label className="till-field">
-              <span>{t('countLabel')}</span>
-              <input className="num" type="number" inputMode="decimal" min="0" step="0.001" dir="ltr"
-                autoFocus value={counted} onChange={(e) => setCounted(e.target.value)} />
-            </label>
-            <div className="till-actions">
-              <button className="btn" disabled={busy || counted.trim() === ''}
-                onClick={() => { setProblem(null); closeTill.mutate(); }}>{t('closeBtn')}</button>
-              <button className="btn ghost" onClick={() => setMode('menu')}>{t('cancel')}</button>
-            </div>
+            {ask(() => closeTill.mutate(), t('closeBtn'), () => { setCash(''); setMode('menu'); })}
           </div>
         )}
 
         {/* ---------------- what the count came to ---------------- */}
         {mode === 'result' && result && (
           <div className="till-body">
-            <CountResult session={result} t={t} />
+            <Hero label={t('diff')} tone={gapOf(result.variance ?? 0)} answer>
+              <Gap variance={result.variance ?? 0} t={t} />
+            </Hero>
+            <dl className="till-ledger">
+              <div><dt>{t('counted')}</dt><dd><Money value={result.countedCash ?? 0} /></dd></div>
+              <div className="till-cut"><dt>{t('expected')}</dt><dd><Money value={result.expectedCash ?? 0} /></dd></div>
+              <div><dt>{t('cashSales')}</dt><dd><Money value={result.cashSales ?? 0} /></dd></div>
+              <div><dt>{t('cardSales')}</dt><dd><Money value={result.cardSales ?? 0} /></dd></div>
+              <div><dt>{t('ordersDone')}</dt><dd>{result.orderCount ?? 0}</dd></div>
+            </dl>
             <div className="till-actions">
               <button className="btn" onClick={onClose}>{t('done')}</button>
             </div>
@@ -247,51 +250,76 @@ function TillSheet({ branchId, state, canCount, onClose, onChanged, toast, t }: 
   );
 }
 
-/** Counted against expected, and the word for the gap. */
-function CountResult({ session, t }: { session: TillSession; t: T }) {
-  const { cls, word } = gap(session.variance ?? 0, t);
+/** Who opened the drawer and how long ago, or just how long ago when nobody is named. */
+const who = (session: TillSession, t: T) => session.openedBy
+  ? fill(t('openedBy'), { who: session.openedBy, t: openFor(session.openedAt, t) })
+  : fill(t('openedAt'), { t: openFor(session.openedAt, t) });
+
+/** The one figure the screen is about, said at the top of it. */
+function Hero({ label, children, who, tone, answer }: {
+  label: string; children: ReactNode; who?: string;
+  tone?: 'exact' | 'short' | 'over'; answer?: boolean;
+}) {
   return (
-    <div className={'till-result ' + cls}>
-      <dl className="till-figs">
-        <div><dt>{t('counted')}</dt><dd><Money value={session.countedCash ?? 0} /></dd></div>
-        <div><dt>{t('expected')}</dt><dd><Money value={session.expectedCash ?? 0} /></dd></div>
-        <div className="till-diff"><dt>{t('diff')}</dt><dd>{word}</dd></div>
-      </dl>
-      <dl className="till-figs sub">
-        <div><dt>{t('cashSales')}</dt><dd><Money value={session.cashSales ?? 0} /></dd></div>
-        <div><dt>{t('cardSales')}</dt><dd><Money value={session.cardSales ?? 0} /></dd></div>
-        <div><dt>{t('ordersDone')}</dt><dd className="till-plain">{session.orderCount ?? 0}</dd></div>
-      </dl>
+    <div className={['till-hero', tone, answer && 'is-answer'].filter(Boolean).join(' ')}>
+      <span>{label}</span>
+      <p className="till-hero-fig">{children}</p>
+      {who && <p className="till-hero-who">{who}</p>}
     </div>
   );
 }
 
-/** The last few nights, one line each — where "we were 2 short again" is visible. */
-function History({ branchId, t }: { branchId: number; t: T }) {
+/**
+ * The line the count is written on.
+ *
+ * <p>Typed in the same face and size the till answers in, because a person's figure and the
+ * till's are the same kind of thing. Digits and one dot only: a number keypad on a phone
+ * offers a comma in Arabic, and 12,500 is not 12.500.
+ */
+function CashLine({ label, value, onChange, onEnter }: {
+  label: string; value: string; onChange: (v: string) => void; onEnter: () => void;
+}) {
+  return (
+    <label className="till-hero">
+      <span>{label}</span>
+      <span className="till-hero-in">
+        <span className="money__symbol" aria-hidden="true" style={{
+          WebkitMaskImage: `url("${omrSymbolUrl}")`, maskImage: `url("${omrSymbolUrl}")`,
+        }} />
+        <input
+          type="text" inputMode="decimal" dir="ltr" autoFocus placeholder="0.000"
+          value={value}
+          onChange={(e) => onChange(e.target.value.replace(',', '.').replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1'))}
+          onKeyDown={(e) => { if (e.key === 'Enter') onEnter(); }}
+        />
+      </span>
+    </label>
+  );
+}
+
+/** The last few nights, one line each — where "we were short again" is visible. */
+function Past({ branchId, t }: { branchId: number; t: T }) {
   const { lang } = useI18n();
-  const historyQ = useQuery({
+  const pastQ = useQuery({
     queryKey: ['till-sessions', branchId],
     queryFn: () => api.get<TillSession[]>(`/api/branches/${branchId}/till/sessions`),
   });
-  const closes = (historyQ.data ?? []).filter((s) => s.closedAt).slice(0, 7);
-  if (!historyQ.data) return null;
+  if (!pastQ.data) return null;
+  const closes = pastQ.data.filter((s) => s.closedAt).slice(0, 5);
   return (
-    <div className="till-history">
-      <p className="till-history-k">{t('recent')}</p>
-      {closes.length === 0 && <p className="till-hint">{t('noHistory')}</p>}
-      {closes.map((s) => {
-        const { cls, word } = gap(s.variance ?? 0, t);
-        return (
-          <div key={s.id} className={'till-history-row ' + cls}>
-            <span className="till-h-when">
-              {new Date(s.closedAt!).toLocaleDateString(lang === 'ar' ? 'ar-OM' : 'en-GB',
-                { day: 'numeric', month: 'short' })}
-            </span>
-            <span className="till-h-who">{s.closedBy ?? '—'}</span>
-            <b>{word}</b>
-          </div>
-        );
-      })}
+    <div className="till-past">
+      <span>{t('recent')}</span>
+      {closes.length === 0 && <p>{t('noHistory')}</p>}
+      {closes.map((s) => (
+        <div className="till-past-row" key={s.id}>
+          <time dateTime={s.closedAt!}>
+            {new Date(s.closedAt!).toLocaleDateString(lang === 'ar' ? 'ar-OM' : 'en-GB',
+              { day: 'numeric', month: 'short' })}
+          </time>
+          <span>{s.closedBy ?? '—'}</span>
+          <b className={gapOf(s.variance ?? 0)}><Gap variance={s.variance ?? 0} t={t} /></b>
+        </div>
+      ))}
     </div>
   );
 }
