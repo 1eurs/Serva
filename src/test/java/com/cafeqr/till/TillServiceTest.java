@@ -4,7 +4,6 @@ import com.cafeqr.auth.security.AccessGuard;
 import com.cafeqr.auth.security.CustomUserDetails;
 import com.cafeqr.branches.BranchService;
 import com.cafeqr.branches.domain.Branch;
-import com.cafeqr.common.exception.BadRequestException;
 import com.cafeqr.common.exception.ConflictException;
 import com.cafeqr.orders.repository.OrderRepository;
 import com.cafeqr.payments.repository.PaymentRepository;
@@ -34,7 +33,6 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
@@ -44,8 +42,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
- * The till's arithmetic and the two rules it enforces: one open drawer per branch, and a count
- * that has to be explained when it is wrong.
+ * The till's arithmetic and the one rule it enforces: one open drawer per branch.
  */
 @ExtendWith(MockitoExtension.class)
 class TillServiceTest {
@@ -71,7 +68,6 @@ class TillServiceTest {
         lenient().when(sessions.saveAndFlush(any(TillSession.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
         lenient().when(orderRepository.countInWindow(anyLong(), any(), any(), anyCollection())).thenReturn(0L);
-        lenient().when(orderRepository.countOpenTabsSince(anyLong(), any(), any(), anyCollection())).thenReturn(0L);
         lenient().when(paymentRepository.takenByMethodBetween(anyLong(), any(), any())).thenReturn(List.of());
 
         authenticate(EnumSet.of(Permission.ORDERS, Permission.PAYMENTS));
@@ -106,15 +102,6 @@ class TillServiceTest {
                 .isInstanceOf(ConflictException.class);
     }
 
-    @Test
-    void aBranchThatRunsNoDrawerCannotOpenOne() {
-        branch.setTillEnabled(false);
-
-        assertThatThrownBy(() -> tillService.open(2L, new OpenTillRequest(BigDecimal.TEN)))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("Settings");
-    }
-
     // ---------------- closing ----------------
 
     @Test
@@ -122,7 +109,7 @@ class TillServiceTest {
         openSessionWith(new BigDecimal("20.000"));
         takings("47.500", "132.000");
 
-        TillSessionResponse closed = tillService.close(2L, new CloseTillRequest(new BigDecimal("67.500"), null));
+        TillSessionResponse closed = tillService.close(2L, new CloseTillRequest(new BigDecimal("67.500")));
 
         assertThat(closed.cashSales()).isEqualByComparingTo("47.500");
         assertThat(closed.cardSales()).isEqualByComparingTo("132.000");
@@ -138,68 +125,27 @@ class TillServiceTest {
         takings("40.000", "0");
 
         TillSessionResponse shortDrawer =
-                tillService.close(2L, new CloseTillRequest(new BigDecimal("49.500"), "gave wrong change"));
+                tillService.close(2L, new CloseTillRequest(new BigDecimal("49.500")));
         assertThat(shortDrawer.variance()).isEqualByComparingTo("-0.500");
 
         openSessionWith(new BigDecimal("10.000"));
         TillSessionResponse overDrawer =
-                tillService.close(2L, new CloseTillRequest(new BigDecimal("50.250"), "found a coin"));
+                tillService.close(2L, new CloseTillRequest(new BigDecimal("50.250")));
         assertThat(overDrawer.variance()).isEqualByComparingTo("0.250");
-    }
-
-    @Test
-    void adrawerOutByMoreThanTheThresholdHasToBeExplained() {
-        branch.setTillNoteOver(new BigDecimal("1.000"));
-        openSessionWith(new BigDecimal("10.000"));
-        takings("40.000", "0");
-
-        assertThatThrownBy(() -> tillService.close(2L, new CloseTillRequest(new BigDecimal("45.000"), null)))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("5.000");
-
-        // Under the threshold, nobody is made to write a sentence about a rounded rial.
-        assertThatCode(() -> tillService.close(2L, new CloseTillRequest(new BigDecimal("49.500"), null)))
-                .doesNotThrowAnyException();
-    }
-
-    @Test
-    void aCafeThatNeverWantsToExplainItselfSetsNoThreshold() {
-        branch.setTillNoteOver(null);
-        openSessionWith(new BigDecimal("10.000"));
-        takings("40.000", "0");
-
-        assertThatCode(() -> tillService.close(2L, new CloseTillRequest(BigDecimal.ZERO, null)))
-                .doesNotThrowAnyException();
     }
 
     @Test
     void closingATillThatIsNotOpenIsRefused() {
         when(sessions.findFirstByBranchIdAndClosedAtIsNull(2L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> tillService.close(2L, new CloseTillRequest(BigDecimal.TEN, null)))
+        assertThatThrownBy(() -> tillService.close(2L, new CloseTillRequest(BigDecimal.TEN)))
                 .isInstanceOf(ConflictException.class);
     }
 
     // ---------------- what the screen is told ----------------
 
     @Test
-    void aBlindCountHidesTheExpectedFigureUntilTheDrawerIsCounted() {
-        branch.setTillBlindCount(true);
-        openSessionWith(new BigDecimal("20.000"));
-        takings("47.500", "132.000");
-
-        TillStateResponse state = tillService.state(2L);
-
-        assertThat(state.open()).isTrue();
-        assertThat(state.cashTaken()).isNull();
-        assertThat(state.expectedCash()).isNull();
-        // Card takings say nothing about what is in the drawer, so they stay visible.
-        assertThat(state.cardTaken()).isEqualByComparingTo("132.000");
-    }
-
-    @Test
-    void aCafeCountingWithTheNumberInViewSeesIt() {
-        branch.setTillBlindCount(false);
+    void theScreenIsToldWhatShouldBeInTheDrawerRightNow() {
         openSessionWith(new BigDecimal("20.000"));
         takings("47.500", "0");
 
@@ -212,7 +158,6 @@ class TillServiceTest {
     @Test
     void staffWithoutPaymentsSeeThatTheShopIsOpenAndNoneOfItsMoney() {
         authenticate(EnumSet.of(Permission.ORDERS));
-        branch.setTillBlindCount(false);
         openSessionWith(new BigDecimal("20.000"));
         takings("47.500", "132.000");
         when(branchService.canOrderNow(branch)).thenReturn(true);
@@ -224,40 +169,6 @@ class TillServiceTest {
         assertThat(state.cashTaken()).isNull();
         assertThat(state.cardTaken()).isNull();
         assertThat(state.expectedCash()).isNull();
-        assertThat(state.lastClose()).isNull();
-    }
-
-    @Test
-    void tomorrowsFloatIsOfferedFromTonightsCountOnlyWhenTheCafeCarriesItsChange() {
-        TillSession lastNight = new TillSession();
-        lastNight.setBranchId(2L);
-        lastNight.setOpenedAt(Instant.now().minus(1, ChronoUnit.DAYS));
-        lastNight.setClosedAt(Instant.now().minus(8, ChronoUnit.HOURS));
-        lastNight.setCountedCash(new BigDecimal("35.000"));
-        when(sessions.findFirstByBranchIdAndClosedAtIsNotNullOrderByClosedAtDesc(2L))
-                .thenReturn(Optional.of(lastNight));
-        when(sessions.findFirstByBranchIdAndClosedAtIsNull(2L)).thenReturn(Optional.empty());
-
-        branch.setTillCarryFloat(true);
-        assertThat(tillService.state(2L).suggestedFloat()).isEqualByComparingTo("35.000");
-
-        // The café that banks the lot every night starts from an empty box instead.
-        branch.setTillCarryFloat(false);
-        assertThat(tillService.state(2L).suggestedFloat()).isNull();
-    }
-
-    @Test
-    void aBranchThatOptedOutOfTheDrawerReadsAsOpen() {
-        branch.setTillEnabled(false);
-        when(sessions.findFirstByBranchIdAndClosedAtIsNull(2L)).thenReturn(Optional.empty());
-        when(sessions.findFirstByBranchIdAndClosedAtIsNotNullOrderByClosedAtDesc(2L))
-                .thenReturn(Optional.empty());
-
-        TillStateResponse state = tillService.state(2L);
-
-        assertThat(state.tillEnabled()).isFalse();
-        assertThat(state.open()).isTrue();
-        assertThat(state.session()).isNull();
     }
 
     @Test

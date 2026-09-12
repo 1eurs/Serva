@@ -20,7 +20,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -29,9 +28,6 @@ public class BranchService {
 
     /** STANDARD buys one shop. Pricing has said so since launch; nothing enforced it. */
     private static final long STANDARD_BRANCH_ALLOWANCE = 1;
-
-    /** What a café gets asked to explain, when it turns the question on without naming a figure. */
-    private static final BigDecimal DEFAULT_NOTE_OVER = new BigDecimal("1.000");
 
     private final BranchRepository branchRepository;
     private final RestaurantService restaurantService;
@@ -150,37 +146,7 @@ public class BranchService {
         if (request.counterMode() != null) {
             branch.setCounterMode(request.counterMode());
         }
-        applyTillSettings(branch, request);
         return BranchResponse.from(branch);
-    }
-
-    /**
-     * How this shop runs its drawer.
-     *
-     * <p>Turning the till off does not close the open session — it stops the till being asked
-     * about, and leaves the session sitting there to be closed properly (or found again when
-     * the café changes its mind). Deleting a count because somebody flipped a settings switch
-     * is how a day's cash quietly stops existing.
-     */
-    private void applyTillSettings(Branch branch, UpdateBranchRequest request) {
-        if (request.tillEnabled() != null) {
-            branch.setTillEnabled(request.tillEnabled());
-        }
-        if (request.tillBlindCount() != null) {
-            branch.setTillBlindCount(request.tillBlindCount());
-        }
-        if (request.tillCarryFloat() != null) {
-            branch.setTillCarryFloat(request.tillCarryFloat());
-        }
-        // The threshold and the switch that turns it off are two fields for one setting, because
-        // a PATCH cannot tell "leave it alone" from "clear it" with a null.
-        if (Boolean.FALSE.equals(request.tillNoteRequired())) {
-            branch.setTillNoteOver(null);
-        } else if (request.tillNoteOver() != null) {
-            branch.setTillNoteOver(request.tillNoteOver());
-        } else if (Boolean.TRUE.equals(request.tillNoteRequired()) && branch.getTillNoteOver() == null) {
-            branch.setTillNoteOver(DEFAULT_NOTE_OVER);
-        }
     }
 
     @Transactional
@@ -197,23 +163,15 @@ public class BranchService {
      * <p>Resuming into a closed till is refused rather than quietly granted: the switch would
      * say "accepting orders" over a shop that cannot take one, which is exactly the gap between
      * the button and reality this whole thing exists to close.
-     *
-     * @param pauseMinutes how long the pause lasts before lifting itself; null means until
-     *                     somebody resumes.
      */
     @Transactional
-    public BranchResponse setAcceptingOrders(Long branchId, boolean acceptingOrders, Integer pauseMinutes) {
+    public BranchResponse setAcceptingOrders(Long branchId, boolean acceptingOrders) {
         Branch branch = getEntity(branchId);
         accessGuard.requireBranchAccess(branch.getRestaurantId(), branch.getId());
         if (acceptingOrders) {
             requireTillOpen(branch);
         }
-        // Order matters: the setter ends whatever pause was running, so the new expiry is set
-        // after it rather than being wiped by it.
         branch.setAcceptingOrders(acceptingOrders);
-        if (!acceptingOrders && pauseMinutes != null) {
-            branch.setPauseUntil(Instant.now().plus(Duration.ofMinutes(pauseMinutes)));
-        }
         return BranchResponse.from(branch);
     }
 
@@ -249,7 +207,7 @@ public class BranchService {
      * business, and a phone at a table can do nothing with the difference.
      */
     public void requireAcceptingOrders(Branch branch) {
-        if (!isTillOpen(branch) || !branch.isAcceptingOrdersNow()) {
+        if (!isTillOpen(branch) || !branch.isAcceptingOrders()) {
             throw new BadRequestException(ErrorCode.BRANCH_NOT_ACCEPTING_ORDERS,
                     "This branch is not accepting orders right now");
         }
@@ -277,11 +235,10 @@ public class BranchService {
      */
     @Transactional(readOnly = true)
     public boolean canOrderNow(Branch branch) {
-        return branch.isActive() && isTillOpen(branch) && branch.isAcceptingOrdersNow();
+        return branch.isActive() && isTillOpen(branch) && branch.isAcceptingOrders();
     }
 
-    /** A café that runs no drawer is always open in the till's eyes; it opted out of the question. */
     private boolean isTillOpen(Branch branch) {
-        return !branch.isTillEnabled() || tillSessions.existsByBranchIdAndClosedAtIsNull(branch.getId());
+        return tillSessions.existsByBranchIdAndClosedAtIsNull(branch.getId());
     }
 }

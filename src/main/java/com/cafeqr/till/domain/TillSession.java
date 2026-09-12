@@ -69,9 +69,6 @@ public class TillSession extends BaseEntity {
     @Column(name = "order_count")
     private Integer orderCount;
 
-    @Column(name = "close_note", length = 500)
-    private String closeNote;
-
     public boolean isOpen() {
         return closedAt == null;
     }
@@ -196,11 +193,4 @@ public class TillSession extends BaseEntity {
         this.orderCount = orderCount;
     }
 
-    public String getCloseNote() {
-        return closeNote;
-    }
-
-    public void setCloseNote(String closeNote) {
-        this.closeNote = closeNote;
-    }
 }

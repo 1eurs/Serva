@@ -122,14 +122,10 @@ export interface OrderResponse {
 export interface BranchResponse {
   id: number; restaurantId: number; name: string; nameEn?: string | null; nameAr?: string | null;
   address?: string | null; phone?: string | null;
-  /** `acceptingOrders` is the pause alone, with an expired one already counted as resumed — it
-   *  says nothing about the till. Whether the shop can really sell is TillState.acceptingOrders. */
-  openingHours?: string | null; active: boolean; acceptingOrders: boolean; pauseUntil?: string | null;
+  /** `acceptingOrders` is the pause alone — it says nothing about the till. Whether the shop
+   *  can really sell is TillState.acceptingOrders. */
+  openingHours?: string | null; active: boolean; acceptingOrders: boolean;
   printerEnabled: boolean; counterMode: boolean; createdAt?: string;
-  /* ---- how this shop runs its drawer (Settings → Till) ---- */
-  tillEnabled: boolean; tillBlindCount: boolean; tillCarryFloat: boolean;
-  /** Ask for a written reason when the drawer is out by more than this. Null: never ask. */
-  tillNoteOver?: number | null;
 }
 
 /* ---- the till: one counted drawer per branch (mirrors TillDtos) ---- */
@@ -143,28 +139,20 @@ export interface TillSession {
   /** Counted minus expected: negative is short, positive is over. */
   variance?: number | null;
   cashSales?: number | null; cardSales?: number | null; orderCount?: number | null;
-  closeNote?: string | null;
 }
 
 export interface TillState {
   branchId: number;
-  tillEnabled: boolean;
-  /** A branch that runs no drawer always reads open: it opted out of the question. */
   open: boolean;
   /** The till and the pause combined — whether an order would be taken right now. */
   acceptingOrders: boolean;
-  pauseUntil?: string | null;
-  blindCount: boolean;
-  noteOver?: number | null;
   session?: TillSession | null;
-  /** Null under a blind count, and null for anyone without the Payments permission. */
+  /** The money figures are null for anyone without the Payments permission. */
   cashTaken?: number | null;
   cardTaken?: number | null;
+  /** Starting cash plus cash sales: what should be in the drawer right now. */
   expectedCash?: number | null;
   orderCount: number;
-  openTabs: number;
-  suggestedFloat?: number | null;
-  lastClose?: TillSession | null;
 }
 export interface TableResponse {
   id: number; restaurantId: number; branchId: number; tableNumber: string; qrCodeToken: string;

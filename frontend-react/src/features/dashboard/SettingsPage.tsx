@@ -10,16 +10,15 @@ import LoyaltySetup from './LoyaltySetup';
 import CouponsPane from './CouponsPane';
 import QrPane from './QrPane';
 import { SettingsShell, PaneSection, Specimen } from './SettingsShell';
-import TillSettings from './till/TillSettings';
 import { FONT_STACKS, parseCustomTheme } from '../customer/menuThemes';
 import type { Restaurant } from '../../lib/types';
 import './settings.css';
 
-export type SettingsSection = 'cafe' | 'branch' | 'till' | 'look' | 'qr' | 'receipt' | 'coupons' | 'loyalty' | 'appearance' | 'plan';
+export type SettingsSection = 'cafe' | 'branch' | 'look' | 'qr' | 'receipt' | 'coupons' | 'loyalty' | 'appearance' | 'plan';
 
 const DICT: Dict = {
   ar: {
-    sec_cafe: 'المقهى', sec_branch: 'الفرع والطابعة', sec_till: 'الصندوق', sec_look: 'شكل القائمة', sec_receipt: 'الفاتورة',
+    sec_cafe: 'المقهى', sec_branch: 'الفرع والطابعة', sec_look: 'شكل القائمة', sec_receipt: 'الفاتورة',
     sec_qr: 'رمز QR', sec_coupons: 'أكواد الخصم', sec_loyalty: 'الولاء', sec_appearance: 'المظهر', sec_plan: 'الباقة',
     aprTitle: 'مظهر لوحة التحكم', aprSub: 'اختر الطابع الذي يناسبك — يظهر على هذا الجهاز فقط.',
     aprBold: 'جريء', aprBoldSub: 'الأخضر والحدود السميكة والظلال الصلبة — الطابع الأصلي.',
@@ -32,7 +31,7 @@ const DICT: Dict = {
     lookMark: 'أب',
   },
   en: {
-    sec_cafe: 'Café', sec_branch: 'Branch & printer', sec_till: 'Till', sec_look: 'Menu look', sec_receipt: 'Receipt',
+    sec_cafe: 'Café', sec_branch: 'Branch & printer', sec_look: 'Menu look', sec_receipt: 'Receipt',
     sec_qr: 'QR code', sec_coupons: 'Coupons', sec_loyalty: 'Loyalty', sec_appearance: 'Appearance', sec_plan: 'Plan',
     aprTitle: 'Dashboard appearance', aprSub: 'Pick the look that suits you — applies to this device only.',
     aprBold: 'Bold', aprBoldSub: 'Green, thick keylines and hard offset shadows — the original look.',
@@ -146,8 +145,6 @@ export default function SettingsPage({
   const items = useMemo(() => ([
     { key: 'cafe', label: t('sec_cafe'), show: can(user, 'PROFILE') },
     { key: 'branch', label: t('sec_branch'), show: can(user, 'PROFILE') },
-    // Whoever handles the café's money decides how its drawer is counted.
-    { key: 'till', label: t('sec_till'), show: can(user, 'PAYMENTS') },
     { key: 'look', label: t('sec_look'), show: can(user, 'MENU') },
     { key: 'qr', label: t('sec_qr'), show: can(user, 'QR_TABLES') },
     { key: 'receipt', label: t('sec_receipt'), show: can(user, 'PROFILE') },
@@ -180,7 +177,6 @@ export default function SettingsPage({
       <div className="settings-pane" key={active}>
         {active === 'cafe' && <CafeSection branchId={branchId} />}
         {active === 'branch' && <BranchPrinterSection branchId={branchId} />}
-        {active === 'till' && <TillSettings branchId={branchId} />}
         {active === 'look' && <LookPane branchId={branchId} />}
         {active === 'qr' && <QrPane branchId={branchId} />}
         {active === 'receipt' && <ReceiptSection branchId={branchId} />}

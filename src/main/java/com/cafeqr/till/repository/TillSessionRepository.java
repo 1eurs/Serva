@@ -18,9 +18,6 @@ public interface TillSessionRepository extends JpaRepository<TillSession, Long> 
     /** Cheaper than loading the row, for the "can this branch sell right now" check on every order. */
     boolean existsByBranchIdAndClosedAtIsNull(Long branchId);
 
-    /** Last night's close — where tomorrow's float comes from when the café carries its change. */
-    Optional<TillSession> findFirstByBranchIdAndClosedAtIsNotNullOrderByClosedAtDesc(Long branchId);
-
     /** The history list, newest first. */
     List<TillSession> findByBranchIdOrderByOpenedAtDesc(Long branchId, Pageable pageable);
 }

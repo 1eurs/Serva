@@ -5,10 +5,8 @@ import com.cafeqr.auth.security.CustomUserDetails;
 import com.cafeqr.auth.security.SecurityUtils;
 import com.cafeqr.branches.BranchService;
 import com.cafeqr.branches.domain.Branch;
-import com.cafeqr.common.exception.BadRequestException;
 import com.cafeqr.common.exception.ConflictException;
 import com.cafeqr.orders.domain.OrderStatus;
-import com.cafeqr.orders.domain.PaymentStatus;
 import com.cafeqr.orders.repository.OrderRepository;
 import com.cafeqr.payments.repository.PaymentRepository;
 import com.cafeqr.till.domain.TillSession;
@@ -82,52 +80,31 @@ public class TillService {
     public TillStateResponse state(Long branchId) {
         Branch branch = requireBranch(branchId);
         Optional<TillSession> open = sessions.findFirstByBranchIdAndClosedAtIsNull(branchId);
-        Optional<TillSession> lastClose =
-                sessions.findFirstByBranchIdAndClosedAtIsNotNullOrderByClosedAtDesc(branchId);
-
-        // A café that runs no drawer is always "open": it opted out of the question, and the
-        // header switch it left behind is a plain pause.
-        boolean tillOpen = !branch.isTillEnabled() || open.isPresent();
 
         BigDecimal cash = null;
         BigDecimal card = null;
         BigDecimal expected = null;
         long orders = 0;
-        long openTabs = 0;
         if (open.isPresent()) {
             TillSession session = open.get();
             Instant now = Instant.now();
             orders = orderRepository.countInWindow(branchId, session.getOpenedAt(), now, NOT_SOLD);
-            openTabs = orderRepository.countOpenTabsSince(
-                    branchId, session.getOpenedAt(), PaymentStatus.UNPAID, NOT_SOLD);
             Totals totals = totals(branchId, session.getOpenedAt(), now);
+            cash = totals.cash();
             card = totals.card();
-            // Blind: the expected figure is exactly what the closing count is meant to be
-            // independent of, so it stays hidden until the count is in. Card takings say nothing
-            // about the drawer, so they stay visible either way.
-            if (!branch.isTillBlindCount()) {
-                cash = totals.cash();
-                expected = session.getOpeningFloat().add(totals.cash());
-            }
+            expected = session.getOpeningFloat().add(totals.cash());
         }
 
         boolean money = canSeeMoney();
         return new TillStateResponse(
                 branchId,
-                branch.isTillEnabled(),
-                tillOpen,
+                open.isPresent(),
                 branchService.canOrderNow(branch),
-                branch.isAcceptingOrdersNow() ? null : branch.getPauseUntil(),
-                branch.isTillBlindCount(),
-                branch.getTillNoteOver(),
                 open.map(TillSessionResponse::from).orElse(null),
                 money ? cash : null,
                 money ? card : null,
                 money ? expected : null,
-                orders,
-                openTabs,
-                money ? suggestedFloat(branch, lastClose.orElse(null)) : null,
-                money ? lastClose.map(TillSessionResponse::from).orElse(null) : null);
+                orders);
     }
 
     @Transactional(readOnly = true)
@@ -149,9 +126,6 @@ public class TillService {
     @Transactional
     public TillSessionResponse open(Long branchId, OpenTillRequest request) {
         Branch branch = requireBranch(branchId);
-        if (!branch.isTillEnabled()) {
-            throw new BadRequestException("This branch doesn't run a till. Turn it on in Settings first.");
-        }
         branchService.requireActive(branch);
         if (sessions.existsByBranchIdAndClosedAtIsNull(branchId)) {
             throw new ConflictException("The till is already open.");
@@ -184,14 +158,13 @@ public class TillService {
      * Counts the drawer and shuts the shop.
      *
      * <p>The count comes from the person; everything it is judged against is computed here and
-     * frozen onto the row. Closing does not ask whether there are bills still open on the floor
-     * — the state endpoint says so and the screen warns — because a café that needs to cash out
-     * at midnight with one table still running must be able to, and a system that refuses is a
-     * system people learn to work around.
+     * frozen onto the row. Closing does not ask whether there are bills still open on the floor,
+     * because a café that needs to cash out at midnight with one table still running must be
+     * able to, and a system that refuses is a system people learn to work around.
      */
     @Transactional
     public TillSessionResponse close(Long branchId, CloseTillRequest request) {
-        Branch branch = requireBranch(branchId);
+        requireBranch(branchId);
         TillSession session = sessions.findFirstByBranchIdAndClosedAtIsNull(branchId)
                 .orElseThrow(() -> new ConflictException("The till isn't open."));
 
@@ -200,15 +173,6 @@ public class TillService {
         BigDecimal counted = scaled(request.countedCash());
         BigDecimal expected = session.getOpeningFloat().add(totals.cash());
         BigDecimal variance = counted.subtract(expected);
-
-        String note = request.note() == null || request.note().isBlank() ? null : request.note().trim();
-        BigDecimal threshold = branch.getTillNoteOver();
-        if (threshold != null && variance.abs().compareTo(threshold) > 0 && note == null) {
-            // The one place the till insists. A drawer that is out by real money and nobody
-            // wrote why is a number that will mean nothing to whoever reads it next week.
-            throw new BadRequestException(
-                    "The drawer is out by " + variance.abs().toPlainString() + ". Say what happened.");
-        }
 
         CustomUserDetails actor = SecurityUtils.currentUser();
         session.setClosedAt(closedAt);
@@ -221,7 +185,6 @@ public class TillService {
         session.setCardSales(totals.card());
         session.setOrderCount((int) orderRepository.countInWindow(
                 branchId, session.getOpenedAt(), closedAt, NOT_SOLD));
-        session.setCloseNote(note);
         return TillSessionResponse.from(session);
     }
 
@@ -244,18 +207,6 @@ public class TillService {
     }
 
     private record Totals(BigDecimal cash, BigDecimal card) {}
-
-    /**
-     * What to prefill tomorrow's float with. A café that leaves its change in the drawer
-     * overnight gets last night's counted cash back, so opening is one tap; a café that banks
-     * the lot gets an empty box and types what it put in.
-     */
-    private BigDecimal suggestedFloat(Branch branch, TillSession lastClose) {
-        if (!branch.isTillCarryFloat() || lastClose == null) {
-            return null;
-        }
-        return lastClose.getCountedCash();
-    }
 
     /**
      * Money is gated on PAYMENTS, the permission that already means "handles the café's money",
