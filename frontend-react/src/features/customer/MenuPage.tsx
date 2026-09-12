@@ -18,6 +18,7 @@ import { usePresence } from './usePresence';
 import { CustomerFrame } from './CustomerFrame';
 import { ItemDetailModal } from './ItemDetailModal';
 import { loyaltyCardStyle } from './StampCard';
+import { FACT_ICONS, IconTimer, IconGift, IconTicket, IconCart, type FactIconKey } from './icons';
 import './loyalty.css';
 
 const DICT: Dict = {
@@ -35,11 +36,6 @@ const DICT: Dict = {
         welcome: 'Welcome back', usual: 'Your usual', addUsual: '＋ Add', lastOrderLbl: 'Your last order', reorderLast: '↻ Add to cart', lastAdded: 'Your last order is in the cart ✓',
         loyStamps: 'stamps', loyReady: 'Your reward is ready! 🎉', loyReadySub: 'Redeem your free reward at checkout', loyMinTag: 'min order',
         loyPickAny: 'Pick any:', qtyMinus: 'Decrease quantity', qtyPlus: 'Increase quantity', loyRewardBadge: 'Loyalty reward', loyFreeBadge: 'Free with your reward' },
-};
-
-const fallbackThumb = (it: PublicItem) => {
-  const hue = (it.id * 47) % 360;
-  return { backgroundImage: `linear-gradient(155deg, hsl(${hue} 42% 34%) -30%, #15171C 70%)` };
 };
 
 export default function MenuPage() {
@@ -254,14 +250,6 @@ export default function MenuPage() {
           </div>
           <LangToggle />
         </div>
-        <div className="c-meta">
-          {data.table
-            ? <span className="c-table">🪑 {t('table')} <span className="num">{data.table.tableNumber}</span></span>
-            : orderType === 'CAR'
-              ? <span className="c-table">🚗 {t('car')}</span>
-              : <span className="c-table">📋 {t('menuOnly')}</span>}
-          {data.branch && <span>{nameOf(data.branch, lang)}</span>}
-        </div>
       </header>
 
       {!acceptingOrders
@@ -292,13 +280,13 @@ export default function MenuPage() {
             {houseNote && <p className="c-house-note">{houseNote}</p>}
             {facts.length > 0 && (
               <div className="c-house-facts">
-                {facts.map((f) => (f.href
-                  ? <a className="c-fact" key={f.key} href={f.href} target="_blank" rel="noreferrer">
-                      <span aria-hidden="true">{f.icon}</span>{f.ltr ? <Ltr>{f.text}</Ltr> : <bdi>{f.text}</bdi>}
-                    </a>
-                  : <span className="c-fact" key={f.key}>
-                      <span aria-hidden="true">{f.icon}</span>{f.ltr ? <Ltr>{f.text}</Ltr> : <bdi>{f.text}</bdi>}
-                    </span>))}
+                {facts.map((f) => {
+                  const Icon = FACT_ICONS[f.key as FactIconKey];
+                  const inner = <>{Icon ? <Icon /> : null}{f.ltr ? <Ltr>{f.text}</Ltr> : <bdi>{f.text}</bdi>}</>;
+                  return f.href
+                    ? <a className="c-fact" key={f.key} href={f.href} target="_blank" rel="noreferrer">{inner}</a>
+                    : <span className="c-fact" key={f.key}>{inner}</span>;
+                })}
               </div>
             )}
           </section>
@@ -310,7 +298,7 @@ export default function MenuPage() {
           return (
             <Link to="/loyalty" state={{ from: pathname }}
               className={'loy-strip on-menu' + (ready ? ' ready' : '')} style={loyaltyCardStyle(loy.cardColor)}>
-              <span className="loy-spark">{ready ? '★' : '🎟️'}</span>
+              <span className="loy-spark"><IconTicket size={18} /></span>
               <div className="loy-strip-main">
                 {/* The pair is one machine-format value and has to be isolated: a slash
                     between two numeric runs resolves RTL, so 3 / 4 read as 4 / 3 on the
@@ -376,8 +364,8 @@ export default function MenuPage() {
               return (
                 <article className={'c-item' + (sellable(it) ? '' : ' out')}
                   style={{ animationDelay: `${Math.min(idx, 6) * 60}ms` }} key={it.id}>
-                  <button className="c-thumb" type="button" onClick={open}
-                    style={it.imageUrl ? undefined : fallbackThumb(it)} aria-label={pick(it, 'name', lang)}>
+                  <button className={'c-thumb' + (it.imageUrl ? '' : ' is-empty')} type="button" onClick={open}
+                    aria-label={pick(it, 'name', lang)}>
                     {it.imageUrl
                       ? <img src={it.imageUrl} alt="" decoding="async" loading={eager ? 'eager' : 'lazy'}
                           width={82} height={82}
@@ -400,17 +388,19 @@ export default function MenuPage() {
                     <div className="c-foot">
                       <div>
                         <div className="c-price">
+                          {/* the qualifier leads the number in both languages: "from 1.600",
+                              "يبدأ من ١٫٦٠٠" — trailing it read as "1.600 from" in English */}
+                          {hasOptions && <span className="c-from">{t('from')}</span>}
                           {it.salePrice != null && (
                             <Money value={it.price} className="c-was num" />
                           )}
                           <Money value={it.salePrice ?? it.price} className={'num' + (it.salePrice != null ? ' c-sale' : '')} />
                           {it.salePrice != null && <span className="c-off"><Ltr>−{discountPercent(it.price, it.salePrice)}%</Ltr></span>}
-                          {hasOptions && <span className="c-from"> · {t('from')}</span>}
                         </div>
-                        {it.preparationTimeMinutes ? <div className="c-prep">⏱ <span className="num">{it.preparationTimeMinutes}</span> {t('min')}</div> : null}
+                        {it.preparationTimeMinutes ? <div className="c-prep"><IconTimer size={13} /><span className="num">{it.preparationTimeMinutes}</span> {t('min')}</div> : null}
                         {loyRewardIds.includes(it.id) && !loyRewardIsAnything && (
                           <div className={'loy-item-badge' + (loyReady ? ' ready' : '')}>
-                            🎁 {loyReady ? t('loyFreeBadge') : t('loyRewardBadge')}
+                            <IconGift size={13} /> {loyReady ? t('loyFreeBadge') : t('loyRewardBadge')}
                           </div>
                         )}
                       </div>
@@ -453,7 +443,7 @@ export default function MenuPage() {
         aria-hidden={!cartbarShown}
         onClick={() => nav('/cart')}
       >
-        <span className="ico" aria-hidden="true">🛒<span className="count" key={count}>{count}</span></span>
+        <span className="ico" aria-hidden="true"><IconCart size={18} /><span className="count" key={count}>{count}</span></span>
         <span className="lbl"><b>{t('viewCart')}</b><span>{count} {t('items')}</span></span>
         <Money value={subtotal} className="total num" />
         <span className="go" aria-hidden="true">‹</span>

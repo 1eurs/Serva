@@ -6,6 +6,7 @@ import { effectiveBasePrice } from '../../lib/cart';
 import { useI18n, useT, pick, Ltr, type Dict } from '../../lib/i18n';
 import { sellable } from '../../lib/types';
 import type { PublicItem, SelectedOption } from '../../lib/types';
+import { IconTimer } from './icons';
 
 const DICT: Dict = {
   ar: { cur: 'ر.ع', add: 'أضف للسلة', from: 'يبدأ من', req: 'يرجى اختيار', choose: 'اختر', optional: 'اختياري',
@@ -186,7 +187,7 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
                 <Money value={unitPrice} className={'num' + (item.salePrice != null ? ' c-sale' : '')} />
                 {item.salePrice != null && <span className="c-off"><Ltr>−{discountPercent(item.price, item.salePrice)}%</Ltr></span>}
               </span>
-              {item.preparationTimeMinutes ? <span className="c-modal-prep">⏱ {item.preparationTimeMinutes} {t('min')}</span> : null}
+              {item.preparationTimeMinutes ? <span className="c-modal-prep"><IconTimer size={14} /> {item.preparationTimeMinutes} {t('min')}</span> : null}
             </div>
 
             {groups.map((g) => (
