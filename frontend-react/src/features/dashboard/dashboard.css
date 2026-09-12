@@ -523,6 +523,32 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
 .split-unit.mine{border-style:solid;border-color:var(--keyline);background:var(--accent);color:var(--accent-ink)}
 .split-unit.theirs{border-style:solid;border-color:var(--line-2);background:var(--surface-2);color:var(--muted)}
 .split-unit:disabled{opacity:.5;cursor:not-allowed}
+/* By item: a unit wears the method it was paid with, in the tint the pay buttons already use
+   for that method, so a glance down the list says "the card ones are green" without a legend.
+   The active wallet decides what the next tap does; nothing on the unit itself needs to. */
+.split-unit.cash{border-style:solid;border-color:var(--edge-warn);background:var(--tint-warn);color:var(--text);font-size:15px}
+.split-unit.card{border-style:solid;border-color:var(--edge-ok);background:var(--tint-ok);color:var(--text);font-size:15px}
+/* The two wallets. Wider than a person chip because they carry a live amount — the tender
+   that will be recorded, readable back to the customer before anything is written. */
+.split-modes{margin:0 0 12px}
+.split-wallets{display:grid;grid-template-columns:1fr 1fr;gap:max(8px,var(--tap-gap))}
+.split-wallet{display:flex;align-items:center;gap:8px;min-height:max(48px,var(--tap));padding:8px 12px;
+  border:1px solid var(--line-2);border-radius:10px;background:var(--surface);color:var(--text);
+  font-family:inherit;cursor:pointer;text-align:start;transition:background .1s,border-color .1s}
+.split-wallet-ic{font-size:18px;line-height:1}
+.split-wallet-lb{font-size:12.5px;font-weight:700;color:var(--muted);flex:1 1 auto;min-width:0}
+.split-wallet-amt{font-weight:800;font-size:15px}
+.split-wallet.cash.on{background:var(--tint-warn);border-color:var(--edge-warn)}
+.split-wallet.card.on{background:var(--tint-ok);border-color:var(--edge-ok)}
+.split-wallet.on .split-wallet-lb{color:var(--text)}
+.split-wallet:disabled{opacity:.5;cursor:not-allowed}
+/* The line's name is a target too — three waters that were all card is one tap, not three. */
+.split-line-btn{border:0;background:transparent;padding:6px 0;font-family:inherit;text-align:start;cursor:pointer;border-radius:6px}
+@media (hover:hover){.split-line-btn:hover{color:var(--accent-text)}}
+.split-line-btn:disabled{cursor:not-allowed}
+/* "These two were card, everything else cash" is the shape of most real splits. */
+.split-rest{display:grid;grid-template-columns:1fr 1fr;gap:max(8px,var(--tap-gap));margin-top:10px}
+.split-rest .btn{width:100%;justify-content:center}
 .split-rows{display:flex;flex-direction:column;gap:max(8px,var(--tap-gap));max-height:44vh;overflow-y:auto;padding:2px}
 /* Cash and card sit next to each other and a mis-tap here books the wrong method, so both
    ride the posture floor rather than a fixed px size, and keep a full gutter between them. */
