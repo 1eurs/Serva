@@ -54,9 +54,9 @@
 .c-nav button.on em{background:color-mix(in srgb,var(--accent-ink) 14%,transparent);color:var(--accent-ink);border-color:color-mix(in srgb,var(--accent-ink) 24%,transparent)}
 
 /* menu */
-.c-scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;scroll-behavior:smooth;scroll-padding-top:72px}
+.c-scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;scroll-behavior:smooth;scroll-padding-top:0}
 .c-scroll::-webkit-scrollbar{width:0}
-.c-cat{padding:24px 18px 4px;scroll-margin-top:72px}
+.c-cat{padding:24px 18px 4px;scroll-margin-top:12px}
 .c-cat-head{display:flex;align-items:center;gap:14px;margin-bottom:6px}
 .c-cat-head h2{font-family:var(--font-display);font-size:21px;font-weight:700;letter-spacing:-.01em;white-space:nowrap;color:var(--text)}
 .c-cat-head .en{font-family:var(--font-mono);font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--faint)}
@@ -178,7 +178,7 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
 .c-foot-bar{padding:14px 18px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--glass);backdrop-filter:blur(10px)}
 
 /* cart lines */
-.c-line{display:flex;gap:12px;padding:12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);margin-bottom:12px}
+.c-line{display:flex;flex-wrap:wrap;gap:12px;padding:12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);margin-bottom:12px}
 .c-line .c-thumb{flex:0 0 58px;width:58px;height:58px;border-radius:12px}
 .c-line .c-thumb .glyph{font-size:24px}
 .c-line-main{flex:1;min-width:0}
@@ -190,7 +190,7 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
    customer tapped it to add a note.
    field-sizing lets it grow with what is typed (Chrome/Edge); everywhere else the min-height
    plus a scrollbar keeps it usable rather than clipping the text out of sight. */
-.c-notein{width:100%;margin-top:8px;border:1px solid var(--line-2);background:var(--bg-2);border-radius:10px;padding:7px 10px;font-family:var(--font-ar);font-size:var(--fs-field);line-height:1.4;color:var(--text);resize:none;
+.c-notein{flex:1 0 100%;margin-top:0;border:1px solid var(--line-2);background:var(--bg-2);border-radius:10px;padding:7px 10px;font-family:var(--font-ar);font-size:var(--fs-field);line-height:1.4;color:var(--text);resize:none;
   field-sizing:content;min-height:calc(1.4em + 16px);max-height:7em;overflow-y:auto}
 .c-notein::placeholder{color:var(--faint)}
 .c-line-side{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between}
@@ -459,3 +459,7 @@ html[data-input="touch"] .c-qty button{min-width:var(--tap);min-height:var(--tap
   .c-cartbar .count{animation:none}
   .c-cartbar{transition:none}
 }
+
+/* A loyalty strip that only reports progress: no pointer, no hover lift. */
+.loy-strip.is-static{cursor:default}
+.loy-strip.is-static .loy-go{display:none}

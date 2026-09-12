@@ -28,7 +28,7 @@ const DICT: Dict = {
         note: 'ملاحظة على الطلب', notePh: 'مثال: بدون سكر…', itemNote: 'ملاحظة على الصنف…',
         subtotal: 'المجموع الفرعي', vat: 'ضريبة القيمة المضافة', total: 'الإجمالي',
         finalNote: 'يُحتسب الإجمالي النهائي من المقهى عند تأكيد الطلب.', place: 'إرسال الطلب', placing: 'جارٍ الإرسال…',
-        loyStamps: 'أختام', redeemTitle: 'استخدم مكافأتك', redeemSub: 'صنف واحد مجاناً',
+        loyStamps: 'أختام', qtyMinus: 'إنقاص الكمية', qtyPlus: 'زيادة الكمية', redeemTitle: 'استخدم مكافأتك', redeemSub: 'صنف واحد مجاناً',
         chooseFree: 'اختر صنفك المجاني', freeTag: 'مجاني 🎁',
         rewardReady: 'لديك مكافأة مجانية!', addOneOf: 'أضف أحد هذه الأصناف لاستخدامها:',
         loyDiscount: 'مكافأة الولاء', myRewards: 'مكافآتي' },
@@ -43,7 +43,7 @@ const DICT: Dict = {
         note: 'Order note', notePh: 'e.g. no sugar…', itemNote: 'Note for this item…',
         subtotal: 'Subtotal', vat: 'VAT', total: 'Total',
         finalNote: 'Final total is confirmed by the cafe when your order is accepted.', place: 'Place order', placing: 'Sending…',
-        loyStamps: 'stamps', redeemTitle: 'Use your reward', redeemSub: 'one item free',
+        loyStamps: 'stamps', qtyMinus: 'Decrease quantity', qtyPlus: 'Increase quantity', redeemTitle: 'Use your reward', redeemSub: 'one item free',
         chooseFree: 'Choose your free item', freeTag: 'FREE 🎁',
         rewardReady: 'You have a free reward!', addOneOf: 'Add one of these to use it:',
         loyDiscount: 'Loyalty reward', myRewards: 'My rewards' },
@@ -290,17 +290,20 @@ export default function CartPage() {
                       </div>
                     )}
                     <div className="lp"><span className="num">{omr(lineUnitPrice(it, l.selectedOptions))}</span> {t('cur')}</div>
-                    <textarea className="c-notein" rows={1} placeholder={t('itemNote')} value={l.note}
-                      onChange={(e) => setNote(cartKey, l.key, e.target.value)} />
                   </div>
                   <div className="c-line-side">
+                    {/* Same order as every other stepper on the menu — minus, count, plus. */}
                     <div className="c-qty">
-                      <button onClick={() => useCartStore.getState().add(cartKey, l.id, l.selectedOptions)}>+</button>
+                      <button aria-label={t('qtyMinus')} onClick={() => bump(cartKey, l.key, -1)}>−</button>
                       <span className="n num">{l.qty}</span>
-                      <button onClick={() => bump(cartKey, l.key, -1)}>−</button>
+                      <button aria-label={t('qtyPlus')} onClick={() => useCartStore.getState().add(cartKey, l.id, l.selectedOptions)}>+</button>
                     </div>
                     <div className="lt"><span className="num">{omr(lineUnitPrice(it, l.selectedOptions) * l.qty)}</span></div>
                   </div>
+                  {/* Its own row across the whole line. Wedged in the middle column it was
+                      122px wide, so "Note for this item…" wrapped before it was even typed in. */}
+                  <textarea className="c-notein" rows={1} placeholder={t('itemNote')} value={l.note}
+                    onChange={(e) => setNote(cartKey, l.key, e.target.value)} />
                 </div>
               );
             })}
@@ -386,10 +389,10 @@ export default function CartPage() {
               )}
             </div>
 
+            {/* Reads as progress, not as a link. Tapping it used to leave the cart for the
+                loyalty portal, which is the last place someone mid-checkout wants to go. */}
             {loyalty?.enabled && loyalty.availableRewards < 1 && (
-              <div className="loy-strip" style={loyaltyCardStyle(loyalty.cardColor)}
-                onClick={() => nav('/loyalty', { state: { from: loc.pathname } })} role="button" tabIndex={0}
-                onKeyDown={(e) => e.key === 'Enter' && nav('/loyalty', { state: { from: loc.pathname } })}>
+              <div className="loy-strip is-static" style={loyaltyCardStyle(loyalty.cardColor)}>
                 <span className="loy-spark">🎟️</span>
                 <div className="loy-strip-main">
                   <b><span className="num">{loyalty.stamps}</span> / <span className="num">{loyalty.stampsRequired}</span> {t('loyStamps')}</b>
