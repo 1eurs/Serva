@@ -1210,7 +1210,7 @@ function CustomerDirectoryTable({ data, loading, search, page, lang, t, onSearch
           </div>
           <div className="an-pager">
             <button disabled={page === 0} onClick={() => onPage(page - 1)} aria-label="Previous">‹</button>
-            <span>{page + 1} / {Math.max(1, data.totalPages)}</span>
+            <span><Ltr>{page + 1} / {Math.max(1, data.totalPages)}</Ltr></span>
             <button disabled={data.last} onClick={() => onPage(page + 1)} aria-label="Next">›</button>
           </div>
         </>

@@ -128,6 +128,17 @@ export default function MenuPage() {
   // Loyalty reward eligibility: badge the items a full stamp card can claim free.
   const loyRewardIds = (returning?.loyalty?.enabled ? returning.loyalty.rewardItemIds : null) ?? [];
   const loyReady = (returning?.loyalty?.availableRewards ?? 0) > 0;
+  // When the reward is redeemable against (nearly) the whole menu, badging each item says
+  // nothing — it is the remainingToday rule again: a badge on every item is a badge on none.
+  // The strip above the categories already says it once, which is where it belongs.
+  const loyRewardIsAnything = useMemo(() => {
+    if (loyRewardIds.length === 0) return false;
+    const sellableIds = [...itemsById.values()].filter(sellable).map((i) => i.id);
+    if (sellableIds.length === 0) return false;
+    const covered = sellableIds.filter((id) => loyRewardIds.includes(id)).length;
+    return covered / sellableIds.length >= 0.8;
+  }, [loyRewardIds, itemsById]);
+
   const loyRewardNames = useMemo(
     () => loyRewardIds.map((id) => itemsById.get(id)).filter((it): it is PublicItem => !!it)
       .slice(0, 3).map((it) => pick(it, 'name', lang)),
@@ -301,7 +312,10 @@ export default function MenuPage() {
               className={'loy-strip on-menu' + (ready ? ' ready' : '')} style={loyaltyCardStyle(loy.cardColor)}>
               <span className="loy-spark">{ready ? '★' : '🎟️'}</span>
               <div className="loy-strip-main">
-                <b>{ready ? t('loyReady') : <><span className="num">{loy.stamps}</span> / <span className="num">{loy.stampsRequired}</span> {t('loyStamps')}</>}</b>
+                {/* The pair is one machine-format value and has to be isolated: a slash
+                    between two numeric runs resolves RTL, so 3 / 4 read as 4 / 3 on the
+                    Arabic menu — the count looked like it had overshot the card. */}
+                <b>{ready ? t('loyReady') : <><Ltr>{loy.stamps} / {loy.stampsRequired}</Ltr> {t('loyStamps')}</>}</b>
                 <span>{ready
                   ? (loyRewardNames.length ? `${t('loyPickAny')} ${loyRewardNames.join(' · ')}` : t('loyReadySub'))
                   : <>{loy.rewardLabel}{loy.minOrderAmount ? <> · {t('loyMinTag')} <Money value={loy.minOrderAmount} /></> : null}</>}</span>
@@ -394,7 +408,7 @@ export default function MenuPage() {
                           {hasOptions && <span className="c-from"> · {t('from')}</span>}
                         </div>
                         {it.preparationTimeMinutes ? <div className="c-prep">⏱ <span className="num">{it.preparationTimeMinutes}</span> {t('min')}</div> : null}
-                        {loyRewardIds.includes(it.id) && (
+                        {loyRewardIds.includes(it.id) && !loyRewardIsAnything && (
                           <div className={'loy-item-badge' + (loyReady ? ' ready' : '')}>
                             🎁 {loyReady ? t('loyFreeBadge') : t('loyRewardBadge')}
                           </div>

@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
 import type { PublicMenu, PublicItem, OrderTracking, CreateOrderPayload, OrderType, LoyaltySummary } from '../../lib/types';
 import { omr, estimateVat, round3, syncPhoneInput, isValidPhone } from '../../lib/format';
-import { useI18n, useT, pick, type Dict } from '../../lib/i18n';
+import { useI18n, useT, pick, Ltr, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { useCartStore, useCart, lineUnitPrice } from '../../lib/cart';
 import { CAR_COLORS, carColorOf } from '../../lib/carColors';
@@ -395,7 +395,8 @@ export default function CartPage() {
               <div className="loy-strip is-static" style={loyaltyCardStyle(loyalty.cardColor)}>
                 <span className="loy-spark">🎟️</span>
                 <div className="loy-strip-main">
-                  <b><span className="num">{loyalty.stamps}</span> / <span className="num">{loyalty.stampsRequired}</span> {t('loyStamps')}</b>
+                  {/* isolated for the same reason as the menu's strip — see MenuPage */}
+                  <b><Ltr>{loyalty.stamps} / {loyalty.stampsRequired}</Ltr> {t('loyStamps')}</b>
                   <span>{loyalty.rewardLabel}</span>
                 </div>
                 <div className="loy-mini" aria-hidden="true">

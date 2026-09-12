@@ -84,7 +84,7 @@ export default function OrdersPage({ branchId }: { branchId?: number }) {
             </table>
             <div className="pager">
               <button className="btn sm ghost" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>‹ {t('prev')}</button>
-              <span className="num">{t('page')} {(data?.page ?? 0) + 1} / {data?.totalPages ?? 1}</span>
+              <span className="num">{t('page')} <Ltr>{(data?.page ?? 0) + 1} / {data?.totalPages ?? 1}</Ltr></span>
               <button className="btn sm ghost" disabled={data?.last} onClick={() => setPage((p) => p + 1)}>{t('next')} ›</button>
             </div>
           </>

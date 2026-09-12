@@ -54,6 +54,14 @@ const RULES = [
   { id: 'bare-phone', re: /\{[^{}]*\.phone\b[^{}]*\}/, why: 'a phone number is multi-run' },
   { id: 'joined',     re: /`[^`]*\s·\s\$\{[^}]*(phone|quantity|dailyNumber|amount|count|omr\()/,
     why: 'a numeric value joined with " · " inside a template string' },
+  // The shape that produced "4 / 3" on the loyalty strip: two values with a spaced
+  // separator between them. The numbers sat in separate spans, so no single source line
+  // ever contained "3 / 4" for the rules above to match — the pair has to be matched
+  // across the tags instead.
+  // Only "/" and "×" — "·" is this codebase's prose bullet ("cash · send"), and a label
+  // either side of it is strongly directional, so it orders correctly on its own.
+  { id: 'value-pair', re: /\{[^{}]+\}(?:\s*<\/[a-zA-Z]+>)?\s+[/×]\s+(?:<[a-zA-Z][^>]*>\s*)?\{[^{}]+\}/,
+    why: 'two values joined by a spaced separator swap places ("3 / 4" reads "4 / 3")' },
 ];
 
 /** Values that are prose or never rendered as text, whatever shape they take. */
