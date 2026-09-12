@@ -36,9 +36,6 @@ public class Branch extends BaseEntity implements BilingualNamed {
     @Column(name = "active", nullable = false)
     private boolean active = true;
 
-    @Column(name = "accepting_orders", nullable = false)
-    private boolean acceptingOrders = true;
-
     @Column(name = "printer_enabled", nullable = false)
     private boolean printerEnabled = false;
 
@@ -140,13 +137,6 @@ public class Branch extends BaseEntity implements BilingualNamed {
         this.active = active;
     }
 
-    public boolean isAcceptingOrders() {
-        return acceptingOrders;
-    }
-
-    public void setAcceptingOrders(boolean acceptingOrders) {
-        this.acceptingOrders = acceptingOrders;
-    }
 
     public boolean isPrinterEnabled() {
         return printerEnabled;

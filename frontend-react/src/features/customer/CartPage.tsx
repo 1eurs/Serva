@@ -19,7 +19,7 @@ import './loyalty.css';
 const DICT: Dict = {
   ar: { title: 'سلّتك', cur: 'ر.ع', empty: 'سلّتك فارغة', emptySub: 'أضف ما يطيب لك من القائمة.', back: 'العودة للقائمة',
         soldOutNow: 'نفد صنف في سلتك للتو. راجع القائمة وحاول مرة أخرى.',
-        ordersPaused: 'الطلبات متوقفة مؤقتاً', ordersPausedSub: 'هذا الفرع لا يستقبل طلبات جديدة حالياً. يمكنك العودة لتصفح القائمة.', closedStamp: 'مغلق',
+        ordersPaused: 'المقهى مغلق حالياً', ordersPausedSub: 'هذا الفرع لا يستقبل طلبات الآن. يمكنك العودة لتصفح القائمة.', closedStamp: 'مغلق',
         carPlate: 'رقم لوحة السيارة العُمانية', carPlatePh: 'مثال: 1234 أ ب',
         carPlateHint: 'اختياري — اكتب الأرقام ثم الرمز', plateNum: 'الأرقام', plateCode: 'الرمز', carColor: 'لون السيارة',
         name: 'الاسم (اختياري)', nameReq: 'الاسم', nameRequired: 'الاسم مطلوب لطلبات السيارة',
@@ -34,7 +34,7 @@ const DICT: Dict = {
         loyDiscount: 'مكافأة الولاء', myRewards: 'مكافآتي' },
   en: { title: 'Your cart', cur: 'OMR', empty: 'Your cart is empty', emptySub: 'Add something you love from the menu.', back: 'Back to menu',
         soldOutNow: 'Something in your cart just sold out. Check the menu and try again.',
-        ordersPaused: 'Orders are paused', ordersPausedSub: 'This branch is not accepting new orders right now. You can return to browse the menu.', closedStamp: 'Closed',
+        ordersPaused: 'The café is closed', ordersPausedSub: 'This branch is not taking orders right now. You can return to browse the menu.', closedStamp: 'Closed',
         carPlate: 'Oman car plate', carPlatePh: 'e.g. 1234 AB',
         carPlateHint: 'Optional — numbers, then the letter code', plateNum: 'Numbers', plateCode: 'Code', carColor: 'Car color',
         name: 'Name (optional)', nameReq: 'Name', nameRequired: 'Name is required for car orders',

@@ -14,8 +14,6 @@ public record BranchResponse(
         String phone,
         String openingHours,
         boolean active,
-        /** The pause alone. Whether the shop can really sell is the till's question, not this one's. */
-        boolean acceptingOrders,
         boolean printerEnabled,
         boolean counterMode,
         Instant createdAt,
@@ -24,7 +22,7 @@ public record BranchResponse(
     public static BranchResponse from(Branch b) {
         return new BranchResponse(
                 b.getId(), b.getRestaurantId(), b.getName(), b.getNameEn(), b.getNameAr(), b.getAddress(), b.getPhone(),
-                b.getOpeningHours(), b.isActive(), b.isAcceptingOrders(), b.isPrinterEnabled(), b.isCounterMode(),
+                b.getOpeningHours(), b.isActive(), b.isPrinterEnabled(), b.isCounterMode(),
                 b.getCreatedAt(), b.getUpdatedAt());
     }
 }

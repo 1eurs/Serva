@@ -81,17 +81,12 @@ class TillServiceTest {
     // ---------------- opening ----------------
 
     @Test
-    void openingTheTillRecordsWhoCountedTheFloatAndResumesOrdering() {
-        // Last night ended on a pause that nobody lifted — the exact state that used to leave a
-        // café open for business and refusing every customer.
-        branch.setAcceptingOrders(false);
-
+    void openingTheTillRecordsWhoCountedTheFloat() {
         TillSessionResponse opened = tillService.open(2L, new OpenTillRequest(new BigDecimal("20")));
 
         assertThat(opened.openingFloat()).isEqualByComparingTo("20.000");
         assertThat(opened.openedBy()).isEqualTo("user7");
         assertThat(opened.closedAt()).isNull();
-        assertThat(branch.isAcceptingOrders()).isTrue();
     }
 
     @Test
@@ -160,12 +155,10 @@ class TillServiceTest {
         authenticate(EnumSet.of(Permission.ORDERS));
         openSessionWith(new BigDecimal("20.000"));
         takings("47.500", "132.000");
-        when(branchService.canOrderNow(branch)).thenReturn(true);
 
         TillStateResponse state = tillService.state(2L);
 
         assertThat(state.open()).isTrue();
-        assertThat(state.acceptingOrders()).isTrue();
         assertThat(state.cashTaken()).isNull();
         assertThat(state.cardTaken()).isNull();
         assertThat(state.expectedCash()).isNull();

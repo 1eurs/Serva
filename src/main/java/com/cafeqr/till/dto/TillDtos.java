@@ -57,9 +57,8 @@ public final class TillDtos {
      * The whole state of one branch's till, in the shape the header switch needs to draw itself
      * without asking three questions.
      *
-     * @param open             whether a session is running.
-     * @param acceptingOrders  whether a customer's order would be taken right now — the till and
-     *                         the pause, already combined.
+     * @param open             whether a session is running, which is the whole of "can this
+     *                         shop sell right now" — there is no second switch.
      * @param cashTaken        cash this session has taken so far. Null for anyone without the
      *                         Payments permission, as are the other money figures.
      * @param expectedCash     float plus cash taken: what should be in the drawer right now.
@@ -67,7 +66,6 @@ public final class TillDtos {
     public record TillStateResponse(
             Long branchId,
             boolean open,
-            boolean acceptingOrders,
             TillSessionResponse session,
             BigDecimal cashTaken,
             BigDecimal cardTaken,

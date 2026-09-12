@@ -72,7 +72,6 @@ public class BranchService {
         branch.setPhone(request.phone());
         branch.setOpeningHours(request.openingHours());
         branch.setActive(true);
-        branch.setAcceptingOrders(true);
         Branch saved = branchRepository.save(branch);
 
         // A new shop opens selling, with an uncounted drawer — the same deal V67 gave every
@@ -157,24 +156,6 @@ public class BranchService {
         return BranchResponse.from(branch);
     }
 
-    /**
-     * Pause or resume customer ordering — the break in the middle of a shift.
-     *
-     * <p>Resuming into a closed till is refused rather than quietly granted: the switch would
-     * say "accepting orders" over a shop that cannot take one, which is exactly the gap between
-     * the button and reality this whole thing exists to close.
-     */
-    @Transactional
-    public BranchResponse setAcceptingOrders(Long branchId, boolean acceptingOrders) {
-        Branch branch = getEntity(branchId);
-        accessGuard.requireBranchAccess(branch.getRestaurantId(), branch.getId());
-        if (acceptingOrders) {
-            requireTillOpen(branch);
-        }
-        branch.setAcceptingOrders(acceptingOrders);
-        return BranchResponse.from(branch);
-    }
-
     // ---- helpers shared with other modules ----
 
     @Transactional(readOnly = true)
@@ -202,21 +183,20 @@ public class BranchService {
     /**
      * The customer's question: can I order from this shop, right now.
      *
-     * <p>Two things can say no — the drawer is not open, or the counter is paused — and the
-     * customer is told the same thing either way. Why the café is not selling is the café's
-     * business, and a phone at a table can do nothing with the difference.
+     * <p>One thing can say no, and it is the drawer. Why the café is not selling is the café's
+     * business, and a phone at a table can do nothing with the difference — so this says less
+     * than {@link #requireTillOpen} does, and carries its own error code for that reason.
      */
     public void requireAcceptingOrders(Branch branch) {
-        if (!isTillOpen(branch) || !branch.isAcceptingOrders()) {
+        if (!isTillOpen(branch)) {
             throw new BadRequestException(ErrorCode.BRANCH_NOT_ACCEPTING_ORDERS,
                     "This branch is not accepting orders right now");
         }
     }
 
     /**
-     * The counter's question, which is only the drawer: staff keep serving through a pause —
-     * that is what a pause is for — but not through a closed till, because there is nowhere for
-     * the money to go and nothing that would ever be counted against it.
+     * The counter's question, which is the same drawer said plainly: there is nowhere for the
+     * money to go and nothing that would ever be counted against it.
      *
      * <p>Its own error code, unlike the customer's: the person reading this one is standing at
      * the till and can open it.
@@ -235,7 +215,7 @@ public class BranchService {
      */
     @Transactional(readOnly = true)
     public boolean canOrderNow(Branch branch) {
-        return branch.isActive() && isTillOpen(branch) && branch.isAcceptingOrders();
+        return branch.isActive() && isTillOpen(branch);
     }
 
     private boolean isTillOpen(Branch branch) {

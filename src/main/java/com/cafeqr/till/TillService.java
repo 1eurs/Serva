@@ -78,7 +78,7 @@ public class TillService {
 
     @Transactional(readOnly = true)
     public TillStateResponse state(Long branchId) {
-        Branch branch = requireBranch(branchId);
+        requireBranch(branchId);
         Optional<TillSession> open = sessions.findFirstByBranchIdAndClosedAtIsNull(branchId);
 
         BigDecimal cash = null;
@@ -99,7 +99,6 @@ public class TillService {
         return new TillStateResponse(
                 branchId,
                 open.isPresent(),
-                branchService.canOrderNow(branch),
                 open.map(TillSessionResponse::from).orElse(null),
                 money ? cash : null,
                 money ? card : null,
@@ -117,11 +116,8 @@ public class TillService {
     // ============================================================ opening and closing
 
     /**
-     * Opens the drawer, and with it the shop.
-     *
-     * <p>Opening also resumes ordering: a till opened for the day that came up still paused
-     * from last night's rush would be a shop that believes it is open and refuses every
-     * customer, which is the exact failure this feature was built to end.
+     * Opens the drawer, and with it the shop — for both doors at once. There is no second
+     * switch that can leave a café believing it is open while it refuses every customer.
      */
     @Transactional
     public TillSessionResponse open(Long branchId, OpenTillRequest request) {
@@ -149,8 +145,6 @@ public class TillService {
             // at the same counter and one of them has already opened it.
             throw new ConflictException("The till was just opened on another device.");
         }
-        // Clears any pause left over from the last session — see the note above.
-        branch.setAcceptingOrders(true);
         return TillSessionResponse.from(saved);
     }
 

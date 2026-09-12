@@ -59,6 +59,7 @@ export interface PublicRestaurant {
 }
 export interface PublicBranch {
   id: number; name: string; nameEn?: string | null; nameAr?: string | null; address?: string | null; phone?: string | null;
+  /** Whether an order placed right now would be taken — the café's till, open or shut. */
   openingHours?: string | null; acceptingOrders: boolean;
 }
 export interface PublicTable { id: number; tableNumber: string; qrCodeToken: string; }
@@ -122,9 +123,7 @@ export interface OrderResponse {
 export interface BranchResponse {
   id: number; restaurantId: number; name: string; nameEn?: string | null; nameAr?: string | null;
   address?: string | null; phone?: string | null;
-  /** `acceptingOrders` is the pause alone — it says nothing about the till. Whether the shop
-   *  can really sell is TillState.acceptingOrders. */
-  openingHours?: string | null; active: boolean; acceptingOrders: boolean;
+  openingHours?: string | null; active: boolean;
   printerEnabled: boolean; counterMode: boolean; createdAt?: string;
 }
 
@@ -143,9 +142,8 @@ export interface TillSession {
 
 export interface TillState {
   branchId: number;
+  /** The whole of "can this shop sell right now" — there is no second switch. */
   open: boolean;
-  /** The till and the pause combined — whether an order would be taken right now. */
-  acceptingOrders: boolean;
   session?: TillSession | null;
   /** The money figures are null for anyone without the Payments permission. */
   cashTaken?: number | null;

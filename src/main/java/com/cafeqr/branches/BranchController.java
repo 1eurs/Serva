@@ -3,7 +3,6 @@ package com.cafeqr.branches;
 import com.cafeqr.branches.dto.BranchResponse;
 import com.cafeqr.branches.dto.CreateBranchRequest;
 import com.cafeqr.branches.dto.UpdateBranchRequest;
-import com.cafeqr.branches.dto.UpdateOrderingStatusRequest;
 import com.cafeqr.common.api.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -68,16 +67,5 @@ public class BranchController {
     @PatchMapping("/api/branches/{branchId}/deactivate")
     public ApiResponse<BranchResponse> deactivate(@PathVariable Long branchId) {
         return ApiResponse.ok("Branch deactivated", branchService.setActive(branchId, false));
-    }
-
-    @Operation(summary = "Pause or resume customer ordering for a branch")
-    @PreAuthorize("hasAuthority('ORDERS')")
-    @PatchMapping("/api/branches/{branchId}/ordering-status")
-    public ApiResponse<BranchResponse> setOrderingStatus(
-            @PathVariable Long branchId,
-            @Valid @RequestBody UpdateOrderingStatusRequest request) {
-        String message = request.acceptingOrders() ? "Orders resumed" : "Orders paused";
-        return ApiResponse.ok(message,
-                branchService.setAcceptingOrders(branchId, request.acceptingOrders()));
     }
 }
