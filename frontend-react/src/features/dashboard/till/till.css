@@ -1,0 +1,129 @@
+/* ============================ THE TILL ============================
+   The header control keeps .order-status-toggle (settings.css) so the shop sign does not
+   change shape the day it gains a third state — it gains a colour. Green is selling, amber
+   is a pause that will lift, and a shut till is drawn flat and grey rather than red: the
+   café closing for the night is not an alarm. */
+
+.order-status-toggle.shut{border-color:var(--line-2);background:var(--surface)}
+.order-status-toggle.shut .status-dot{background:var(--muted);box-shadow:none}
+.order-status-toggle.shut .ost-label{color:var(--muted)}
+
+/* ---- the sheet ---- */
+.till-sheet{max-width:440px;padding:0;display:flex;flex-direction:column}
+.till-hd{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:18px 20px 12px;border-bottom:1px solid var(--line);
+}
+.till-hd h3{font-size:17px;font-weight:800;margin:0}
+.till-x{
+  border:0;background:none;font-size:16px;line-height:1;color:var(--muted);
+  cursor:pointer;padding:6px;border-radius:8px;
+}
+@media (hover:hover){.till-x:hover{color:var(--text);background:var(--surface)}}
+
+.till-body{padding:16px 20px 20px;display:flex;flex-direction:column;gap:14px}
+.till-sub{color:var(--muted);font-size:13px;line-height:1.55;margin:0}
+.till-hint{color:var(--muted);font-size:12.5px;line-height:1.5;margin:0}
+.till-note{
+  margin:0;font-size:12.5px;line-height:1.55;color:var(--muted);
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;
+}
+.till-warn{
+  margin:0;font-size:12.5px;line-height:1.55;color:var(--text);
+  background:color-mix(in srgb,var(--amber) 10%,transparent);
+  border:1px solid color-mix(in srgb,var(--amber) 35%,transparent);
+  border-radius:10px;padding:10px 12px;
+}
+.till-problem{
+  margin:0;padding:10px 20px;font-size:12.5px;line-height:1.5;color:var(--bad);
+  background:color-mix(in srgb,var(--bad) 8%,transparent);
+}
+
+/* ---- the open drawer ---- */
+.till-open-card{
+  border:1px solid var(--line-2);border-radius:12px;padding:14px;
+  display:flex;flex-direction:column;gap:12px;background:var(--surface);
+}
+.till-who{display:flex;flex-direction:column;gap:2px}
+.till-who b{font-size:13.5px;font-weight:800}
+.till-who span{font-size:12px;color:var(--muted)}
+
+.till-figs{display:flex;flex-direction:column;gap:8px;margin:0}
+.till-figs > div{display:flex;align-items:baseline;justify-content:space-between;gap:14px}
+.till-figs dt{font-size:12.5px;color:var(--muted);margin:0}
+.till-figs dd{margin:0;font-weight:800;font-size:14px}
+.till-figs .till-plain{font-variant-numeric:tabular-nums}
+.till-figs.sub dd{font-size:13px;font-weight:700}
+.till-figs .till-expected{
+  padding-top:9px;border-top:1px dashed var(--line-2);
+}
+.till-figs .till-expected dd{font-size:16px}
+
+/* ---- what the count came to ---- */
+.till-result{display:flex;flex-direction:column;gap:14px}
+.till-result .till-diff{
+  padding-top:10px;border-top:1px solid var(--line-2);
+}
+.till-result .till-diff dd{font-size:17px}
+.till-result.exact .till-diff dd{color:var(--green)}
+.till-result.short .till-diff dd{color:var(--bad)}
+.till-result.over .till-diff dd{color:var(--amber)}
+
+/* ---- last night, in one line ---- */
+.till-last{
+  display:flex;align-items:baseline;gap:8px;margin:0;font-size:12.5px;
+  padding:9px 12px;border:1px solid var(--line);border-radius:10px;
+}
+.till-last-k{color:var(--muted);font-weight:700}
+.till-last-w{color:var(--muted);margin-inline-end:auto}
+.till-last.exact b{color:var(--green)}
+.till-last.short b{color:var(--bad)}
+.till-last.over b{color:var(--amber)}
+
+/* ---- fields ---- */
+.till-field{display:flex;flex-direction:column;gap:6px}
+.till-field > span{font-size:12.5px;font-weight:700;color:var(--muted)}
+.till-field input,.till-field textarea{
+  width:100%;font-family:inherit;font-size:15px;padding:11px 12px;
+  border:1px solid var(--line-2);border-radius:10px;background:var(--bg);color:var(--text);
+}
+.till-field input.num{font-size:20px;font-weight:800;letter-spacing:.02em}
+.till-field textarea{resize:vertical;font-size:13.5px;line-height:1.5}
+.till-field input:focus,.till-field textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+
+/* ---- actions ---- */
+.till-actions{display:flex;flex-direction:column;gap:8px}
+.till-actions .btn{width:100%;justify-content:center}
+.till-pause{display:flex;flex-direction:column;gap:8px}
+.till-pause-row{display:flex;flex-wrap:wrap;gap:6px}
+.till-pause-row .chip{
+  flex:1 1 auto;border:1px solid var(--line-2);background:var(--bg-2);color:var(--text);
+  border-radius:999px;padding:9px 12px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;
+}
+@media (hover:hover){.till-pause-row .chip:hover{border-color:var(--accent);color:var(--accent)}}
+html[data-input="touch"] .till-pause-row .chip{min-height:var(--tap)}
+
+/* ---- settings: the closes, as a specimen ---- */
+.till-history{display:flex;flex-direction:column;gap:2px}
+.till-history-row{
+  display:flex;align-items:baseline;gap:10px;font-size:12.5px;
+  padding:8px 2px;border-bottom:1px solid var(--line);
+}
+.till-history-row:last-child{border-bottom:0}
+.till-h-when{font-weight:700;min-width:56px}
+.till-h-who{color:var(--muted);margin-inline-end:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.till-history-row.exact b{color:var(--green)}
+.till-history-row.short b{color:var(--bad)}
+.till-history-row.over b{color:var(--amber)}
+
+.till-steps{margin-top:10px}
+.till-step-own{display:inline-flex}
+.till-step-own input{
+  width:92px;font-family:inherit;font-size:13px;padding:8px 10px;
+  border:1px solid var(--line-2);border-radius:8px;background:var(--bg);color:var(--text);
+}
+
+@media (max-width:520px){
+  .till-sheet{max-width:100%}
+  .till-figs > div{gap:10px}
+}

@@ -24,6 +24,7 @@ import com.cafeqr.orders.realtime.OrderStreamService;
 import com.cafeqr.orders.repository.OrderRepository;
 import com.cafeqr.payments.PaymentService;
 import com.cafeqr.payments.domain.PaymentMethod;
+import com.cafeqr.payments.dto.PaymentTender;
 import com.cafeqr.restaurants.RestaurantService;
 import com.cafeqr.restaurants.domain.Restaurant;
 import com.cafeqr.tables.TableService;
@@ -65,6 +66,7 @@ class OrderServiceTest {
     @Mock private OtpService otpService;
     @Mock private EventLogService eventLogService;
     @Mock private LoyaltyService loyaltyService;
+    @Mock private com.cafeqr.coupons.CouponService couponService;
     @Mock private PaymentService paymentService;
     @Mock private com.cafeqr.orders.print.PrintJobService printJobService;
     @Mock private com.cafeqr.stock.StockDrawService stockDrawService;
@@ -75,7 +77,7 @@ class OrderServiceTest {
     void setUp() {
         orderService = new OrderService(orderRepository, restaurantService, branchService, tableService,
                 menuService, accessGuard, notificationService, streamService, events, customerService,
-                otpService, eventLogService, loyaltyService, paymentService,
+                otpService, eventLogService, loyaltyService, couponService, paymentService,
                 printJobService, stockDrawService, new ObjectMapper());
         lenient().when(otpService.isPhoneTokenValid(any(), any())).thenReturn(true);
     }
@@ -179,8 +181,12 @@ class OrderServiceTest {
     }
 
     private static CreateStaffOrderRequest staffOrder(Boolean paid, PaymentMethod method) {
-        return new CreateStaffOrderRequest(5L, OrderType.DINE_IN, null, null, null, null, null, null,
-                List.of(new CreateOrderRequest.Item(100L, 1, null, null)), paid, method);
+        return staffOrder(paid, method, null);
+    }
+
+    private static CreateStaffOrderRequest staffOrder(Boolean paid, PaymentMethod method, List<PaymentTender> tenders) {
+        return new CreateStaffOrderRequest(5L, OrderType.DINE_IN, null, null, null, null, null, null, null, null,
+                List.of(new CreateOrderRequest.Item(100L, 1, null, null)), paid, method, tenders);
     }
 
     @Test
@@ -222,6 +228,35 @@ class OrderServiceTest {
         assertThat(response.status()).isEqualTo(OrderStatus.ACCEPTED);
         assertThat(response.readyAt()).isNull();
         verify(paymentService, never()).markPaid(anyLong(), any());
+    }
+
+    @Test
+    void staffOrderSplitSettlesWithTheOrderAndMovesItAlongLikeAnyPayment() {
+        Branch counter = branch();
+        counter.setCounterMode(true);
+        stubStaffOrder(counter);
+        List<PaymentTender> tenders = List.of(
+                new PaymentTender(PaymentMethod.CASH, new BigDecimal("0.800")),
+                new PaymentTender(PaymentMethod.CARD, new BigDecimal("0.775")));
+
+        OrderResponse response = orderService.createStaffOrder(staffOrder(null, null, tenders));
+
+        // A split IS payment: same posture as a one-tap paid order, not an unpaid open tab.
+        assertThat(response.status()).isEqualTo(OrderStatus.READY);
+        verify(paymentService).settleSplit(1L, tenders);
+        verify(paymentService, never()).markPaid(anyLong(), any());
+    }
+
+    @Test
+    void staffOrderRefusesToBeToldTwiceHowItWasPaid() {
+        // Only the scope stub: the request is refused before anything is looked up or priced.
+        when(accessGuard.scopedRestaurantId()).thenReturn(1L);
+        List<PaymentTender> tenders = List.of(new PaymentTender(PaymentMethod.CASH, new BigDecimal("1.575")));
+
+        // Two answers to "how was this paid" is how a till ends the day disagreeing with itself.
+        assertThatThrownBy(() -> orderService.createStaffOrder(staffOrder(true, PaymentMethod.CARD, tenders)))
+                .isInstanceOf(BadRequestException.class);
+        verify(orderRepository, never()).save(any(Order.class));
     }
 
     @Test

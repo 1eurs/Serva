@@ -78,6 +78,6 @@ public class BranchController {
             @Valid @RequestBody UpdateOrderingStatusRequest request) {
         String message = request.acceptingOrders() ? "Orders resumed" : "Orders paused";
         return ApiResponse.ok(message,
-                branchService.setAcceptingOrders(branchId, request.acceptingOrders()));
+                branchService.setAcceptingOrders(branchId, request.acceptingOrders(), request.pauseMinutes()));
     }
 }

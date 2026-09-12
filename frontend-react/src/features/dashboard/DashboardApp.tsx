@@ -13,6 +13,7 @@ import { useOrderSound, SoundToggle, notify, closeNotify } from '../../lib/alert
 import { useWakeLock } from '../../lib/wakeLock';
 import { fmtElapsed, omr } from '../../lib/format';
 import { Money } from '../../lib/Money';
+import { IconTicket } from '../customer/icons';
 import { carColorOf } from '../../lib/carColors';
 import { useSkin } from '../../lib/skin';
 import ReceiptCapture, { type PendingReceipt, type ReceiptOutput } from './ReceiptCapture';
@@ -26,11 +27,13 @@ import Login from '../auth/Login';
 import MenuManager from './MenuManager';
 import OrdersPage from './OrdersPage';
 import SettingsPage, { type SettingsSection } from './SettingsPage';
+import TillControl from './till/TillControl';
 import TeamPage from './TeamPage';
 // Analytics pulls in recharts + motion (~150KB gzipped), so code-split it — staff on the
 // live board never download those bytes unless they open the analytics tab.
 const AnalyticsPage = lazy(() => import('./AnalyticsPage'));
-import OrderPad from './OrderPad';
+import OrderPad, { PagerIcon } from './OrderPad';
+import { SplitBill } from './SplitBill';
 import LoyaltyPage from './LoyaltyPage';
 import StockPage from './stock/StockPage';
 import './dashboard.css';
@@ -40,11 +43,10 @@ const DICT: Dict = {
   ar: { title: 'شاشة المطبخ', live: 'مباشر', logoutT: 'خروج', cur: 'ر.ع', min: 'د', empty: 'لا طلبات',
         nav_board: 'الطلبات المباشرة', nav_tables: 'الطاولات ورموز QR', nav_orders: 'سجل الطلبات', nav_menu: 'إدارة القائمة', nav_look: 'شكل قائمة العملاء', nav_team: 'الفريق', nav_analytics: 'التحليلات', nav_neworder: 'طلب جديد', nav_profile: 'ملف المطعم', nav_loyalty: 'الولاء', nav_loyaltySetup: 'إعدادات الولاء', nav_stock: 'المخزون', nav_settings: 'الإعدادات', more: 'المزيد', beta: 'تجريبي',
         col_PENDING: 'جديد', col_ACCEPTED: 'قيد التنفيذ', col_PREPARING: 'قيد التحضير', col_READY: 'جاهز',
-        table: 'طاولة', car: 'خدمة السيارة', note: 'ملاحظة', loyaltyReward: 'مكافأة ولاء',
+        table: 'طاولة', car: 'خدمة السيارة', note: 'ملاحظة', loyaltyReward: 'مكافأة ولاء', coupon: 'كود خصم',
+        pager: 'جهاز النداء',
         paymentTitle: 'كيف دفع العميل؟', paymentSub: 'اختر طريقة الدفع قبل إنهاء الطلب.', paymentCash: 'نقداً', paymentCard: 'بطاقة / فيزا',
         paymentSplit: 'تقسيم', splitTitle: 'تقسيم الفاتورة', splitSub: 'سجّل حصة كل شخص وكيف دفعها.',
-        splitPeople: 'عدد الأشخاص', splitEach: 'لكل شخص', splitPerson: 'شخص', splitMore: 'أكثر',
-        splitRemaining: 'المتبقي', splitExtra: 'زيادة عن الإجمالي', splitSettle: 'تسجيل الدفع',
         accept: 'قبول', decline: 'رفض', startPrep: 'بدء التحضير', ready: 'جاهز', complete: 'اكتمل', cancel: 'إلغاء',
         collect: 'حصّل', done: 'تم', doneUnpaid: 'تم دون دفع',
         unpaid: 'تحديد كمدفوع', paid: 'مدفوع', confirm: 'تأكيد', back: 'رجوع',
@@ -64,9 +66,6 @@ const DICT: Dict = {
         qaLive: 'سلات نشطة', qaViewing: 'يتصفح', qaOrdering: 'في السلة الآن', qaCart: 'الأصناف',
         qaCartHint: 'محتوى السلة الآن — قد يتغير قبل إرسال الطلب',
         account: 'الحساب', email: 'البريد', language: 'اللغة', branch: 'الفرع', arabic: 'العربية', english: 'English', changePassword: 'تغيير كلمة المرور', changeEmail: 'تغيير البريد الإلكتروني',
-        ordersOpen: 'يستقبل الطلبات', ordersPaused: 'الطلبات متوقفة', pauseOrders: 'إيقاف الطلبات', resumeOrders: 'استئناف الطلبات',
-        pauseTitle: 'إيقاف طلبات العملاء؟', pauseMessage: 'سيتمكن العملاء من تصفح القائمة، لكن لن يتمكنوا من إضافة أصناف أو إرسال طلب جديد لهذا الفرع.', pauseConfirm: 'إيقاف الطلبات',
-        ordersPausedToast: 'تم إيقاف طلبات العملاء', ordersResumedToast: 'تم استئناف طلبات العملاء',
         changePwSub: 'أدخل كلمة المرور الحالية ثم الجديدة.', currentPw: 'كلمة المرور الحالية',
         changeEmailSub: 'أدخل كلمة المرور الحالية والبريد الجديد.', newEmail: 'البريد الجديد',
         newPw: 'كلمة المرور الجديدة', confirmPw: 'تأكيد كلمة المرور', save: 'حفظ',
@@ -76,11 +75,10 @@ const DICT: Dict = {
   en: { title: 'Kitchen Display', live: 'Live', logoutT: 'Logout', cur: 'OMR', min: 'min', empty: 'No orders',
         nav_board: 'Live orders', nav_tables: 'Tables & QR', nav_orders: 'Order history', nav_menu: 'Menu', nav_look: 'Customer menu look', nav_team: 'Team', nav_analytics: 'Analytics', nav_neworder: 'New order', nav_profile: 'Restaurant profile', nav_loyalty: 'Loyalty', nav_loyaltySetup: 'Loyalty settings', nav_stock: 'Stock', nav_settings: 'Settings', more: 'More', beta: 'Beta',
         col_PENDING: 'New', col_ACCEPTED: 'In progress', col_PREPARING: 'Preparing', col_READY: 'Ready',
-        table: 'Table', car: 'Outdoor car', note: 'Note', loyaltyReward: 'Loyalty reward',
+        table: 'Table', car: 'Outdoor car', note: 'Note', loyaltyReward: 'Loyalty reward', coupon: 'Coupon',
+        pager: 'Pager',
         paymentTitle: 'How did the customer pay?', paymentSub: 'Choose the payment method before completing the order.', paymentCash: 'Cash', paymentCard: 'Card / Visa',
         paymentSplit: 'Split', splitTitle: 'Split the bill', splitSub: "Record each person's share and how they paid.",
-        splitPeople: 'People', splitEach: 'Each', splitPerson: 'Person', splitMore: 'More',
-        splitRemaining: 'Remaining', splitExtra: 'Over the total', splitSettle: 'Record payment',
         accept: 'Accept', decline: 'Decline', startPrep: 'Start preparing', ready: 'Ready', complete: 'Complete', cancel: 'Cancel',
         collect: 'Collect', done: 'Done', doneUnpaid: 'Done, unpaid',
         unpaid: 'Mark paid', paid: 'Paid', confirm: 'Confirm', back: 'Back',
@@ -100,9 +98,6 @@ const DICT: Dict = {
         qaLive: 'Active carts', qaViewing: 'Viewing', qaOrdering: 'in cart now', qaCart: 'Items',
         qaCartHint: 'In their cart right now — may change before the order is placed',
         account: 'Account', email: 'Email', language: 'Language', branch: 'Branch', arabic: 'Arabic', english: 'English', changePassword: 'Change password', changeEmail: 'Change email',
-        ordersOpen: 'Accepting orders', ordersPaused: 'Orders paused', pauseOrders: 'Pause orders', resumeOrders: 'Resume orders',
-        pauseTitle: 'Pause customer orders?', pauseMessage: 'Customers can still browse the menu, but they cannot add items or submit a new order for this branch.', pauseConfirm: 'Pause orders',
-        ordersPausedToast: 'Customer orders paused', ordersResumedToast: 'Customer orders resumed',
         changePwSub: 'Enter your current password, then a new one.', currentPw: 'Current password',
         changeEmailSub: 'Enter your current password and new email.', newEmail: 'New email',
         newPw: 'New password', confirmPw: 'Confirm new password', save: 'Save',
@@ -449,39 +444,6 @@ function Shell() {
     enabled: branchId != null,
   });
   const selectedBranch = selectedBranchQ.data ?? activeBranches.find((b) => b.id === branchId);
-  const orderingStatus = useMutation({
-    mutationFn: ({ id, acceptingOrders }: { id: number; acceptingOrders: boolean }) =>
-      api.patch<BranchResponse>(`/api/branches/${id}/ordering-status`, { acceptingOrders }),
-    onSuccess: (updated) => {
-      qc.setQueryData(['branch', updated.id], updated);
-      qc.setQueryData(['branches', user!.restaurantId], (previous: any) => {
-        if (Array.isArray(previous)) {
-          return previous.map((branch) => branch.id === updated.id ? updated : branch);
-        }
-        if (Array.isArray(previous?.content)) {
-          return { ...previous, content: previous.content.map((branch: BranchResponse) => branch.id === updated.id ? updated : branch) };
-        }
-        return previous;
-      });
-      toast(t(updated.acceptingOrders ? 'ordersResumedToast' : 'ordersPausedToast'));
-    },
-    onError: (error) => toast(error instanceof ApiError ? error.message : 'Error'),
-  });
-  const toggleOrdering = async () => {
-    if (!selectedBranch || orderingStatus.isPending) return;
-    const next = !selectedBranch.acceptingOrders;
-    if (!next) {
-      const accepted = await confirm({
-        title: t('pauseTitle'),
-        message: t('pauseMessage'),
-        confirmLabel: t('pauseConfirm'),
-        cancelLabel: t('back'),
-        danger: true,
-      });
-      if (!accepted) return;
-    }
-    orderingStatus.mutate({ id: selectedBranch.id, acceptingOrders: next });
-  };
 
   // Self-heal: a café onboarded before branches were auto-created has none — and without one
   // the Tables & QR page is dead. When an owner lands here with zero branches, provision a
@@ -714,16 +676,10 @@ function Shell() {
           {page === 'board' && can(user, 'ORDERS') && (
             <button className="dnew" onClick={() => setPage('neworder')}>＋ {t('nav_neworder')}</button>
           )}
-          {/* Whether the café is accepting orders is operational state the whole floor needs
-              to see at a glance — it used to be buried two clicks deep in the avatar menu. */}
-          {can(user, 'ORDERS') && selectedBranch && (
-            <OrderingStatusControl
-              t={t}
-              accepting={selectedBranch.acceptingOrders}
-              pending={orderingStatus.isPending}
-              onToggle={toggleOrdering}
-            />
-          )}
+          {/* Whether the café is selling is operational state the whole floor needs to see at
+              a glance. It used to be a boolean anyone could flip; it is now the till, which is
+              the question a café already answers twice a day with the drawer. */}
+          {can(user, 'ORDERS') && selectedBranch && <TillControl branchId={selectedBranch.id} />}
           <SoundToggle soundOn={sound.soundOn} onToggle={sound.toggle} />
           <AccountMenu
             t={t}
@@ -790,31 +746,6 @@ function Shell() {
       />
     </div>
     </ReceiptPrinterProvider>
-  );
-}
-
-/* ============================ ORDERING STATUS ============================
-   Promoted out of the account dropdown into the header: staff need to see at a
-   glance whether the café is taking orders, and an owner shouldn't have to dig
-   through an identity menu to reopen the floor. */
-function OrderingStatusControl({ t, accepting, pending, onToggle }: {
-  t: (k: string) => string;
-  accepting: boolean;
-  pending: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={'order-status-toggle' + (accepting ? '' : ' paused')}
-      disabled={pending}
-      aria-label={t(accepting ? 'pauseOrders' : 'resumeOrders')}
-      title={t(accepting ? 'pauseOrders' : 'resumeOrders')}
-      onClick={onToggle}
-    >
-      <span className="status-dot" aria-hidden="true" />
-      <span className="ost-label">{t(accepting ? 'ordersOpen' : 'ordersPaused')}</span>
-    </button>
   );
 }
 
@@ -1087,142 +1018,6 @@ function LiveActivityStrip({ activity, tokenToTable, t, lang }: {
    share (POST /split). Nothing is written from a half-finished split, so a tablet that reloads
    mid-way leaves the order exactly as it was — unpaid — rather than half-settled. */
 
-type Tender = 'CASH' | 'CARD';
-/** One person's share. Amounts are whole baisa (1/1000 OMR): three ways of 10.000 has to add
- *  back up to 10.000 to the last baisa, and float thirds do not. */
-type Share = { baisa: number; paid: Tender | null; typed: boolean };
-
-const MAX_PEOPLE = 12;
-const blankShares = (n: number): Share[] => Array.from({ length: n }, () => ({ baisa: 0, paid: null, typed: false }));
-
-/** Spread what is still unclaimed over the shares nobody has paid or typed over, giving the
- *  leftover baisa to the first few. Every share stays whole and they always sum to the bill. */
-function spread(totalBaisa: number, shares: Share[]): Share[] {
-  const free = shares.flatMap((s, i) => (s.paid || s.typed ? [] : [i]));
-  if (!free.length) return shares;
-  const claimed = shares.reduce((sum, s) => sum + (s.paid || s.typed ? s.baisa : 0), 0);
-  const rest = Math.max(0, totalBaisa - claimed);
-  const each = Math.floor(rest / free.length);
-  const over = rest - each * free.length;
-  return shares.map((s, i) => {
-    const k = free.indexOf(i);
-    return k < 0 ? s : { ...s, baisa: each + (k < over ? 1 : 0) };
-  });
-}
-
-/** Drop shares from the end to reach n, skipping any that are already paid. */
-function trimShares(shares: Share[], n: number): Share[] {
-  const out = [...shares];
-  for (let i = out.length - 1; i >= 0 && out.length > n; i--) if (!out[i].paid) out.splice(i, 1);
-  return out;
-}
-
-function SplitBill({ total, busy, t, onSettle, onBack }: {
-  total: number; busy: boolean; t: (key: string) => string;
-  onSettle: (tenders: PaymentTender[]) => void; onBack: () => void;
-}) {
-  const totalBaisa = Math.round(total * 1000);
-  const [shares, setShares] = useState<Share[]>(() => spread(totalBaisa, blankShares(2)));
-  // The row being typed in keeps its raw text, so a half-typed "3.1" is not reformatted away
-  // under the staff member's fingers.
-  const [typing, setTyping] = useState<{ at: number; text: string } | null>(null);
-
-  const paidCount = shares.filter((s) => s.paid).length;
-  // What would actually be sent. A share of zero is not a payment — it happens when one person
-  // is typed in for the whole bill and the other rows fall to nothing — so it never travels.
-  const tenders: PaymentTender[] = shares
-    .filter((s) => s.paid && s.baisa > 0)
-    .map((s) => ({ method: s.paid!, amount: s.baisa / 1000 }));
-  const covered = shares.reduce((sum, s) => sum + (s.paid ? s.baisa : 0), 0);
-  const left = totalBaisa - covered;
-  const evenShares = shares.filter((s) => !s.paid && !s.typed);
-  const even = evenShares.length ? Math.max(...evenShares.map((s) => s.baisa)) : 0;
-  const rounded = evenShares.some((s) => s.baisa !== even);
-  // Chips go to six, then grow one at a time — a table of nine is rare enough to be worth a tap.
-  const chipMax = Math.min(MAX_PEOPLE, Math.max(6, shares.length));
-
-  const setPeople = (n: number) => {
-    // A share someone has already paid cannot be taken away, so the floor is the paid count.
-    const next = Math.min(MAX_PEOPLE, Math.max(Math.max(paidCount, 2), n));
-    setShares((prev) => spread(totalBaisa, next >= prev.length
-      ? [...prev, ...blankShares(next - prev.length)]
-      : trimShares(prev, next)));
-    setTyping(null);
-  };
-
-  const tender = (at: number, method: Tender) => {
-    setShares((prev) => spread(totalBaisa, prev.map((s, i) =>
-      i === at ? { ...s, paid: s.paid === method ? null : method } : s)));
-    setTyping(null);
-  };
-
-  // Typing an amount pins that share; clearing the box hands it back to the even split.
-  const commit = () => {
-    if (!typing) return;
-    const { at, text } = typing;
-    const value = Number(text.replace(',', '.'));
-    const pinned = !!text.trim() && Number.isFinite(value) && value > 0;
-    setShares((prev) => spread(totalBaisa, prev.map((s, i) => (i !== at ? s
-      : pinned ? { ...s, typed: true, baisa: Math.round(value * 1000) } : { ...s, typed: false }))));
-    setTyping(null);
-  };
-
-  return (
-    <div className="split">
-      <div className="split-head">
-        <span className="split-label">{t('splitPeople')}</span>
-        <div className="split-chips">
-          {Array.from({ length: chipMax - 1 }, (_, i) => i + 2).map((n) => (
-            <button key={n} className={'split-chip num' + (n === shares.length ? ' on' : '')}
-              disabled={busy || n < paidCount} aria-pressed={n === shares.length}
-              onClick={() => setPeople(n)}><Ltr>{n}</Ltr></button>
-          ))}
-          {chipMax < MAX_PEOPLE && (
-            <button className="split-chip more" disabled={busy} title={t('splitMore')} aria-label={t('splitMore')}
-              onClick={() => setPeople(chipMax + 1)}>＋</button>
-          )}
-        </div>
-      </div>
-
-      {even > 0 && (
-        <div className="split-each">{t('splitEach')} {rounded ? '≈' : ''}<Money value={even / 1000} className="num" /></div>
-      )}
-
-      <div className="split-rows">
-        {shares.map((s, i) => (
-          <div className={'split-row' + (s.paid ? ' done' : '')} key={i}>
-            <span className="split-no num"><Ltr>{i + 1}</Ltr></span>
-            <input className="split-amt num" inputMode="decimal" dir="ltr" disabled={busy || !!s.paid}
-              aria-label={`${t('splitPerson')} ${i + 1}`}
-              value={typing?.at === i ? typing.text : omr(s.baisa / 1000)}
-              onFocus={(e) => { setTyping({ at: i, text: omr(s.baisa / 1000) }); e.currentTarget.select(); }}
-              onChange={(e) => setTyping({ at: i, text: e.target.value })}
-              onBlur={commit}
-              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
-            <button className={'split-pay cash' + (s.paid === 'CASH' ? ' on' : '')} disabled={busy}
-              aria-pressed={s.paid === 'CASH'} aria-label={`${t('splitPerson')} ${i + 1} · ${t('paymentCash')}`}
-              onClick={() => tender(i, 'CASH')}><span aria-hidden="true">💵</span></button>
-            <button className={'split-pay card' + (s.paid === 'CARD' ? ' on' : '')} disabled={busy}
-              aria-pressed={s.paid === 'CARD'} aria-label={`${t('splitPerson')} ${i + 1} · ${t('paymentCard')}`}
-              onClick={() => tender(i, 'CARD')}><span aria-hidden="true">▣</span></button>
-          </div>
-        ))}
-      </div>
-
-      <div className={'split-left' + (left === 0 ? ' ok' : left < 0 ? ' over' : '')} aria-live="polite">
-        <span>{left < 0 ? t('splitExtra') : t('splitRemaining')}</span>
-        <Money value={Math.abs(left) / 1000} className="num" />
-      </div>
-
-      <button className="btn split-settle" disabled={busy || left !== 0 || !tenders.length}
-        onClick={() => onSettle(tenders)}>
-        {t('splitSettle')}
-      </button>
-      <button className="btn ghost payment-cancel" disabled={busy} onClick={onBack}>{t('back')}</button>
-    </div>
-  );
-}
-
 function KdsBoard({ branchId, focusSignal }: { branchId?: number; focusSignal: number }) {
   const { user } = useAuth();
   const { lang } = useI18n();
@@ -1431,7 +1226,13 @@ function KdsBoard({ branchId, focusSignal }: { branchId?: number; focusSignal: n
             <div className="ph">{t(splitting ? 'splitSub' : 'paymentSub')} · <Ltr>#{paymentPrompt.order.dailyNumber}</Ltr></div>
             <Money value={paymentPrompt.order.total} className="payment-method-total num" />
             {splitting ? (
-              <SplitBill total={paymentPrompt.order.total} busy={split.isPending} t={t}
+              <SplitBill total={paymentPrompt.order.total} busy={split.isPending}
+                lines={paymentPrompt.order.items.map((i, n) => ({
+                  key: String(i.id ?? n),
+                  name: lang === 'ar' ? (i.nameAr || i.nameEn) : (i.nameEn || i.nameAr),
+                  qty: i.quantity,
+                  lineTotal: i.lineTotal,
+                }))}
                 onSettle={recordSplit} onBack={() => setSplitting(false)} />
             ) : (
               <>
@@ -1474,7 +1275,12 @@ function OrderCard({ o, tableNo, t, lang, canAccept, canPay, counterMode, onAcce
     : <span className="where">🚗 <span className="tg">{t('car')}{o.carPlate ? ` · ${o.carPlate}` : ''}</span><CarColorTag color={o.carColor} lang={lang} /></span>;
   return (
     <div className="ocard">
-      <div className="ocard-top"><span className="ordno"><Ltr>#{o.dailyNumber}</Ltr></span><span className={'elapsed' + (mins > 10 ? ' late' : mins > 5 ? ' warn' : '')}>{el}</span>
+      <div className="ocard-top"><span className="ordno"><Ltr>#{o.dailyNumber}</Ltr></span>
+        {/* The buzzer this order's customer is holding. Violet, because at a glance across a
+            kitchen the only question is which of the two numbers on the card is the one you
+            press — and no other tag on the board is this colour. */}
+        {o.pagerNumber && <span className="pagerno" title={t('pager')}><PagerIcon /><Ltr>{o.pagerNumber}</Ltr></span>}
+        <span className={'elapsed' + (mins > 10 ? ' late' : mins > 5 ? ' warn' : '')}>{el}</span>
         <button className="oprint" title={t('printInv')} aria-label={t('printInv')} onClick={onPrint}>🖨</button></div>
       {where}
       {o.status === 'ACCEPTED' && o.prepTimeMinutes ? <span className="where" style={{ color: 'var(--accepted)' }}>⏱ ~ <span className="num">{o.prepTimeMinutes}</span> {t('min')}</span> : null}
@@ -1485,6 +1291,9 @@ function OrderCard({ o, tableNo, t, lang, canAccept, canPay, counterMode, onAcce
         ))}
       </div>
       {o.loyaltyRewardLabel && <div className="oreward"><b>🎁 {t('loyaltyReward')}</b> {o.loyaltyRewardLabel}{o.loyaltyRewardDiscount ? <> · <Money value={-o.loyaltyRewardDiscount} className="num" /></> : null}</div>}
+      {/* Wears the reward row's own clothes: both are the same fact — this order was rung up for
+          less than its items, and here is what was taken off and why. */}
+      {o.couponCode && <div className="oreward ocoupon"><b><IconTicket size={13} /> {t('coupon')}</b> {o.couponLabel || o.couponCode}{o.couponDiscount ? <> · <Money value={-o.couponDiscount} className="num" /></> : null}</div>}
       {o.customerNote && <div className="onote"><b>{t('note')}:</b> {o.customerNote}{o.customerName ? ` — ${o.customerName}` : ''}</div>}
       <div className="ocard-foot">
         <Money value={o.total} className="ototal num" />

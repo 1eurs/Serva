@@ -55,13 +55,20 @@ public record PublicMenuResponse(
             String openingHours,
             boolean acceptingOrders
     ) {
-        public static PublicBranch from(Branch b) {
+        /**
+         * @param acceptingOrders whether an order placed right now would be taken — the pause
+         *                        AND the till, answered by {@code BranchService.canOrderNow}.
+         *                        Passed in rather than read off the branch: half the answer
+         *                        lives in a table this record cannot see, and a menu that draws
+         *                        Add buttons over a closed till is a basket that fails at the end.
+         */
+        public static PublicBranch from(Branch b, boolean acceptingOrders) {
             if (b == null) {
                 return null;
             }
             return new PublicBranch(b.getId(), b.getName(), b.getNameEn(), b.getNameAr(),
                     b.getAddress(), b.getPhone(),
-                    b.getOpeningHours(), b.isAcceptingOrders());
+                    b.getOpeningHours(), acceptingOrders);
         }
     }
 

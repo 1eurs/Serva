@@ -378,6 +378,6 @@ class LoyaltyServiceTest {
 
     private static BranchResponse branchResponse(Long id, String nameEn, String nameAr) {
         return new BranchResponse(id, RESTAURANT_ID, nameEn, nameEn, nameAr, null, null, null,
-                true, true, false, false, null, null);
+                true, true, null, false, false, true, true, true, null, null, null);
     }
 }

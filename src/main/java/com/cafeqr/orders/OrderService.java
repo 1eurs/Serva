@@ -11,11 +11,13 @@ import com.cafeqr.common.util.Phones;
 import com.cafeqr.common.util.TimeZones;
 import com.cafeqr.common.util.Tokens;
 import com.cafeqr.customers.CustomerService;
+import com.cafeqr.coupons.CouponService;
 import com.cafeqr.loyalty.LoyaltyService;
 import com.cafeqr.menus.MenuService;
 import com.cafeqr.otp.OtpService;
 import com.cafeqr.payments.PaymentService;
 import com.cafeqr.payments.domain.PaymentMethod;
+import com.cafeqr.payments.dto.PaymentTender;
 import com.cafeqr.menus.domain.MenuItem;
 import com.cafeqr.orders.domain.Order;
 import com.cafeqr.orders.domain.OrderItem;
@@ -80,6 +82,7 @@ public class OrderService {
     private final OtpService otpService;
     private final EventLogService eventLogService;
     private final LoyaltyService loyaltyService;
+    private final CouponService couponService;
     private final PaymentService paymentService;
     private final PrintJobService printJobService;
     private final StockDrawService stockDrawService;
@@ -98,6 +101,7 @@ public class OrderService {
                         OtpService otpService,
                         EventLogService eventLogService,
                         LoyaltyService loyaltyService,
+                        CouponService couponService,
                         PaymentService paymentService,
                         PrintJobService printJobService,
                         StockDrawService stockDrawService,
@@ -115,6 +119,7 @@ public class OrderService {
         this.otpService = otpService;
         this.eventLogService = eventLogService;
         this.loyaltyService = loyaltyService;
+        this.couponService = couponService;
         this.paymentService = paymentService;
         this.printJobService = printJobService;
         this.stockDrawService = stockDrawService;
@@ -224,10 +229,20 @@ public class OrderService {
         if (restaurantId == null) {
             throw new BadRequestException("Only café staff can take manual orders.");
         }
+        // Shape of the request first, before a single lookup: two answers to "how was this
+        // paid" is how a till ends the day disagreeing with itself, and there is no point
+        // pricing a basket for a request that cannot be settled either way.
+        List<PaymentTender> tenders = request.tenders() == null ? List.of() : request.tenders();
+        if (!tenders.isEmpty() && (Boolean.TRUE.equals(request.paid()) || request.paymentMethod() != null)) {
+            throw new BadRequestException("A split bill already says how it was paid.");
+        }
         Restaurant restaurant = restaurantService.getEntity(restaurantId);
         Branch branch = branchService.getEntityInRestaurant(restaurantId, request.branchId());
         accessGuard.requireBranchAccess(restaurantId, branch.getId());
         branchService.requireActive(branch);
+        // The counter serves through a pause — that is what a pause is for — but not through a
+        // closed drawer: there would be nowhere for the cash to go and nothing to count it against.
+        branchService.requireTillOpen(branch);
 
         Order order = new Order();
         order.setRestaurantId(restaurantId);
@@ -253,13 +268,15 @@ public class OrderService {
         order.setCustomerName(blankToNull(request.customerName()));
         order.setCustomerPhone(request.customerPhone() == null || request.customerPhone().isBlank()
                 ? null : Phones.normalize(request.customerPhone()));
+        order.setPagerNumber(blankToNull(request.pagerNumber()));
         order.setCustomerNote(blankToNull(request.customerNote()));
         // Counter mode: the kitchen works off the ticket printed at the counter, so the board
         // is only the hand-over list — and payment is what moves an order along it. Paid at
         // the counter: skip "in progress", open READY (it clears itself later). Not paid yet:
         // open ACCEPTED as an open tab; a Collect tap on the board pays it and moves it on.
         // READY must never mean "we haven't been paid".
-        boolean paid = Boolean.TRUE.equals(request.paid());
+        // A split IS payment, so it moves the order along exactly as a one-tap payment does.
+        boolean paid = Boolean.TRUE.equals(request.paid()) || !tenders.isEmpty();
         Instant now = Instant.now();
         order.setStatus(branch.isCounterMode() && paid ? OrderStatus.READY : OrderStatus.ACCEPTED);
         order.setAcceptedAt(now);
@@ -272,6 +289,9 @@ public class OrderService {
         order.setSubtotal(subtotal);
         order.setVatAmount(vatAmount);
         order.setTotal(subtotal.add(vatAmount));
+        // Before the save, and so before the split below is checked against this order's total:
+        // the shares a table hands over have to add up to the discounted bill, not the full one.
+        couponService.apply(order, restaurant, request.couponCode());
         order.setOrderNumber(nextOrderNumber());
         order.setDailyNumber(orderRepository.nextDailyNumber(branch.getId(), LocalDate.now(TimeZones.CAFES)));
         order.setTrackingToken(Tokens.random(18));
@@ -281,7 +301,12 @@ public class OrderService {
         // counter is looking at the shelf, and the draw simply clamps at zero.
         stockDrawService.draw(saved);
         eventLogService.recordOrderEvent(saved, saved.getStatus(), "Manual order (staff)");
-        if (paid) {
+        if (!tenders.isEmpty()) {
+            // Validates the shares against the total THIS method just computed, so a pad working
+            // from a stale price settles nothing: the whole order rolls back rather than closing
+            // a bill that was never covered.
+            paymentService.settleSplit(saved.getId(), tenders);
+        } else if (paid) {
             paymentService.markPaid(saved.getId(),
                     request.paymentMethod() != null ? request.paymentMethod() : PaymentMethod.CARD);
         }

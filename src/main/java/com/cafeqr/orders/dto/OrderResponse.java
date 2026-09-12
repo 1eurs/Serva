@@ -21,6 +21,8 @@ public record OrderResponse(
         Long tableId,
         String customerName,
         String customerPhone,
+        /** The numbered buzzer handed over the counter — shown on the board, printed on the ticket. */
+        String pagerNumber,
         String carPlate,
         String carColor,
         OrderType orderType,
@@ -36,6 +38,10 @@ public record OrderResponse(
         String internalNote,
         String loyaltyRewardLabel,
         BigDecimal loyaltyRewardDiscount,
+        /** The coupon spent at the counter and what it took off — the total already reflects it. */
+        String couponCode,
+        String couponLabel,
+        BigDecimal couponDiscount,
         List<OrderItemResponse> items,
         Instant createdAt,
         Instant acceptedAt,
@@ -48,10 +54,12 @@ public record OrderResponse(
     public static OrderResponse from(Order o) {
         return new OrderResponse(
                 o.getId(), o.getOrderNumber(), o.getDailyNumber(), o.getTrackingToken(), o.getRestaurantId(), o.getBranchId(),
-                o.getTableId(), o.getCustomerName(), o.getCustomerPhone(), o.getCarPlate(), o.getCarColor(), o.getOrderType(), o.getStatus(),
+                o.getTableId(), o.getCustomerName(), o.getCustomerPhone(), o.getPagerNumber(),
+                o.getCarPlate(), o.getCarColor(), o.getOrderType(), o.getStatus(),
                 o.getPaymentStatus(), o.getPaymentMethod(), o.getSubtotal(), o.getVatAmount(), o.getTotal(), o.getPrepTimeMinutes(),
                 o.getDeclineReason(), o.getCustomerNote(), o.getInternalNote(),
                 o.getLoyaltyRewardLabel(), o.getLoyaltyRewardDiscount(),
+                o.getCouponCode(), o.getCouponLabel(), o.getCouponDiscount(),
                 o.getItems().stream().map(OrderItemResponse::from).toList(),
                 o.getCreatedAt(), o.getAcceptedAt(), o.getDeclinedAt(), o.getPreparingAt(),
                 o.getReadyAt(), o.getCompletedAt(), o.getCancelledAt());

@@ -108,9 +108,12 @@ export interface OrderTracking {
 // full dashboard order (live board / detail) — mirrors OrderResponse.java
 export interface OrderResponse {
   id: number; orderNumber: string; dailyNumber: number; trackingToken: string; restaurantId: number; branchId: number; tableId?: number | null;
-  customerName?: string | null; customerPhone?: string | null; carPlate?: string | null; carColor?: string | null; orderType: OrderType; status: OrderStatus; paymentStatus: PaymentStatus;
+  customerName?: string | null; customerPhone?: string | null; pagerNumber?: string | null;
+  carPlate?: string | null; carColor?: string | null; orderType: OrderType; status: OrderStatus; paymentStatus: PaymentStatus;
   subtotal: number; vatAmount: number; total: number; prepTimeMinutes?: number | null; declineReason?: string | null;
   customerNote?: string | null; internalNote?: string | null; loyaltyRewardLabel?: string | null; loyaltyRewardDiscount?: number | null;
+  /** The coupon spent at the counter and what it took off — total already reflects it. */
+  couponCode?: string | null; couponLabel?: string | null; couponDiscount?: number | null;
   paymentMethod?: PaymentMethod | null; items: OrderItem[];
   createdAt: string; acceptedAt?: string | null; declinedAt?: string | null; preparingAt?: string | null;
   readyAt?: string | null; completedAt?: string | null; cancelledAt?: string | null;
@@ -119,7 +122,49 @@ export interface OrderResponse {
 export interface BranchResponse {
   id: number; restaurantId: number; name: string; nameEn?: string | null; nameAr?: string | null;
   address?: string | null; phone?: string | null;
-  openingHours?: string | null; active: boolean; acceptingOrders: boolean; printerEnabled: boolean; counterMode: boolean; createdAt?: string;
+  /** `acceptingOrders` is the pause alone, with an expired one already counted as resumed — it
+   *  says nothing about the till. Whether the shop can really sell is TillState.acceptingOrders. */
+  openingHours?: string | null; active: boolean; acceptingOrders: boolean; pauseUntil?: string | null;
+  printerEnabled: boolean; counterMode: boolean; createdAt?: string;
+  /* ---- how this shop runs its drawer (Settings → Till) ---- */
+  tillEnabled: boolean; tillBlindCount: boolean; tillCarryFloat: boolean;
+  /** Ask for a written reason when the drawer is out by more than this. Null: never ask. */
+  tillNoteOver?: number | null;
+}
+
+/* ---- the till: one counted drawer per branch (mirrors TillDtos) ---- */
+
+/** One stretch of the drawer being open. The closed half stays null while it runs. */
+export interface TillSession {
+  id: number; branchId: number;
+  openedAt: string; openedBy?: string | null; openingFloat: number;
+  closedAt?: string | null; closedBy?: string | null;
+  countedCash?: number | null; expectedCash?: number | null;
+  /** Counted minus expected: negative is short, positive is over. */
+  variance?: number | null;
+  cashSales?: number | null; cardSales?: number | null; orderCount?: number | null;
+  closeNote?: string | null;
+}
+
+export interface TillState {
+  branchId: number;
+  tillEnabled: boolean;
+  /** A branch that runs no drawer always reads open: it opted out of the question. */
+  open: boolean;
+  /** The till and the pause combined — whether an order would be taken right now. */
+  acceptingOrders: boolean;
+  pauseUntil?: string | null;
+  blindCount: boolean;
+  noteOver?: number | null;
+  session?: TillSession | null;
+  /** Null under a blind count, and null for anyone without the Payments permission. */
+  cashTaken?: number | null;
+  cardTaken?: number | null;
+  expectedCash?: number | null;
+  orderCount: number;
+  openTabs: number;
+  suggestedFloat?: number | null;
+  lastClose?: TillSession | null;
 }
 export interface TableResponse {
   id: number; restaurantId: number; branchId: number; tableNumber: string; qrCodeToken: string;
@@ -167,10 +212,16 @@ export interface CreateOrderPayload {
 export interface CreateStaffOrderPayload {
   branchId: number; orderType: OrderType; tableId?: number | null;
   customerName?: string | null; customerPhone?: string | null;
+  /** The numbered buzzer handed over the counter, when the café hands them out. */
+  pagerNumber?: string | null;
   carPlate?: string | null; carColor?: string | null; customerNote?: string | null;
+  /** A discount code typed at the counter; the server re-works what it takes off. */
+  couponCode?: string | null;
   items: CreateOrderItem[];
   /** Counter flow: paid while ordering — recorded in the same request as the order. */
-  paid?: boolean; paymentMethod?: PaymentMethod | null;
+  paid?: boolean | null; paymentMethod?: PaymentMethod | null;
+  /** The bill divided at the counter. Present means paid, so it replaces the two above. */
+  tenders?: PaymentTender[] | null;
 }
 
 /* ---- returning customer (public) ---- */
@@ -184,6 +235,15 @@ export interface ReturningCustomer {
 }
 
 /* ---- loyalty (stamp card) ---- */
+/* ---- coupons ---- */
+// A café's discount code and the items it covers — mirrors CouponResponse.java.
+// The discount belongs to the ITEM, not the order: each row carries its own percent
+// off, and 100 means that item is handed over free.
+export interface CouponItemRow { menuItemId: number; percentOff: number; }
+export interface Coupon {
+  id: number; code: string; label: string; active: boolean; items: CouponItemRow[];
+}
+
 // Café configuration (dashboard) — mirrors LoyaltyProgramResponse.java.
 export interface LoyaltyProgram {
   enabled: boolean; stampsRequired: number; rewardLabel: string;
@@ -287,6 +347,8 @@ export interface Restaurant {
   paymentMethodSelectionEnabled: boolean;
   /** Hide a menu item from customers when the shelf row backing it reads zero. */
   hideWhenOutOfStock?: boolean;
+  /** What the counter's order pad asks for. Name/phone default on, pager off. */
+  padAskName?: boolean; padAskPhone?: boolean; padAskPager?: boolean;
   active: boolean; plan?: Plan; createdAt?: string;
 }
 export type BillingCycle = 'ONE_TIME' | 'MONTHLY' | 'YEARLY';
@@ -380,12 +442,7 @@ export interface QrActivity {
   todayByKey: Record<string, QrDayStat>;    // keyed by table id (string) / "car"
 }
 
-/* ---- branch management (admin drawer) ---- */
-export interface BranchResponse {
-  id: number; restaurantId: number; name: string; nameEn?: string | null; nameAr?: string | null;
-  address?: string | null; phone?: string | null;
-  openingHours?: string | null; active: boolean; acceptingOrders: boolean; printerEnabled: boolean; counterMode: boolean; createdAt?: string;
-}
+/* ---- branch management (admin drawer) — BranchResponse is declared once, above ---- */
 
 
 

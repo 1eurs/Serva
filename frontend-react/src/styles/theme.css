@@ -9,6 +9,11 @@
   --accent-text:#047857;                 /* readable green on light */
   --pending:#F5B83D;--accepted:#5AA9FF;--preparing:#B08CFF;--ready:#3DE0A0;--bad:#FF6B5A;
   --green:#10b981;--blue:#5AA9FF;--amber:#F5B83D;--violet:#B08CFF;
+  /* The buzzer chip on a live-order card (.pagerno). Its own pair rather than --violet,
+     because that violet is a STATUS tint meant to sit on the page background — this one is
+     a fill with white text on it, so it has to be dark enough to carry that (5.7:1), in
+     every skin. Fill and ink change together, like --lime / --fill-ink. */
+  --pager:#7C3AED;--pager-ink:#FFFFFF;
   --canvas:#EFEFEA;                      /* page background base   */
   --glass:rgba(255,255,255,.72);         /* frosted top bars       */
   --rail-bg:rgba(255,255,255,.7);        /* side rails             */

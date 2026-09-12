@@ -1,0 +1,11 @@
+{
+  "name": "serva",
+  "private": true,
+  "scripts": {
+    "seed": "npm run seed --prefix frontend-react",
+    "seed:staging": "npm run seed:staging --prefix frontend-react",
+    "loadtest": "npm run loadtest --prefix frontend-react",
+    "loadtest:quick": "npm run loadtest:quick --prefix frontend-react",
+    "loadtest:staging": "npm run loadtest:staging --prefix frontend-react"
+  }
+}

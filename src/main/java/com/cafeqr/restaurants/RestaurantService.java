@@ -96,6 +96,15 @@ public class RestaurantService {
         if (request.hideWhenOutOfStock() != null) {
             restaurant.setHideWhenOutOfStock(request.hideWhenOutOfStock());
         }
+        if (request.padAskName() != null) {
+            restaurant.setPadAskName(request.padAskName());
+        }
+        if (request.padAskPhone() != null) {
+            restaurant.setPadAskPhone(request.padAskPhone());
+        }
+        if (request.padAskPager() != null) {
+            restaurant.setPadAskPager(request.padAskPager());
+        }
         return RestaurantResponse.from(restaurant);
     }
 

@@ -2,6 +2,7 @@ package com.cafeqr.orders.repository;
 
 import com.cafeqr.orders.domain.Order;
 import com.cafeqr.orders.domain.OrderStatus;
+import com.cafeqr.orders.domain.PaymentStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -280,4 +281,39 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             GROUP BY restaurant_id
             """, nativeQuery = true)
     List<Object[]> aovPerRestaurant(@Param("from") Instant from, @Param("to") Instant to);
+
+    // -------- the till --------
+
+    /**
+     * How many orders one till session rang up. Declined and cancelled orders are excluded:
+     * they took no money, and a session's count sitting beside its cash figures should mean
+     * "what we sold", not "what was typed".
+     */
+    @Query("""
+            SELECT COUNT(o) FROM Order o
+            WHERE o.branchId = :branchId
+              AND o.createdAt >= :from AND o.createdAt < :to
+              AND o.status NOT IN :excluded
+            """)
+    long countInWindow(@Param("branchId") Long branchId,
+                       @Param("from") Instant from,
+                       @Param("to") Instant to,
+                       @Param("excluded") Collection<OrderStatus> excluded);
+
+    /**
+     * Bills still open on the floor since the till opened — a table that has eaten and not yet
+     * paid. The closing screen shows this because cash that has not been handed over yet cannot
+     * be in the drawer, and a count that comes up short for that reason is not a mistake.
+     */
+    @Query("""
+            SELECT COUNT(o) FROM Order o
+            WHERE o.branchId = :branchId
+              AND o.createdAt >= :from
+              AND o.paymentStatus = :unpaid
+              AND o.status NOT IN :excluded
+            """)
+    long countOpenTabsSince(@Param("branchId") Long branchId,
+                            @Param("from") Instant from,
+                            @Param("unpaid") PaymentStatus unpaid,
+                            @Param("excluded") Collection<OrderStatus> excluded);
 }

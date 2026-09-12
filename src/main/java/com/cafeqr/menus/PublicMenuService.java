@@ -114,7 +114,7 @@ public class PublicMenuService {
 
         return new PublicMenuResponse(
                 PublicRestaurant.from(restaurant),
-                PublicBranch.from(branch),
+                PublicBranch.from(branch, branch != null && branchService.canOrderNow(branch)),
                 PublicTable.from(table),
                 publicCategories);
     }

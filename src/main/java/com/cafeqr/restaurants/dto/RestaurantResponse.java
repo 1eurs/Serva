@@ -22,6 +22,10 @@ public record RestaurantResponse(
         BigDecimal vatRate,
         boolean paymentMethodSelectionEnabled,
         boolean hideWhenOutOfStock,
+        /** What the counter's order pad asks for — see Restaurant#padAskName. */
+        boolean padAskName,
+        boolean padAskPhone,
+        boolean padAskPager,
         String theme,
         String themeCustomJson,
         String receiptSettingsJson,
@@ -36,6 +40,7 @@ public record RestaurantResponse(
                 r.getId(), r.getName(), r.getNameEn(), r.getNameAr(), r.getSlug(), r.getLogoUrl(), r.getPhone(), r.getEmail(),
                 r.getInstagramUrl(), r.getCurrency(), r.isVatEnabled(), r.getVatRate(),
                 r.isPaymentMethodSelectionEnabled(), r.isHideWhenOutOfStock(),
+                r.isPadAskName(), r.isPadAskPhone(), r.isPadAskPager(),
                 r.getTheme(), r.getThemeCustomJson(),
                 r.getReceiptSettingsJson(), r.getMenuInfoJson(), r.isActive(),
                 r.getPlan(), r.getCreatedAt(), r.getUpdatedAt());

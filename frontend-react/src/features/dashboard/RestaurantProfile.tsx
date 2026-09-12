@@ -52,6 +52,10 @@ const DICT: Dict = {
     houseEditHint: 'نص البطاقة يُكتب في صفحة «المقهى».',
     currency: 'العملة', vatEnabled: 'تفعيل الضريبة', vatRate: 'نسبة الضريبة', logo: 'شعار المطعم',
     paymentSelection: 'اختيار طريقة الدفع عند التحصيل', paymentSelectionSub: 'عند التفعيل، يختار الموظف نقداً أو بطاقة قبل إنهاء الطلب. عند الإيقاف، تُسجّل البطاقة افتراضياً.',
+    padTitle: 'حقول شاشة الطلب الجديد', padSub: 'ما يُطلب من الموظف عند أخذ الطلب على الكاشير. أوقف ما لا يملؤه مقهاك.',
+    padName: 'اسم العميل', padNameSub: 'اسم تنادي به عند جاهزية الطلب.',
+    padPhone: 'رقم الهاتف', padPhoneSub: 'به يجد الختم بطاقته — أبقه مُفعّلاً إن كان لديك برنامج ولاء.',
+    padPager: 'رقم جهاز النداء', padPagerSub: 'الجهاز المرقّم الذي تسلّمه للعميل. يظهر بجانب رقم الطلب في الشاشة المباشرة ويُطبع على الفاتورة.',
     uploadLogo: 'رفع الشعار', removeLogo: 'إزالة الشعار', logoRemoved: 'تم إزالة الشعار', uploading: 'جارٍ الرفع...', save: 'حفظ الملف', saved: 'تم الحفظ', openMenu: 'فتح القائمة',
     slug: 'رابط القائمة', active: 'نشط',
     subscription: 'الاشتراك', plan: 'الباقة', sstatus: 'الحالة', renews: 'يتجدد', ended: 'انتهى',
@@ -208,6 +212,10 @@ const DICT: Dict = {
     houseEditHint: 'The words are written on the Café page.',
     currency: 'Currency', vatEnabled: 'Enable VAT', vatRate: 'VAT rate', logo: 'Restaurant logo',
     paymentSelection: 'Choose payment method at collection', paymentSelectionSub: 'When enabled, staff choose Cash or Card before completing an order. When off, Card is recorded by default.',
+    padTitle: 'What the order pad asks for', padSub: 'The boxes staff fill in when they take an order at the counter. Switch off the ones your café never uses.',
+    padName: 'Customer name', padNameSub: 'A name to call out when the order is ready.',
+    padPhone: 'Phone number', padPhoneSub: 'How a stamp finds its card — leave this on if you run a loyalty programme.',
+    padPager: 'Pager number', padPagerSub: 'The numbered buzzer you hand over the counter. It shows beside the order number on the live board, and prints on the ticket.',
     uploadLogo: 'Upload logo', removeLogo: 'Remove logo', logoRemoved: 'Logo removed', uploading: 'Uploading...', save: 'Save profile', saved: 'Saved', openMenu: 'Open menu',
     slug: 'Menu link', active: 'Active',
     subscription: 'Subscription', plan: 'Plan', sstatus: 'Status', renews: 'Renews', ended: 'Ended',
@@ -385,6 +393,9 @@ export function CafeSection({ branchId }: { branchId?: number }) {
     vatEnabled: true,
     vatRate: '5',
     paymentMethodSelectionEnabled: false,
+    padAskName: true,
+    padAskPhone: true,
+    padAskPager: false,
   });
 
   const restaurantQ = useQuery({
@@ -406,6 +417,9 @@ export function CafeSection({ branchId }: { branchId?: number }) {
       vatEnabled: r.vatEnabled,
       vatRate: String(r.vatRate ?? 5),
       paymentMethodSelectionEnabled: r.paymentMethodSelectionEnabled ?? false,
+      padAskName: r.padAskName ?? true,
+      padAskPhone: r.padAskPhone ?? true,
+      padAskPager: r.padAskPager ?? false,
     });
   }, [restaurantQ.data?.id]);
 
@@ -427,6 +441,9 @@ export function CafeSection({ branchId }: { branchId?: number }) {
       vatEnabled: form.vatEnabled,
       vatRate: Number(form.vatRate) || 0,
       paymentMethodSelectionEnabled: form.paymentMethodSelectionEnabled,
+      padAskName: form.padAskName,
+      padAskPhone: form.padAskPhone,
+      padAskPager: form.padAskPager,
     }),
     onSuccess: (r) => {
       qc.setQueryData(['restaurant', rid], r);
@@ -558,6 +575,26 @@ export function CafeSection({ branchId }: { branchId?: number }) {
         </div>
       </PaneSection>
 
+      {/* Its own section rather than three more rows under "Orders and tax": these three
+          switches decide what a staff member is asked for a hundred times a day, and the
+          café that has no stamp card and no buzzers should be able to find them. */}
+      <PaneSection no="03" title={t('padTitle')} sub={t('padSub')}>
+        <div className="profile-settings">
+          {([
+            ['padAskName', 'padName', 'padNameSub'],
+            ['padAskPhone', 'padPhone', 'padPhoneSub'],
+            ['padAskPager', 'padPager', 'padPagerSub'],
+          ] as const).map(([key, label, help]) => (
+            <div className="profile-setting profile-pad-setting" key={key}>
+              <div><b>{t(label)}</b><span>{t(help)}</span></div>
+              <button type="button" className={'switch' + (form[key] ? ' on' : '')}
+                role="switch" aria-checked={form[key]} aria-label={t(label)}
+                onClick={() => set(key, !form[key])}><span /></button>
+            </div>
+          ))}
+        </div>
+      </PaneSection>
+
       <HouseCardSection />
 
     </SettingsShell>
@@ -612,7 +649,7 @@ export function HouseCardSection() {
   const { house, setHouse, save } = useHouseCard();
 
   return (
-    <PaneSection no="03" title={t('houseTitle')} sub={t('houseSub')}>
+    <PaneSection no="04" title={t('houseTitle')} sub={t('houseSub')}>
       <div className="profile-fields">
         <label className="field"><span>{t('houseNoteAr')}</span>
           <textarea rows={3} lang="ar" dir="rtl" maxLength={NOTE_MAX} value={house.noteAr}

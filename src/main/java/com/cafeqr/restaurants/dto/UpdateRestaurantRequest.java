@@ -27,5 +27,9 @@ public record UpdateRestaurantRequest(
         @DecimalMin("0.0") @DecimalMax("100.0") BigDecimal vatRate,
         Boolean paymentMethodSelectionEnabled,
         /** Hide a menu item from customers when the shelf row backing it reads zero. */
-        Boolean hideWhenOutOfStock
+        Boolean hideWhenOutOfStock,
+        /** What the counter's order pad asks for: customer name, phone, pager number. */
+        Boolean padAskName,
+        Boolean padAskPhone,
+        Boolean padAskPager
 ) {}
