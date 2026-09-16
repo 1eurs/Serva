@@ -129,6 +129,12 @@ public class AnalyticsService {
                 ? revenue.divide(BigDecimal.valueOf(completed), MONEY_SCALE, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
 
+        // Completed orders that were handed over without payment recorded — the money the
+        // collected-revenue headline deliberately leaves out, surfaced so it isn't silently lost.
+        Object[] unc = orderRepository.uncollectedInWindow(restaurantId, branchScope, from, to).get(0);
+        long uncollectedOrders = ((Number) unc[0]).longValue();
+        BigDecimal uncollectedAmount = (BigDecimal) unc[1];
+
         return new AnalyticsSummaryResponse(
                 from, to, total,
                 counts.getOrDefault(OrderStatus.PENDING, 0L),
@@ -140,6 +146,8 @@ public class AnalyticsService {
                 counts.getOrDefault(OrderStatus.CANCELLED, 0L),
                 revenue,
                 aov,
+                uncollectedOrders,
+                uncollectedAmount,
                 bestSellingScoped(restaurantId, branchScope, from, to, DEFAULT_BEST_SELLING_LIMIT),
                 busiestHours(restaurantId, branchScope, from, to));
     }

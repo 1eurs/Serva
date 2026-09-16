@@ -20,6 +20,7 @@ interface Summary {
   totalOrders: number; pendingOrders: number; acceptedOrders: number; declinedOrders: number;
   preparingOrders: number; readyOrders: number; completedOrders: number; cancelledOrders: number;
   totalRevenue: string; averageOrderValue: string;
+  uncollectedOrders: number; uncollectedAmount: string;
   bestSellingItems: BestItem[]; busiestHours: HourlyCount[];
 }
 interface DailyPoint { date: string; orders: number; revenue: string }
@@ -57,6 +58,7 @@ const DICT: Dict = {
   ar: {
     a_today: 'اليوم', a_7d: '٧ أيام', a_30d: '٣٠ يوم', a_90d: '٩٠ يوم', a_custom: 'مخصّص', a_pro: 'برو',
     a_orders: 'طلبات', a_revenue: 'الإيرادات', a_aov: 'متوسط الطلب',
+    a_uncollected: 'غير محصّلة', a_uncollectedSub: '{n} طلب مكتمل لم يُدفع — راجعها في سجل الطلبات (غير مدفوع)',
     a_avgShort: 'المتوسط', a_doneShort: 'مكتمل',
     a_comparedWith: 'مقارنة بـ {d}', a_new: 'جديد',
     a_byHour: 'بالساعة', a_byDay: 'باليوم',
@@ -102,6 +104,7 @@ const DICT: Dict = {
   en: {
     a_today: 'Today', a_7d: '7 days', a_30d: '30 days', a_90d: '90 days', a_custom: 'Custom', a_pro: 'Pro',
     a_orders: 'Orders', a_revenue: 'Revenue', a_aov: 'Avg order',
+    a_uncollected: 'uncollected', a_uncollectedSub: '{n} completed orders never paid — find them under Order history (Unpaid)',
     a_avgShort: 'avg', a_doneShort: 'done',
     a_comparedWith: 'compared with {d}', a_new: 'new',
     a_byHour: 'by hour', a_byDay: 'by day',
@@ -512,6 +515,13 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
                     d={delta(Number(s.averageOrderValue), prevQ.data ? Number(prevQ.data.averageOrderValue) : null)}
                     pick={isMulti ? () => setMetric('aov') : undefined} t={t} />
                 </div>
+
+                {s.uncollectedOrders > 0 && (
+                  <div className="an-uncollected" role="note">
+                    <span className="an-unc-amt">{omr(s.uncollectedAmount)} <span className="an-unc-cur">{cur}</span> {t('a_uncollected')}</span>
+                    <span className="an-unc-sub">{t('a_uncollectedSub').replace('{n}', String(s.uncollectedOrders))}</span>
+                  </div>
+                )}
 
                 <ChartPanel points={chart} hourly={!isMulti} metric={plotted} label={metricLabel[plotted]}
                   curLabel={curLabel} prevLabel={prevLabel} cur={cur} tok={tok} t={t} />

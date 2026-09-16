@@ -17,6 +17,8 @@ public record AnalyticsSummaryResponse(
         long cancelledOrders,
         BigDecimal totalRevenue,
         BigDecimal averageOrderValue,
+        long uncollectedOrders,
+        BigDecimal uncollectedAmount,
         List<BestSellingItem> bestSellingItems,
         List<HourlyCount> busiestHours
 ) {}

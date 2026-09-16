@@ -127,6 +127,24 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                                              @Param("from") Instant from,
                                              @Param("to") Instant to);
 
+    /**
+     * The other side of {@link #sumCollectedRevenue}: orders that were completed (handed over)
+     * but never marked paid — money that should have been collected and wasn't. Row: {@code
+     * [count, total]}.
+     */
+    @Query("""
+            SELECT COUNT(o), COALESCE(SUM(o.total), 0) FROM Order o
+            WHERE (:restaurantId IS NULL OR o.restaurantId = :restaurantId)
+              AND (:branchId IS NULL OR o.branchId = :branchId)
+              AND o.status = com.cafeqr.orders.domain.OrderStatus.COMPLETED
+              AND o.paymentStatus <> com.cafeqr.orders.domain.PaymentStatus.PAID
+              AND o.createdAt >= :from AND o.createdAt < :to
+            """)
+    List<Object[]> uncollectedInWindow(@Param("restaurantId") Long restaurantId,
+                                       @Param("branchId") Long branchId,
+                                       @Param("from") Instant from,
+                                       @Param("to") Instant to);
+
     @Query(value = """
             SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'Asia/Muscat') AS hour, COUNT(*) AS cnt
             FROM orders
