@@ -32,6 +32,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
                 JOIN orders o ON o.id = p.order_id
                 WHERE o.restaurant_id = :restaurantId
                   AND (:branchId IS NULL OR o.branch_id = :branchId)
+                  AND o.status NOT IN ('DECLINED', 'CANCELLED')
                   AND o.created_at >= :from
                   AND o.created_at < :to
                   AND p.status = 'PAID'

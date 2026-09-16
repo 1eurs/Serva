@@ -120,8 +120,10 @@ public class AnalyticsService {
                 .filter(e -> e.getKey() != OrderStatus.DECLINED && e.getKey() != OrderStatus.CANCELLED)
                 .mapToLong(Map.Entry::getValue).sum();
 
-        BigDecimal revenue = orderRepository.sumTotalByStatus(
-                restaurantId, branchScope, OrderStatus.COMPLETED, from, to);
+        // Revenue = money actually collected (completed AND paid), so the headline reconciles
+        // with the cash-vs-card split. Orders completed but left unpaid don't count as takings.
+        BigDecimal revenue = orderRepository.sumCollectedRevenue(
+                restaurantId, branchScope, from, to);
         long completed = counts.getOrDefault(OrderStatus.COMPLETED, 0L);
         BigDecimal aov = completed > 0
                 ? revenue.divide(BigDecimal.valueOf(completed), MONEY_SCALE, RoundingMode.HALF_UP)
