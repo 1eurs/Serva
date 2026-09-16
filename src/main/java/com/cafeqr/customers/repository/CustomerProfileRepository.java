@@ -151,16 +151,26 @@ public interface CustomerProfileRepository extends JpaRepository<CustomerProfile
                                              @Param("branchId") Long branchId,
                                              @Param("cutoff") Instant cutoff);
 
-    /** Top regulars by order count. Rows: {@code [id, name, phone, orderCount, lastOrderAt]}. */
+    /**
+     * Top regulars by order count. Counts real orders grouped by <em>phone</em>, not the
+     * per-device {@code customer_profiles.order_count} — a customer who orders from a fresh
+     * device each visit (private tab, cleared storage, a different phone) would otherwise
+     * shatter into many one-order profiles and never rank. Mirrors {@link #customerDirectory}.
+     * Rows: {@code [id, name, phone, orderCount, lastOrderAt]} ({@code id} = MIN(order id), a
+     * stable per-phone key for the UI, not a profile id).
+     */
     @Query(value = """
-            SELECT id,
-                   COALESCE(customer_name, '(unknown)'),
-                   COALESCE(customer_phone, '(unknown)'),
-                   order_count,
-                   last_order_at
-            FROM customer_profiles
-            WHERE restaurant_id = :restaurantId
-              AND order_count >= :minOrders
+            SELECT MIN(o.id)                                                AS id,
+                   MAX(COALESCE(NULLIF(o.customer_name, ''), '(unknown)'))  AS name,
+                   o.customer_phone                                         AS phone,
+                   COUNT(DISTINCT o.id)                                     AS order_count,
+                   MAX(o.created_at)                                        AS last_order_at
+            FROM orders o
+            WHERE o.restaurant_id = :restaurantId
+              AND o.customer_phone IS NOT NULL
+              AND o.status NOT IN ('DECLINED', 'CANCELLED')
+            GROUP BY o.customer_phone
+            HAVING COUNT(DISTINCT o.id) >= :minOrders
             ORDER BY order_count DESC
             LIMIT :limit
             """, nativeQuery = true)
@@ -168,18 +178,21 @@ public interface CustomerProfileRepository extends JpaRepository<CustomerProfile
                                @Param("minOrders") int minOrders,
                                @Param("limit") int limit);
 
-    /** At-risk regulars: ordered before but haven't returned since {@code cutoff}. */
+    /** At-risk regulars: ordered before but haven't returned since {@code cutoff}. Grouped by
+     *  phone, same as {@link #topRegulars}. Rows: {@code [id, name, phone, orderCount, lastOrderAt]}. */
     @Query(value = """
-            SELECT id,
-                   COALESCE(customer_name, '(unknown)'),
-                   COALESCE(customer_phone, '(unknown)'),
-                   order_count,
-                   last_order_at
-            FROM customer_profiles
-            WHERE restaurant_id = :restaurantId
-              AND order_count >= :minOrders
-              AND last_order_at IS NOT NULL
-              AND last_order_at < :cutoff
+            SELECT MIN(o.id)                                                AS id,
+                   MAX(COALESCE(NULLIF(o.customer_name, ''), '(unknown)'))  AS name,
+                   o.customer_phone                                         AS phone,
+                   COUNT(DISTINCT o.id)                                     AS order_count,
+                   MAX(o.created_at)                                        AS last_order_at
+            FROM orders o
+            WHERE o.restaurant_id = :restaurantId
+              AND o.customer_phone IS NOT NULL
+              AND o.status NOT IN ('DECLINED', 'CANCELLED')
+            GROUP BY o.customer_phone
+            HAVING COUNT(DISTINCT o.id) >= :minOrders
+               AND MAX(o.created_at) < :cutoff
             ORDER BY last_order_at ASC
             LIMIT :limit
             """, nativeQuery = true)
@@ -190,22 +203,23 @@ public interface CustomerProfileRepository extends JpaRepository<CustomerProfile
 
     /**
      * Top regulars scoped to a single branch. Counts only orders at that branch so the
-     * numbers reflect loyalty to this location, not the restaurant chain as a whole.
-     * Rows: {@code [id, name, phone, orderCount, lastOrderAt]}.
+     * numbers reflect loyalty to this location, not the restaurant chain as a whole. Grouped
+     * by phone (not profile id) so one customer is one row regardless of how many devices
+     * they've ordered from. Rows: {@code [id, name, phone, orderCount, lastOrderAt]}
+     * ({@code id} = MIN(order id), a stable per-phone key).
      */
     @Query(value = """
-            SELECT cp.id,
-                   COALESCE(cp.customer_name, '(unknown)') AS name,
-                   COALESCE(cp.customer_phone, '(unknown)') AS phone,
-                   COUNT(DISTINCT o.id)                     AS order_count,
-                   MAX(o.created_at)                        AS last_order_at
-            FROM customer_profiles cp
-            JOIN orders o ON o.restaurant_id = cp.restaurant_id
-                         AND o.customer_phone = cp.customer_phone
-                         AND o.branch_id = :branchId
-                         AND o.status NOT IN ('DECLINED', 'CANCELLED')
-            WHERE cp.restaurant_id = :restaurantId
-            GROUP BY cp.id, cp.customer_name, cp.customer_phone
+            SELECT MIN(o.id)                                                AS id,
+                   MAX(COALESCE(NULLIF(o.customer_name, ''), '(unknown)'))  AS name,
+                   o.customer_phone                                         AS phone,
+                   COUNT(DISTINCT o.id)                                     AS order_count,
+                   MAX(o.created_at)                                        AS last_order_at
+            FROM orders o
+            WHERE o.restaurant_id = :restaurantId
+              AND o.branch_id = :branchId
+              AND o.customer_phone IS NOT NULL
+              AND o.status NOT IN ('DECLINED', 'CANCELLED')
+            GROUP BY o.customer_phone
             HAVING COUNT(DISTINCT o.id) >= :minOrders
             ORDER BY order_count DESC
             LIMIT :limit
@@ -215,23 +229,23 @@ public interface CustomerProfileRepository extends JpaRepository<CustomerProfile
                                        @Param("minOrders") int minOrders,
                                        @Param("limit") int limit);
 
-    /** At-risk regulars scoped to a single branch. Rows: {@code [id, name, phone, orderCount, lastOrderAt]}. */
+    /** At-risk regulars scoped to a single branch. Grouped by phone, same as
+     *  {@link #topRegularsByBranch}. Rows: {@code [id, name, phone, orderCount, lastOrderAt]}. */
     @Query(value = """
-            SELECT cp.id,
-                   COALESCE(cp.customer_name, '(unknown)') AS name,
-                   COALESCE(cp.customer_phone, '(unknown)') AS phone,
-                   COUNT(DISTINCT o.id)                     AS order_count,
-                   MAX(o.created_at)                        AS last_order_at
-            FROM customer_profiles cp
-            JOIN orders o ON o.restaurant_id = cp.restaurant_id
-                         AND o.customer_phone = cp.customer_phone
-                         AND o.branch_id = :branchId
-                         AND o.status NOT IN ('DECLINED', 'CANCELLED')
-            WHERE cp.restaurant_id = :restaurantId
-            GROUP BY cp.id, cp.customer_name, cp.customer_phone
+            SELECT MIN(o.id)                                                AS id,
+                   MAX(COALESCE(NULLIF(o.customer_name, ''), '(unknown)'))  AS name,
+                   o.customer_phone                                         AS phone,
+                   COUNT(DISTINCT o.id)                                     AS order_count,
+                   MAX(o.created_at)                                        AS last_order_at
+            FROM orders o
+            WHERE o.restaurant_id = :restaurantId
+              AND o.branch_id = :branchId
+              AND o.customer_phone IS NOT NULL
+              AND o.status NOT IN ('DECLINED', 'CANCELLED')
+            GROUP BY o.customer_phone
             HAVING COUNT(DISTINCT o.id) >= :minOrders
-              AND MAX(o.created_at) < :cutoff
-            ORDER BY MAX(o.created_at) ASC
+               AND MAX(o.created_at) < :cutoff
+            ORDER BY last_order_at ASC
             LIMIT :limit
             """, nativeQuery = true)
     List<Object[]> atRiskCustomersByBranch(@Param("restaurantId") Long restaurantId,
