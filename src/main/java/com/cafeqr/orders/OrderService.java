@@ -343,10 +343,11 @@ public class OrderService {
     // ============================================================ dashboard
 
     @Transactional(readOnly = true)
-    public Page<OrderSummaryResponse> listForDashboard(OrderStatus status, Long branchId, Pageable pageable) {
+    public Page<OrderSummaryResponse> listForDashboard(OrderStatus status, boolean unpaid,
+                                                       Long branchId, Pageable pageable) {
         Long restaurantScope = accessGuard.scopedRestaurantId();
         Long branchScope = resolveBranchScope(branchId);
-        return orderRepository.search(restaurantScope, branchScope, status, pageable)
+        return orderRepository.search(restaurantScope, branchScope, status, unpaid, pageable)
                 .map(OrderSummaryResponse::from);
     }
 

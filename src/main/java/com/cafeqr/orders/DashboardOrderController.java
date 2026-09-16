@@ -48,13 +48,14 @@ public class DashboardOrderController {
         return ApiResponse.ok("Order created", orderService.createStaffOrder(request));
     }
 
-    @Operation(summary = "List orders (paged, filterable by status and branch)")
+    @Operation(summary = "List orders (paged, filterable by status, unpaid and branch)")
     @GetMapping
     public ApiResponse<PageResponse<OrderSummaryResponse>> list(
             @RequestParam(required = false) OrderStatus status,
+            @RequestParam(required = false, defaultValue = "false") boolean unpaid,
             @RequestParam(required = false) Long branchId,
             Pageable pageable) {
-        return ApiResponse.ok(PageResponse.from(orderService.listForDashboard(status, branchId, pageable)));
+        return ApiResponse.ok(PageResponse.from(orderService.listForDashboard(status, unpaid, branchId, pageable)));
     }
 
     @Operation(summary = "List active (live) orders with line items")

@@ -51,16 +51,25 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     long countByRestaurantIdAndCustomerPhoneAndStatusNotIn(
             Long restaurantId, String customerPhone, Collection<OrderStatus> excludedStatuses);
 
+    /**
+     * Dashboard order history. {@code unpaid=true} narrows to orders that owe money — not yet
+     * PAID and not cancelled/declined — so staff can pull up everything awaiting collection
+     * (chiefly completed orders that were handed over without a payment recorded).
+     */
     @Query("""
             SELECT o FROM Order o
             WHERE (:restaurantId IS NULL OR o.restaurantId = :restaurantId)
               AND (:branchId IS NULL OR o.branchId = :branchId)
               AND (:status IS NULL OR o.status = :status)
+              AND (:unpaid = FALSE OR (o.paymentStatus <> com.cafeqr.orders.domain.PaymentStatus.PAID
+                   AND o.status NOT IN (com.cafeqr.orders.domain.OrderStatus.CANCELLED,
+                                        com.cafeqr.orders.domain.OrderStatus.DECLINED)))
             ORDER BY o.createdAt DESC
             """)
     Page<Order> search(@Param("restaurantId") Long restaurantId,
                        @Param("branchId") Long branchId,
                        @Param("status") OrderStatus status,
+                       @Param("unpaid") boolean unpaid,
                        Pageable pageable);
 
     @EntityGraph(attributePaths = "items")

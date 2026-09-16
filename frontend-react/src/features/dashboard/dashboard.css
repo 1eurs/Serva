@@ -1103,6 +1103,10 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 .dash .chip{border: var(--bw-hair) solid var(--keyline);border-radius:6px}
 .dash .seg{border:var(--bw) solid var(--keyline);border-radius:6px;background:var(--bg-2)}
 .dash .seg button.on{background:var(--lime);color:var(--fill-ink);border-radius:4px}
+/* The "Unpaid" filter is a payment axis, not a lifecycle one — amber marks it as money still
+   owed, so it reads apart from the green status tabs, and the count sits beside them. */
+.dash .seg button.paytab.on{background:var(--pending);color:var(--fill-ink)}
+.dash .unpaid-note{color:var(--pending);font-weight:700;font-size:12.5px;white-space:nowrap}
 .dash .drawer-hd .x{border:var(--bw) solid var(--keyline);border-radius:6px}
 .dash .who .av{border:var(--bw) solid var(--keyline);border-radius:8px;background:var(--lime);color:var(--fill-ink);font-family:var(--bold)}
 .dash .acct-menu{border:var(--bw) solid var(--keyline);border-radius:9px;box-shadow:var(--hard-lg)}
@@ -1189,6 +1193,7 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 /* ---- segmented control: shadcn's tabs — white card on a muted track ---- */
 [data-skin="pro"] .dash .seg{background:var(--surface-2);border-color:transparent}
 [data-skin="pro"] .dash .seg button.on{background:var(--bg-2);color:var(--ink);box-shadow:var(--hard-sm)}
+[data-skin="pro"] .dash .seg button.paytab.on{background:var(--pending);color:var(--fill-ink)}
 
 /* ---- the ticket number stays a dark chip: it is the one thing on a busy
    board that has to win, and value contrast is how this skin does emphasis ---- */
