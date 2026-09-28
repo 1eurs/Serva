@@ -7,11 +7,16 @@ import com.cafeqr.branches.domain.Branch;
 import com.cafeqr.common.exception.ConflictException;
 import com.cafeqr.orders.repository.OrderRepository;
 import com.cafeqr.payments.repository.PaymentRepository;
+import com.cafeqr.till.domain.TillMovement;
+import com.cafeqr.till.domain.TillMovement.Direction;
 import com.cafeqr.till.domain.TillSession;
+import com.cafeqr.till.dto.TillDtos.AddMovementRequest;
 import com.cafeqr.till.dto.TillDtos.CloseTillRequest;
+import com.cafeqr.till.dto.TillDtos.MovementResponse;
 import com.cafeqr.till.dto.TillDtos.OpenTillRequest;
 import com.cafeqr.till.dto.TillDtos.TillSessionResponse;
 import com.cafeqr.till.dto.TillDtos.TillStateResponse;
+import com.cafeqr.till.repository.TillMovementRepository;
 import com.cafeqr.till.repository.TillSessionRepository;
 import com.cafeqr.users.domain.Permission;
 import org.junit.jupiter.api.AfterEach;
@@ -20,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -48,17 +54,19 @@ import static org.mockito.Mockito.when;
 class TillServiceTest {
 
     @Mock private TillSessionRepository sessions;
+    @Mock private TillMovementRepository movements;
     @Mock private BranchService branchService;
     @Mock private OrderRepository orderRepository;
     @Mock private PaymentRepository paymentRepository;
     @Mock private AccessGuard accessGuard;
+    @Mock private ApplicationEventPublisher events;
 
     private TillService tillService;
     private Branch branch;
 
     @BeforeEach
     void setUp() {
-        tillService = new TillService(sessions, branchService, orderRepository, paymentRepository, accessGuard);
+        tillService = new TillService(sessions, movements, branchService, orderRepository, paymentRepository, accessGuard, events);
 
         branch = new Branch();
         branch.setId(2L);
@@ -69,6 +77,10 @@ class TillServiceTest {
                 .thenAnswer(inv -> inv.getArgument(0));
         lenient().when(orderRepository.countInWindow(anyLong(), any(), any(), anyCollection())).thenReturn(0L);
         lenient().when(paymentRepository.takenByMethodBetween(anyLong(), any(), any())).thenReturn(List.of());
+        // By default nothing has moved in or out of the drawer; individual tests say when it has.
+        lenient().when(movements.sumBySession(anyLong(), any())).thenReturn(BigDecimal.ZERO);
+        lenient().when(movements.findBySessionIdOrderByCreatedAtDesc(anyLong())).thenReturn(List.of());
+        lenient().when(movements.save(any(TillMovement.class))).thenAnswer(inv -> inv.getArgument(0));
 
         authenticate(EnumSet.of(Permission.ORDERS, Permission.PAYMENTS));
     }
@@ -169,6 +181,91 @@ class TillServiceTest {
         when(sessions.findByBranchIdOrderByOpenedAtDesc(eq(2L), any(Pageable.class))).thenReturn(List.of());
 
         assertThat(tillService.history(2L)).isEmpty();
+    }
+
+    // ---------------- cash in and out ----------------
+
+    @Test
+    void cashTakenOutOfTheDrawerLowersWhatShouldBeInIt() {
+        openSessionWith(new BigDecimal("20.000"));
+        takings("47.500", "0");
+        when(movements.sumBySession(9L, Direction.OUT)).thenReturn(new BigDecimal("5.000"));
+
+        TillStateResponse state = tillService.state(2L);
+
+        // 20 float + 47.5 cash - 5 out for milk = 62.5 that should be in the drawer.
+        assertThat(state.paidOut()).isEqualByComparingTo("5.000");
+        assertThat(state.expectedCash()).isEqualByComparingTo("62.500");
+    }
+
+    @Test
+    void cashAddedToTheDrawerRaisesWhatShouldBeInIt() {
+        openSessionWith(new BigDecimal("20.000"));
+        takings("47.500", "0");
+        when(movements.sumBySession(9L, Direction.IN)).thenReturn(new BigDecimal("3.000"));
+
+        TillStateResponse state = tillService.state(2L);
+
+        assertThat(state.paidIn()).isEqualByComparingTo("3.000");
+        assertThat(state.expectedCash()).isEqualByComparingTo("70.500");
+    }
+
+    @Test
+    void closingCountsAgainstWhatWasPaidOutAndFreezesIt() {
+        openSessionWith(new BigDecimal("20.000"));
+        takings("47.500", "0");
+        when(movements.sumBySession(9L, Direction.OUT)).thenReturn(new BigDecimal("5.000"));
+
+        // The drawer holds 62.5 because 5 went out for milk; counting exactly that is not short.
+        TillSessionResponse closed = tillService.close(2L, new CloseTillRequest(new BigDecimal("62.500")));
+
+        assertThat(closed.paidOut()).isEqualByComparingTo("5.000");
+        assertThat(closed.paidIn()).isEqualByComparingTo("0.000");
+        assertThat(closed.expectedCash()).isEqualByComparingTo("62.500");
+        assertThat(closed.variance()).isEqualByComparingTo("0.000");
+    }
+
+    @Test
+    void takingCashOutRecordsHowMuchWhichWayAndWhy() {
+        openSessionWith(new BigDecimal("20.000"));
+
+        MovementResponse move = tillService.addMovement(
+                2L, new AddMovementRequest(new BigDecimal("5"), Direction.OUT, "  Milk  "));
+
+        assertThat(move.direction()).isEqualTo("OUT");
+        assertThat(move.amount()).isEqualByComparingTo("5.000");
+        assertThat(move.note()).isEqualTo("Milk");
+        assertThat(move.by()).isEqualTo("user7");
+    }
+
+    @Test
+    void cashCannotMoveThroughAClosedDrawer() {
+        when(sessions.findFirstByBranchIdAndClosedAtIsNull(2L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> tillService.addMovement(
+                2L, new AddMovementRequest(BigDecimal.ONE, Direction.OUT, "Milk")))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void aMovementCanBeUndoneWhileTheDrawerIsStillOpen() {
+        openSessionWith(new BigDecimal("20.000"));
+        TillMovement movement = new TillMovement();
+        movement.setId(3L);
+        movement.setSessionId(9L);
+        when(movements.findByIdAndSessionId(3L, 9L)).thenReturn(Optional.of(movement));
+
+        tillService.removeMovement(2L, 3L);
+
+        org.mockito.Mockito.verify(movements).delete(movement);
+    }
+
+    @Test
+    void aMovementCannotBeUndoneOnceTheDrawerIsClosed() {
+        when(sessions.findFirstByBranchIdAndClosedAtIsNull(2L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> tillService.removeMovement(2L, 3L))
+                .isInstanceOf(ConflictException.class);
     }
 
     // ---------------- helpers ----------------

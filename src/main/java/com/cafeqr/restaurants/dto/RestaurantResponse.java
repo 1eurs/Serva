@@ -2,6 +2,7 @@ package com.cafeqr.restaurants.dto;
 
 import com.cafeqr.restaurants.domain.Plan;
 import com.cafeqr.restaurants.domain.Restaurant;
+import com.cafeqr.restaurants.domain.SuggestionsPlacement;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -26,6 +27,7 @@ public record RestaurantResponse(
         boolean padAskName,
         boolean padAskPhone,
         boolean padAskPager,
+        SuggestionsPlacement suggestionsPlacement,
         String theme,
         String themeCustomJson,
         String receiptSettingsJson,
@@ -41,6 +43,7 @@ public record RestaurantResponse(
                 r.getInstagramUrl(), r.getCurrency(), r.isVatEnabled(), r.getVatRate(),
                 r.isPaymentMethodSelectionEnabled(), r.isHideWhenOutOfStock(),
                 r.isPadAskName(), r.isPadAskPhone(), r.isPadAskPager(),
+                r.getSuggestionsPlacement(),
                 r.getTheme(), r.getThemeCustomJson(),
                 r.getReceiptSettingsJson(), r.getMenuInfoJson(), r.isActive(),
                 r.getPlan(), r.getCreatedAt(), r.getUpdatedAt());

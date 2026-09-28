@@ -66,6 +66,14 @@ public class TillSession extends BaseEntity {
     @Column(name = "card_sales")
     private BigDecimal cardSales;
 
+    /** Cash taken out of the drawer this session for supplies and the like — frozen at close. */
+    @Column(name = "cash_paid_out")
+    private BigDecimal cashPaidOut;
+
+    /** Cash added to the drawer this session — frozen at close. */
+    @Column(name = "cash_paid_in")
+    private BigDecimal cashPaidIn;
+
     @Column(name = "order_count")
     private Integer orderCount;
 
@@ -183,6 +191,22 @@ public class TillSession extends BaseEntity {
 
     public void setCardSales(BigDecimal cardSales) {
         this.cardSales = cardSales;
+    }
+
+    public BigDecimal getCashPaidOut() {
+        return cashPaidOut;
+    }
+
+    public void setCashPaidOut(BigDecimal cashPaidOut) {
+        this.cashPaidOut = cashPaidOut;
+    }
+
+    public BigDecimal getCashPaidIn() {
+        return cashPaidIn;
+    }
+
+    public void setCashPaidIn(BigDecimal cashPaidIn) {
+        this.cashPaidIn = cashPaidIn;
     }
 
     public Integer getOrderCount() {

@@ -135,6 +135,11 @@ public class AnalyticsService {
         long uncollectedOrders = ((Number) unc[0]).longValue();
         BigDecimal uncollectedAmount = (BigDecimal) unc[1];
 
+        // Collected takings that came from the cart's "goes well with" upsell — how much the
+        // suggestions actually earned, so a shop can judge whether the placement is paying off.
+        BigDecimal suggestionRevenue = orderItemRepository.sumSuggestionRevenue(
+                restaurantId, branchScope, from, to);
+
         return new AnalyticsSummaryResponse(
                 from, to, total,
                 counts.getOrDefault(OrderStatus.PENDING, 0L),
@@ -148,6 +153,7 @@ public class AnalyticsService {
                 aov,
                 uncollectedOrders,
                 uncollectedAmount,
+                suggestionRevenue,
                 bestSellingScoped(restaurantId, branchScope, from, to, DEFAULT_BEST_SELLING_LIMIT),
                 busiestHours(restaurantId, branchScope, from, to));
     }

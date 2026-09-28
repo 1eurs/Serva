@@ -15,6 +15,7 @@ export interface CartLine {
   qty: number;
   note: string;
   selectedOptions: SelectedOption[];
+  fromSuggestion?: boolean; // added from the cart's "goes well with" upsell (revenue attribution)
 }
 
 /** Stable line key for a menu item + chosen options. */
@@ -42,8 +43,8 @@ export const lineUnitPrice = (item: PublicItem, selectedOptions?: SelectedOption
 
 interface CartState {
   carts: Record<string, CartLine[]>;
-  add: (token: string, id: number, options?: SelectedOption[] | null) => void;
-  addWithQty: (token: string, id: number, options: SelectedOption[] | null, qty: number) => void;
+  add: (token: string, id: number, options?: SelectedOption[] | null, fromSuggestion?: boolean) => void;
+  addWithQty: (token: string, id: number, options: SelectedOption[] | null, qty: number, fromSuggestion?: boolean) => void;
   bump: (token: string, key: string, d: number) => void;
   setNote: (token: string, key: string, note: string) => void;
   clear: (token: string) => void;
@@ -53,23 +54,23 @@ export const useCartStore = create<CartState>()(
   persist(
     (set) => ({
       carts: {},
-      add: (token, id, options) => set((s) => {
+      add: (token, id, options, fromSuggestion) => set((s) => {
         const key = cartLineKey(id, options);
         const list = s.carts[token] || [];
         const exists = list.find((l) => l.key === key);
         const next = exists
           ? list.map((l) => (l.key === key ? { ...l, qty: l.qty + 1 } : l))
-          : [...list, { id, key, qty: 1, note: '', selectedOptions: options ?? [] }];
+          : [...list, { id, key, qty: 1, note: '', selectedOptions: options ?? [], fromSuggestion: fromSuggestion || undefined }];
         return { carts: { ...s.carts, [token]: next } };
       }),
-      addWithQty: (token, id, options, qty) => set((s) => {
+      addWithQty: (token, id, options, qty, fromSuggestion) => set((s) => {
         if (qty <= 0) return s;
         const key = cartLineKey(id, options);
         const list = s.carts[token] || [];
         const exists = list.find((l) => l.key === key);
         const next = exists
           ? list.map((l) => (l.key === key ? { ...l, qty: l.qty + qty } : l))
-          : [...list, { id, key, qty, note: '', selectedOptions: options ?? [] }];
+          : [...list, { id, key, qty, note: '', selectedOptions: options ?? [], fromSuggestion: fromSuggestion || undefined }];
         return { carts: { ...s.carts, [token]: next } };
       }),
       bump: (token, key, d) => set((s) => {

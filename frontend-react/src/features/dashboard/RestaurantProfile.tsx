@@ -20,7 +20,7 @@ import ReceiptSheet from './ReceiptSheet';
 import { SettingsShell, PaneSection, Specimen, MiniQr } from './SettingsShell';
 import { useFeatures } from '../../lib/plan';
 import { FEATURES } from '../../lib/types';
-import type { Restaurant, Subscription, BranchResponse, OrderResponse, StationStatus } from '../../lib/types';
+import type { Restaurant, Subscription, BranchResponse, OrderResponse, StationStatus, SuggestionsPlacement } from '../../lib/types';
 
 /* This file used to render one long "Restaurant profile" page (hero + 4 numbered
  * sections + an aside). Settings now houses each section as its own pane, so the
@@ -56,6 +56,10 @@ const DICT: Dict = {
     padName: 'اسم العميل', padNameSub: 'اسم تنادي به عند جاهزية الطلب.',
     padPhone: 'رقم الهاتف', padPhoneSub: 'به يجد الختم بطاقته — أبقه مُفعّلاً إن كان لديك برنامج ولاء.',
     padPager: 'رقم جهاز النداء', padPagerSub: 'الجهاز المرقّم الذي تسلّمه للعميل. يظهر بجانب رقم الطلب في الشاشة المباشرة ويُطبع على الفاتورة.',
+    sugTitle: 'اقتراحات السلة', sugSub: 'مكان عرض أصناف "أضِف لمسة أخيرة" في سلة العميل. جرّب مكاناً وراقب إيراداته في التحليلات.',
+    sugUnder: 'أسفل الأصناف', sugUnderSub: 'شرائح صغيرة تحت أصناف السلة مباشرة.',
+    sugBefore: 'قبل الدفع', sugBeforeSub: 'فوق الإجمالي وزر إرسال الطلب مباشرة.',
+    sugPopup: 'نافذة قبل الطلب', sugPopupSub: 'تظهر عند الضغط على إرسال الطلب.',
     uploadLogo: 'رفع الشعار', removeLogo: 'إزالة الشعار', logoRemoved: 'تم إزالة الشعار', uploading: 'جارٍ الرفع...', save: 'حفظ الملف', saved: 'تم الحفظ', openMenu: 'فتح القائمة',
     slug: 'رابط القائمة', active: 'نشط',
     subscription: 'الاشتراك', plan: 'الباقة', sstatus: 'الحالة', renews: 'يتجدد', ended: 'انتهى',
@@ -216,6 +220,10 @@ const DICT: Dict = {
     padName: 'Customer name', padNameSub: 'A name to call out when the order is ready.',
     padPhone: 'Phone number', padPhoneSub: 'How a stamp finds its card — leave this on if you run a loyalty programme.',
     padPager: 'Pager number', padPagerSub: 'The numbered buzzer you hand over the counter. It shows beside the order number on the live board, and prints on the ticket.',
+    sugTitle: 'Cart suggestions', sugSub: 'Where the "finish it off" add-ons show in the customer cart. Try a spot and watch its revenue in Analytics.',
+    sugUnder: 'Under the items', sugUnderSub: 'Small chips right below the cart items.',
+    sugBefore: 'Before checkout', sugBeforeSub: 'Just above the total and the Place-order button.',
+    sugPopup: 'Pop-up before ordering', sugPopupSub: 'Slides up when the customer taps Place order.',
     uploadLogo: 'Upload logo', removeLogo: 'Remove logo', logoRemoved: 'Logo removed', uploading: 'Uploading...', save: 'Save profile', saved: 'Saved', openMenu: 'Open menu',
     slug: 'Menu link', active: 'Active',
     subscription: 'Subscription', plan: 'Plan', sstatus: 'Status', renews: 'Renews', ended: 'Ended',
@@ -396,6 +404,7 @@ export function CafeSection({ branchId }: { branchId?: number }) {
     padAskName: true,
     padAskPhone: true,
     padAskPager: false,
+    suggestionsPlacement: 'UNDER_ITEMS' as SuggestionsPlacement,
   });
 
   const restaurantQ = useQuery({
@@ -420,6 +429,7 @@ export function CafeSection({ branchId }: { branchId?: number }) {
       padAskName: r.padAskName ?? true,
       padAskPhone: r.padAskPhone ?? true,
       padAskPager: r.padAskPager ?? false,
+      suggestionsPlacement: r.suggestionsPlacement ?? 'UNDER_ITEMS',
     });
   }, [restaurantQ.data?.id]);
 
@@ -444,6 +454,7 @@ export function CafeSection({ branchId }: { branchId?: number }) {
       padAskName: form.padAskName,
       padAskPhone: form.padAskPhone,
       padAskPager: form.padAskPager,
+      suggestionsPlacement: form.suggestionsPlacement,
     }),
     onSuccess: (r) => {
       qc.setQueryData(['restaurant', rid], r);
@@ -595,6 +606,26 @@ export function CafeSection({ branchId }: { branchId?: number }) {
         </div>
       </PaneSection>
 
+      <PaneSection no="04" title={t('sugTitle')} sub={t('sugSub')}>
+        <div className="profile-settings" role="radiogroup" aria-label={t('sugTitle')}>
+          {([
+            ['UNDER_ITEMS', 'sugUnder', 'sugUnderSub'],
+            ['BEFORE_CHECKOUT', 'sugBefore', 'sugBeforeSub'],
+            ['POPUP', 'sugPopup', 'sugPopupSub'],
+          ] as const).map(([value, label, help]) => {
+            const on = form.suggestionsPlacement === value;
+            return (
+              <button type="button" key={value} role="radio" aria-checked={on}
+                className={'profile-setting profile-choice' + (on ? ' on' : '')}
+                onClick={() => set('suggestionsPlacement', value as SuggestionsPlacement)}>
+                <div><b>{t(label)}</b><span>{t(help)}</span></div>
+                <span className="profile-choice-dot" aria-hidden="true" />
+              </button>
+            );
+          })}
+        </div>
+      </PaneSection>
+
       <HouseCardSection />
 
     </SettingsShell>
@@ -649,7 +680,7 @@ export function HouseCardSection() {
   const { house, setHouse, save } = useHouseCard();
 
   return (
-    <PaneSection no="04" title={t('houseTitle')} sub={t('houseSub')}>
+    <PaneSection no="05" title={t('houseTitle')} sub={t('houseSub')}>
       <div className="profile-fields">
         <label className="field"><span>{t('houseNoteAr')}</span>
           <textarea rows={3} lang="ar" dir="rtl" maxLength={NOTE_MAX} value={house.noteAr}
@@ -766,6 +797,8 @@ export function BranchPrinterSection({ branchId }: { branchId?: number }) {
      toggle — and asks the owner for the one fact only paper can answer. With Cleanter the
      bridge answers, so the guide shows the printer's real state instead. */
   const android = useMemo(isAndroidDevice, []);
+  // Shown as text beside the QR so a tablet that cannot scan can type the link instead.
+  const stationApkUrl = `${location.origin}${STATION_APK_PATH}`;
   const [app, setApp] = useState<PrintApp>(getPrintApp);
   const [paper, setPaper] = useState<PaperWidth>(getPaperWidth);
   const [station, setStation] = useState(false);
@@ -1082,8 +1115,8 @@ export function BranchPrinterSection({ branchId }: { branchId?: number }) {
               </div>
               {!android && (
                 <div className="stg-step-scan">
-                  <MiniQr value={`${location.origin}${STATION_APK_PATH}`} className="stg-step-qr" />
-                  <span>{t('s1Qr')}</span>
+                  <MiniQr value={stationApkUrl} className="stg-step-qr" />
+                  <span>{t('s1Qr')}<a className="stg-step-url" href={STATION_APK_PATH}>{stationApkUrl}</a></span>
                 </div>
               )}
             </div>
@@ -1102,8 +1135,8 @@ export function BranchPrinterSection({ branchId }: { branchId?: number }) {
                 </div>
               ) : (
                 <div className="stg-step-scan">
-                  <MiniQr value={`${location.origin}${STATION_APK_PATH}`} className="stg-step-qr" />
-                  <span>{t('s1Qr')}</span>
+                  <MiniQr value={stationApkUrl} className="stg-step-qr" />
+                  <span>{t('s1Qr')}<a className="stg-step-url" href={STATION_APK_PATH}>{stationApkUrl}</a></span>
                 </div>
               )}
               <p className="stg-step-note">{t('s1Unknown')}</p>

@@ -509,7 +509,8 @@ public class OrderService {
         Instant pricedAt = Instant.now();
         for (CreateOrderRequest.Item line : items) {
             MenuItem menuItem = menuService.getOrderableItem(restaurant.getId(), branch.getId(), line.menuItemId());
-            ResolvedOptions resolved = resolveOptions(menuItem, line.selectedOptions());
+            ResolvedOptions resolved = resolveOptions(menuItem, line.selectedOptions(),
+                    comboContents(restaurant, branch, menuItem));
 
             // effectivePrice honours any active discount/window; option deltas stack on top.
             BigDecimal unitPrice = menuItem.effectivePrice(pricedAt).add(resolved.priceDelta());
@@ -528,6 +529,7 @@ public class OrderService {
             orderItem.setNote(line.note());
             orderItem.setLineTotal(lineTotal);
             orderItem.setSelectedOptionsJson(resolved.snapshotJson());
+            orderItem.setFromSuggestion(Boolean.TRUE.equals(line.fromSuggestion()));
             order.addItem(orderItem);
 
             subtotal = subtotal.add(lineTotal);
@@ -557,7 +559,8 @@ public class OrderService {
      * options (or where the customer chose none) — unless a SINGLE group is required.
      */
     private ResolvedOptions resolveOptions(MenuItem menuItem,
-                                           List<CreateOrderRequest.SelectedOption> selections) {
+                                           List<CreateOrderRequest.SelectedOption> selections,
+                                           java.util.List<SelectedOptionSnapshot> included) {
         var groupsById = new java.util.HashMap<Long, MenuItemOptionGroup>();
         var optionsByGroupId = new java.util.HashMap<Long, java.util.Map<Long, MenuItemOption>>();
         for (MenuItemOptionGroup g : menuItem.getOptionGroups()) {
@@ -569,7 +572,7 @@ public class OrderService {
 
         selections = selections == null ? List.of() : selections;
         java.util.Map<Long, Integer> countPerGroup = new java.util.HashMap<>();
-        java.util.List<SelectedOptionSnapshot> snapshots = new java.util.ArrayList<>(selections.size());
+        java.util.List<SelectedOptionSnapshot> snapshots = new java.util.ArrayList<>(included);
         BigDecimal delta = BigDecimal.ZERO.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
 
         for (CreateOrderRequest.SelectedOption s : selections) {
@@ -607,6 +610,27 @@ public class OrderService {
 
         String json = snapshots.isEmpty() ? null : serializeOptions(snapshots);
         return new ResolvedOptions(delta, json);
+    }
+
+    /**
+     * What a combo line holds, written onto the line as an "Includes" group so the order still
+     * says "Latte + Croissant" after the owner edits the combo. Each part must itself be orderable
+     * here — a combo is not a back door to an item the owner switched off or kept at another
+     * branch. Repeats collapse to "2 × Croissant". Empty for a plain item.
+     */
+    private java.util.List<SelectedOptionSnapshot> comboContents(Restaurant restaurant, Branch branch, MenuItem combo) {
+        java.util.List<Long> ids = combo.getComboItemIds();
+        if (ids.isEmpty()) return List.of();
+        java.util.Map<Long, Integer> counts = new java.util.LinkedHashMap<>();
+        ids.forEach(id -> counts.merge(id, 1, Integer::sum));
+        java.util.List<SelectedOptionSnapshot> out = new java.util.ArrayList<>(counts.size());
+        for (java.util.Map.Entry<Long, Integer> e : counts.entrySet()) {
+            MenuItem part = menuService.getOrderableItem(restaurant.getId(), branch.getId(), e.getKey());
+            String times = e.getValue() > 1 ? e.getValue() + " × " : "";
+            out.add(new SelectedOptionSnapshot(null, "Includes", "يشمل", part.getId(),
+                    times + part.getNameEn(), times + part.getNameAr(), BigDecimal.ZERO));
+        }
+        return out;
     }
 
     private String serializeOptions(java.util.List<SelectedOptionSnapshot> snapshots) {

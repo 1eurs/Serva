@@ -105,6 +105,9 @@ public class RestaurantService {
         if (request.padAskPager() != null) {
             restaurant.setPadAskPager(request.padAskPager());
         }
+        if (request.suggestionsPlacement() != null) {
+            restaurant.setSuggestionsPlacement(request.suggestionsPlacement());
+        }
         return RestaurantResponse.from(restaurant);
     }
 

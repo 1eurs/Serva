@@ -13,6 +13,11 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.cafeqr.auth.ApiKeyService;
+import com.cafeqr.auth.domain.ApiKey;
+import com.cafeqr.auth.domain.ApiKeyScope;
+import org.springframework.security.access.AccessDeniedException;
+
 import java.io.IOException;
 
 /** Extracts and validates the bearer access token on each request. */
@@ -25,12 +30,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final StreamTicketService streamTickets;
     private final CustomUserDetailsService accounts;
+    private final ApiKeyService apiKeys;
+    private final RestAccessDeniedHandler accessDeniedHandler;
 
     public JwtAuthenticationFilter(JwtService jwtService, StreamTicketService streamTickets,
-                                   CustomUserDetailsService accounts) {
+                                   CustomUserDetailsService accounts, ApiKeyService apiKeys,
+                                   RestAccessDeniedHandler accessDeniedHandler) {
         this.jwtService = jwtService;
         this.streamTickets = streamTickets;
         this.accounts = accounts;
+        this.apiKeys = apiKeys;
+        this.accessDeniedHandler = accessDeniedHandler;
     }
 
     @Override
@@ -38,14 +48,32 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String token = resolveToken(request);
-        if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+        if (token == null || SecurityContextHolder.getContext().getAuthentication() != null) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        if (ApiKeyService.looksLikeApiKey(token)) {
+            ApiKey key = resolveApiKey(token);
+            if (key != null) {
+                CustomUserDetails principal = accounts.loadById(key.getUserId())
+                        .filter(CustomUserDetails::isEnabled).orElse(null);
+                if (principal != null) {
+                    // A read-only key may only read. Refuse a write before it reaches a controller —
+                    // and note the response is written OUTSIDE any catch, so the 403 always lands.
+                    if (key.getScope() == ApiKeyScope.READ_ONLY && isMutating(request)) {
+                        accessDeniedHandler.handle(request, response,
+                                new AccessDeniedException("This API key is read-only."));
+                        return;
+                    }
+                    setAuthentication(principal, request);
+                }
+            }
+        } else {
             try {
                 CustomUserDetails principal = authenticate(token);
                 if (principal != null) {
-                    var authentication = new UsernamePasswordAuthenticationToken(
-                            principal, null, principal.getAuthorities());
-                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                    setAuthentication(principal, request);
                 }
             } catch (Exception ex) {
                 // Invalid/expired token: leave the context unauthenticated; the entry point handles 401.
@@ -54,6 +82,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         chain.doFilter(request, response);
+    }
+
+    /** Resolve an API key to its row, folding any lookup error into "unauthenticated". */
+    private ApiKey resolveApiKey(String token) {
+        try {
+            return apiKeys.resolve(token).orElse(null);
+        } catch (Exception ex) {
+            log.debug("Rejected API key: {}", ex.getMessage());
+            return null;
+        }
+    }
+
+    private void setAuthentication(CustomUserDetails principal, HttpServletRequest request) {
+        var authentication = new UsernamePasswordAuthenticationToken(
+                principal, null, principal.getAuthorities());
+        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+    }
+
+    /** Anything that isn't a safe read. A read-only key is allowed only these methods. */
+    private static boolean isMutating(HttpServletRequest request) {
+        String method = request.getMethod();
+        return !"GET".equals(method) && !"HEAD".equals(method) && !"OPTIONS".equals(method);
     }
 
     /**

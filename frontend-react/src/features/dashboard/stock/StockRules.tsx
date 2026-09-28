@@ -5,7 +5,7 @@ import { useI18n, useT, pick } from '../../../lib/i18n';
 import { Money } from '../../../lib/Money';
 import type { MenuItemOptionGroupRow, MenuStockRule, OptionRecipeLineRow, RecipeLineRow, StockItemRow, StockUnit } from '../../../lib/types';
 import { DICT, fill } from './copy';
-import { recipeUnitsFor, unitFactor, unitWord } from './units';
+import { qty, recipeUnitsFor, unitFactor, unitWord } from './units';
 import './stock.css';
 
 /**
@@ -196,19 +196,20 @@ export function StockRules({ branchId, menuItemId, optionGroups, draft, onChange
       </div>
 
       {/* Every choice the menu offers, rule or no rule. "Almond Milk — instead of Milk, use
-          Almond milk" is one row and two picks; a choice left blank changes nothing. */}
+          Almond milk" is one row and two picks, and the amount is the milk line's; the row says
+          so, because the next thing a person reaches for is a place to type 200 ml again, and
+          that place is "also takes…", which would draw the almond milk twice. */}
       {draft.options.length > 0 && (
         <div className="stk-f">
           <span>{t('optT')}</span>
           <em className="stk-hint">{t('optHint')}</em>
-          {draft.options.map((o, oi) => (
-            <div className="stk-opt" key={`${o.groupName}/${o.optionName}`}>
-              <div className="stk-opt-row">
+          {draft.options.map((o, oi) => {
+            const base = o.replaces != null ? draft.lines.find((l) => l.stockItemId === o.replaces) : undefined;
+            const baseTin = base?.stockItemId != null ? byId.get(base.stockItemId) : undefined;
+            const swapTin = o.stockItemId != null ? byId.get(o.stockItemId) : undefined;
+            return (
+              <div className="stk-opt" key={`${o.groupName}/${o.optionName}`}>
                 <b className="stk-opt-name">{o.optionName}</b>
-                <button type="button" className="stk-link" onClick={() =>
-                  setOption(oi, { adds: [...o.adds, { stockItemId: null, quantity: '', unit: 'PIECE' }] })}>
-                  ＋ {t('addsLink')}
-                </button>
                 <div className="stk-opt-swap">
                   <span className="stk-opt-word">{t('insteadOf')}</span>
                   <select className="stk-select" value={o.replaces ?? ''} disabled={baseTins.length === 0}
@@ -225,11 +226,21 @@ export function StockRules({ branchId, menuItemId, optionGroups, draft, onChange
                     </select>
                   </>}
                 </div>
+                {base && baseTin && swapTin && (
+                  <em className="stk-hint">{fill(t('swapNote'), {
+                    q: `${qty(Number(base.quantity), base.unit)} ${unitWord(base.unit, lang)}`,
+                    tin: name(swapTin), base: name(baseTin),
+                  })}</em>
+                )}
+                {o.adds.map((a, ai) => lineRow(a, `o${oi}a${ai}`,
+                  (p) => setAdd(oi, ai, p), () => setOption(oi, { adds: o.adds.filter((_, j) => j !== ai) })))}
+                <button type="button" className="stk-link" onClick={() =>
+                  setOption(oi, { adds: [...o.adds, { stockItemId: null, quantity: '', unit: 'PIECE' }] })}>
+                  ＋ {t('addsLink')}
+                </button>
               </div>
-              {o.adds.map((a, ai) => lineRow(a, `o${oi}a${ai}`,
-                (p) => setAdd(oi, ai, p), () => setOption(oi, { adds: o.adds.filter((_, j) => j !== ai) })))}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

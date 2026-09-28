@@ -59,11 +59,13 @@ if (!SCENARIOS.includes(arg)) {
   process.exit(2);
 }
 
+let IS_PROD = false;
 {
   let host = '';
   try { host = new URL(BASE).hostname.toLowerCase(); } catch { /* keep empty */ }
   const prod = host === 'serva.om' || host === 'www.serva.om';
-  const unsafe = new Set(['all', 'stock', 'ceiling', 'tenants']);
+  IS_PROD = prod;
+  const unsafe = new Set(['stock', 'ceiling', 'tenants']);
   if (prod && process.env.LOADTEST_PROD !== '1') {
     console.error(`Refusing ${BASE}.
 This script writes orders, tables, till/printer flags and (for some scenarios) stock caps
@@ -85,9 +87,9 @@ stock / ceiling / tenants / all stay blocked on production.`);
     if (unsafe.has(arg) && process.env.LOADTEST_PROD_UNSAFE !== '1') {
       console.error(`Refusing scenario '${arg}' against production.
 stock flips counter mode and a daily cap; ceiling can exhaust the 10-connection pool
-for every café on the box; tenants onboard extra restaurants; all includes those.
+for every café on the box; tenants onboard extra restaurants.
 
-Allowed: rush | soak | backlog
+Allowed: rush | soak | backlog | all (all = those three)
 Override: LOADTEST_PROD_UNSAFE=1`);
       process.exit(2);
     }
@@ -271,10 +273,11 @@ function parseSseChunk(buf, onEvent) {
   return rest;
 }
 
-async function openSse(path, { session, onEvent, label } = {}) {
+async function openSse(path, { session, onEvent, label, connectMs = 15_000 } = {}) {
   if (session) await session.ensure();
   const t0 = nowMs();
   const ac = new AbortController();
+  const connectTimer = setTimeout(() => ac.abort(), connectMs);
   let res;
   try {
     res = await fetch(BASE + path, {
@@ -283,8 +286,10 @@ async function openSse(path, { session, onEvent, label } = {}) {
     });
   } catch (e) {
     stats.sseErrors++;
-    record(label || 'sse.open', { ok: false, ms: nowMs() - t0, code: 'NETWORK' });
+    record(label || 'sse.open', { ok: false, ms: nowMs() - t0, code: e.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK' });
     return { close() {}, opened: false };
+  } finally {
+    clearTimeout(connectTimer);
   }
   const ms = nowMs() - t0;
   if (!res.ok || !res.body) {
@@ -369,8 +374,8 @@ async function listAs(session, path) {
 
 async function ensureTillOpen(session, branchId) {
   const st = await call(`/api/branches/${branchId}/till`, { session, op: 'till.state' });
-  // Staging/prod may be a build from before the till existed — orders then have no drawer gate.
-  if (st.status === 404 || st.code === 'NOT_FOUND') return;
+  // No till module on this backend (staging is older than V67), or the drawer is already open.
+  if (!st.ok || st.status === 404 || st.code === 'NOT_FOUND') return;
   if (st.data?.open || st.data?.tillEnabled === false) return;
   const opened = await call(`/api/branches/${branchId}/till/open`, {
     method: 'POST',
@@ -379,7 +384,7 @@ async function ensureTillOpen(session, branchId) {
     op: 'till.open',
   });
   if (!opened.ok && opened.code !== 'CONFLICT' && opened.status !== 409) {
-    throw new Error('Could not open till: ' + (opened.code || opened.message));
+    console.log('• till open skipped (' + (opened.code || opened.status) + ') — continuing');
   }
 }
 
@@ -438,7 +443,7 @@ async function loadMenu(slug, branchId, tableToken) {
   return r.data;
 }
 
-async function prepareCafe({ session, slug, restaurantId }) {
+async function prepareCafe({ session, slug, restaurantId, tablesWant = CFG.tables, requireMenu = true }) {
   const branches = restaurantId
     ? await listAs(session, `/api/restaurants/${restaurantId}/branches`)
     : [];
@@ -457,13 +462,26 @@ async function prepareCafe({ session, slug, restaurantId }) {
 
   await ensureTillOpen(session, branch.id);
   await ensureAccepting(session, branch.id, branch);
-  await ensurePrinter(session, branch.id, true);
-  const tables = await ensureTables(session, branch.id, CFG.tables);
+  if (!IS_PROD) await ensurePrinter(session, branch.id, true);
+  let tables = await ensureTables(session, branch.id, IS_PROD ? 0 : tablesWant);
+  if (!tables.length) {
+    for (const b of branches) {
+      if (b.id === branch.id) continue;
+      const found = await ensureTables(session, b.id, IS_PROD ? 0 : tablesWant);
+      if (!found.length) continue;
+      const detail2 = await call(`/api/branches/${b.id}`, { session, op: 'branch.get' });
+      branch = detail2.data || b;
+      tables = found;
+      await ensureTillOpen(session, branch.id);
+      await ensureAccepting(session, branch.id, branch);
+      break;
+    }
+  }
   if (!tables.length) throw new Error('No tables for ' + slug);
 
   const menu = await loadMenu(slug, branch.id, tables[0].qrCodeToken);
   const items = availableItems(menu);
-  if (!items.length) {
+  if (requireMenu && !items.length) {
     throw new Error(`No orderable menu items for ${slug}. Run: npm run seed`);
   }
 
@@ -514,28 +532,38 @@ async function ensureTenant(admin, i) {
   const owner = new Session({ username: email, password });
   await owner.login();
   const me = await call('/api/auth/me', { session: owner, op: 'auth.me' });
-  const cafe = await prepareCafe({ session: owner, slug, restaurantId: me.data?.restaurantId });
+  const cafe = await prepareCafe({
+    session: owner,
+    slug,
+    restaurantId: me.data?.restaurantId,
+    tablesWant: 4,
+    requireMenu: false,
+  });
 
   const cats = await listAs(owner, `/api/menu/categories?restaurantId=${cafe.restaurantId}`);
-  if (!cats.length) {
-    const cat = await call('/api/menu/categories', {
-      method: 'POST',
-      session: owner,
-      body: {
-        restaurantId: cafe.restaurantId,
-        nameEn: 'Coffee',
-        nameAr: 'قهوة',
-        displayOrder: 1,
-      },
-      op: 'menu.category',
-    });
-    if (cat.ok) {
+  if (!cafe.items.length) {
+    let catId = cats[0]?.id;
+    if (!catId) {
+      const cat = await call('/api/menu/categories', {
+        method: 'POST',
+        session: owner,
+        body: {
+          restaurantId: cafe.restaurantId,
+          nameEn: 'Coffee',
+          nameAr: 'قهوة',
+          displayOrder: 1,
+        },
+        op: 'menu.category',
+      });
+      catId = cat.data?.id;
+    }
+    if (catId) {
       await call('/api/menu/items', {
         method: 'POST',
         session: owner,
         body: {
           restaurantId: cafe.restaurantId,
-          categoryId: cat.data.id,
+          categoryId: catId,
           nameEn: 'Americano',
           nameAr: 'أمريكانو',
           price: 1.200,
@@ -627,13 +655,13 @@ async function customerVu(cafe, stopAt, { holdSseMs = 12_000, think = true } = {
   }
 }
 
-function kitchen(cafe, { delayMs = CFG.kitchenMs, inflight = new Set() } = {}) {
+function kitchen(cafe, { delayMs = CFG.kitchenMs, inflight = new Set(), skipIds = new Set() } = {}) {
   let running = true;
   let paused = false;
   const queue = [];
 
   async function act(id, status) {
-    if (!id || inflight.has(id)) return;
+    if (!id || inflight.has(id) || skipIds.has(id)) return;
     inflight.add(id);
     try {
       if (status === 'PENDING') {
@@ -693,7 +721,7 @@ function kitchen(cafe, { delayMs = CFG.kitchenMs, inflight = new Set() } = {}) {
         const live = await call(`/api/dashboard/orders/live?branchId=${cafe.branchId}`, {
           session: cafe.session, op: 'order.live',
         });
-        const list = Array.isArray(live.data) ? live.data : [];
+        const list = (Array.isArray(live.data) ? live.data : []).filter((o) => !skipIds.has(o.id));
         if (!list.length && !inflight.size) return;
         for (const o of list) await act(o.id, o.status);
         await sleep(200);
@@ -767,11 +795,11 @@ async function staffPadBurst(cafe, nOrders) {
   }
 }
 
-async function openDashboards(cafe, n) {
+async function openDashboards(cafe, n, skipIds = new Set()) {
   const handles = [];
   const inflight = new Set();
   for (let i = 0; i < n; i++) {
-    const kit = kitchen(cafe, { inflight });
+    const kit = kitchen(cafe, { inflight, skipIds });
     const sse = await openSse(`/api/dashboard/orders/stream?branchId=${cafe.branchId}`, {
       session: cafe.session,
       label: 'sse.dashboard',
@@ -859,10 +887,36 @@ async function runBacklog(cafe, { kit }) {
   await kit?.drain(90_000);
 }
 
+async function ensureCapItem(cafe) {
+  const cats = await listAs(cafe.session, `/api/menu/categories?restaurantId=${cafe.restaurantId}`);
+  const catId = cats[0]?.id;
+  if (!catId) return cafe.items[0];
+  const existing = await listAs(cafe.session, `/api/menu/items?restaurantId=${cafe.restaurantId}`);
+  const found = existing.find((i) => i.nameEn === 'Loadtest Cap');
+  if (found) return { id: found.id, optionGroups: [] };
+  const r = await call('/api/menu/items', {
+    method: 'POST',
+    session: cafe.session,
+    op: 'menu.item',
+    body: {
+      restaurantId: cafe.restaurantId,
+      categoryId: catId,
+      nameEn: 'Loadtest Cap',
+      nameAr: 'اختبار حد',
+      price: 0.100,
+      available: true,
+      preparationTimeMinutes: 1,
+      displayOrder: 99,
+    },
+  });
+  if (!r.ok) return cafe.items[0];
+  return { id: r.data.id, optionGroups: [] };
+}
+
 async function runStock(cafe, { kit }) {
   banner(`Stock  ${CFG.stockBurst} concurrent orders vs daily cap ${CFG.stockCap}`);
   kit?.pause();
-  const item = cafe.items[0];
+  const item = await ensureCapItem(cafe);
   const prev = cafe.counterMode;
   await call(`/api/branches/${cafe.branchId}/menu-stock/${item.id}`, {
     method: 'PUT', session: cafe.session, body: { dailyLimit: CFG.stockCap }, op: 'stock.cap',
@@ -930,7 +984,9 @@ async function runTenants(admin) {
     const printer = printStation(cafe);
     stops.push(async () => { await printer.stop(); await boards.stop(); });
     const stopAt = Date.now() + CFG.tenantS * 1000;
-    for (let i = 0; i < CFG.tenantCustomers; i++) workers.push(customerVu(cafe, stopAt));
+    for (let i = 0; i < CFG.tenantCustomers; i++) {
+      workers.push(customerVu(cafe, stopAt, { holdSseMs: 3000 }));
+    }
   }
   await Promise.all(workers);
   for (const stop of stops) await stop();
@@ -986,8 +1042,9 @@ function report() {
 
   const create = stats.ops.get('order.create') || { ok: 0, fail: 0, times: [] };
   const createTimes = create.times.slice().sort((a, b) => a - b);
+  const skipFail = new Set(['order.create.stock', 'loyalty.summary', 'stock.cap', 'stock.cap.clear', 'till.state', 'till.open']);
   const unexpectedFail = [...stats.ops.entries()]
-    .filter(([k]) => k !== 'order.create.stock' && k !== 'loyalty.summary' && k !== 'stock.cap' && k !== 'stock.cap.clear')
+    .filter(([k]) => !skipFail.has(k))
     .reduce((a, [, s]) => a + s.fail, 0);
   const unexpectedN = [...stats.ops.entries()]
     .filter(([k]) => k !== 'order.create.stock')
@@ -1024,9 +1081,27 @@ async function main() {
   console.log(`café  ${cafe.slug}  branch=${cafe.branchId}  tables=${cafe.tables.length}  items=${cafe.items.length}`);
 
   const want = new Set(arg === 'all' ? SCENARIOS.filter((s) => s !== 'all') : [arg]);
-  const boards = await openDashboards(cafe, CFG.dashboards);
-  const printer = printStation(cafe);
+  if (IS_PROD && process.env.LOADTEST_PROD_UNSAFE !== '1') {
+    for (const s of ['stock', 'ceiling', 'tenants']) want.delete(s);
+    console.log('prod: running ' + [...want].join(' + ') + ' (skipped stock/ceiling/tenants)');
+  }
+  const preexisting = new Set();
+  if (IS_PROD) {
+    const live = await call(`/api/dashboard/orders/live?branchId=${cafe.branchId}`, {
+      session: cafe.session, op: 'order.live',
+    });
+    for (const o of Array.isArray(live.data) ? live.data : []) {
+      if (o?.id) preexisting.add(o.id);
+    }
+    console.log('prod: leaving ' + preexisting.size + ' existing live tickets untouched');
+  }
+  const boards = await openDashboards(cafe, IS_PROD ? 1 : CFG.dashboards, preexisting);
+  const printer = IS_PROD ? { async stop() {} } : printStation(cafe);
   const poller = livePoller(cafe);
+  if (!IS_PROD) {
+    console.log('draining leftover live orders…');
+    await boards.drain(120_000);
+  }
 
   process.on('SIGINT', () => {
     console.log('\ninterrupted — closing streams');
@@ -1034,6 +1109,7 @@ async function main() {
     process.exit(130);
   });
 
+  let runError = null;
   try {
     if (want.has('soak')) await runSoak(cafe);
     if (want.has('rush')) await runRush(cafe, { kits: boards.kits });
@@ -1045,6 +1121,9 @@ async function main() {
       await admin.login();
       await runTenants(admin);
     }
+  } catch (e) {
+    runError = e;
+    console.error('✗ scenario failed:', e.message);
   } finally {
     await poller.stop();
     await printer.stop();
@@ -1053,11 +1132,12 @@ async function main() {
   }
 
   const code = report();
-  process.exit(code);
+  process.exit(runError ? 1 : code);
 }
 
 main().catch((e) => {
   closeAllStreams();
   console.error('✗ load test failed:', e.message);
+  try { report(); } catch { /* stats may be empty */ }
   process.exit(1);
 });

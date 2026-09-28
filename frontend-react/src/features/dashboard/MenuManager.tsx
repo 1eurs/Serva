@@ -6,12 +6,13 @@ import { useI18n, useT, pick, nameOf, Ltr, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { useConfirm } from '../../lib/confirm';
 import { omr, estimateVat, discountPercent } from '../../lib/format';
-import type { BranchResponse, CategoryResponse, MenuItemResponse, Restaurant } from '../../lib/types';
+import type { BranchResponse, CategoryResponse, CourseType, MenuItemResponse, Restaurant } from '../../lib/types';
 import { sellable } from '../../lib/types';
 import { ensureGoogleFonts } from '../../lib/fonts';
 import { MenuDecorLayer } from '../customer/MenuDecor';
 import { parseMenuInfo, houseFacts } from '../customer/menuInfo';
 import { HouseCardToggle } from './RestaurantProfile';
+import { ComboArt, comboParts, isCombo, partsLabel, separateTotal } from '../customer/combo';
 import {
   ALL_MENU_FONT_SPECS,
   CUSTOM_THEME,
@@ -38,6 +39,8 @@ import './look-studio.css';
 const DICT: Dict = {
   ar: { addCat: '＋ قسم', addItem: '＋ صنف', editCat: 'تعديل القسم', newCat: 'قسم جديد', editItem: 'تعديل الصنف', newItem: 'صنف جديد',
         nameAr: 'الاسم (عربي)', nameEn: 'الاسم (إنجليزي)', descAr: 'الوصف (عربي)', descEn: 'الوصف (إنجليزي)',
+        catType: 'النوع', catTypeHint: 'يساعد اقتراحات السلة: لا نقترح مشروباً ثانياً مع مشروب.',
+        typeNone: 'بدون', typeDrink: 'مشروب', typeFood: 'طعام', typeDessert: 'حلوى',
         price: 'السعر', prep: 'دقائق التحضير', category: 'القسم', available: 'متوفر الآن', image: 'الصورة', uploadImg: 'رفع صورة', uploading: 'جارٍ الرفع…', removeImg: 'حذف الصورة',
         addPhoto: 'إضافة صورة', cover: 'الغلاف', photosHint: 'الصورة الأولى هي الغلاف',
         options: 'الخيارات', optionsHint: 'مثل: الحجم (كبير/صغير) أو نوع الحليب', addGroup: '＋ مجموعة خيارات', groupNameAr: 'اسم المجموعة (ع)', groupNameEn: 'اسم المجموعة (EN)',
@@ -71,9 +74,16 @@ const DICT: Dict = {
         orderNote: 'ملاحظة على الطلب', orderNotePh: 'مثال: بدون سكر…', finalNote: 'يُحتسب الإجمالي النهائي من المقهى عند تأكيد الطلب.',
         trackTitle: 'تتبّع الطلب', orderNo: 'رقم الطلب', thanks: 'شكراً لك', backMenu: 'العودة للقائمة',
         head_PENDING: 'تم الإرسال — بانتظار المقهى', head_ACCEPTED: 'تم القبول', head_PREPARING: 'قيد التحضير', head_READY: 'جاهز للتقديم',
-        st_PENDING: 'أرسلنا طلبك', st_ACCEPTED: 'قبِله المقهى', st_PREPARING: 'يُحضَّر الآن', st_READY: 'جاهز!' },
+        st_PENDING: 'أرسلنا طلبك', st_ACCEPTED: 'قبِله المقهى', st_PREPARING: 'يُحضَّر الآن', st_READY: 'جاهز!',
+        addCombo: '＋ كومبو', newCombo: 'كومبو جديد', editCombo: 'تعديل الكومبو', comboTag: 'كومبو',
+        comboParts: 'ماذا يشمل؟', comboPartsHint: 'اختر الأصناف — يمكنك إضافة الصنف أكثر من مرة', comboPick: '＋ أضف صنفاً…',
+        comboNeed2: 'اختر صنفين على الأقل', comboApart: 'منفصلة', comboSaves: 'يوفّر العميل',
+        comboNoSave: 'سعر الكومبو ليس أقل من مجموع الأصناف — لن يظهر للعميل أي توفير.',
+        comboNewCat: '＋ قسم جديد: كومبو', comboPhotoHint: 'بدون صورة؟ نعرض صور الأصناف معاً', comboLess: 'إنقاص', comboMore: 'زيادة' },
   en: { addCat: '＋ Category', addItem: '＋ Item', editCat: 'Edit category', newCat: 'New category', editItem: 'Edit item', newItem: 'New item',
         nameAr: 'Name (Arabic)', nameEn: 'Name (English)', descAr: 'Description (Arabic)', descEn: 'Description (English)',
+        catType: 'Type', catTypeHint: 'Helps cart suggestions — we won’t suggest a second drink alongside a drink.',
+        typeNone: 'None', typeDrink: 'Drink', typeFood: 'Food', typeDessert: 'Dessert',
         price: 'Price', prep: 'Prep minutes', category: 'Category', available: 'Available now', image: 'Photo', uploadImg: 'Upload photo', uploading: 'Uploading…', removeImg: 'Remove photo',
         addPhoto: 'Add photo', cover: 'Cover', photosHint: 'First photo is the cover',
         options: 'Options', optionsHint: 'e.g. Size (large/small) or milk type', addGroup: '＋ Option group', groupNameAr: 'Group name (AR)', groupNameEn: 'Group name (EN)',
@@ -107,7 +117,12 @@ const DICT: Dict = {
         orderNote: 'Order note', orderNotePh: 'e.g. no sugar…', finalNote: 'Final total is confirmed by the cafe when your order is accepted.',
         trackTitle: 'Track order', orderNo: 'Order', thanks: 'Thank you', backMenu: 'Back to menu',
         head_PENDING: 'Sent — waiting for the cafe', head_ACCEPTED: 'Accepted', head_PREPARING: 'Preparing', head_READY: 'Ready to serve',
-        st_PENDING: 'Order sent', st_ACCEPTED: 'Cafe accepted', st_PREPARING: 'Being prepared', st_READY: 'Ready!' },
+        st_PENDING: 'Order sent', st_ACCEPTED: 'Cafe accepted', st_PREPARING: 'Being prepared', st_READY: 'Ready!',
+        addCombo: '＋ Combo', newCombo: 'New combo', editCombo: 'Edit combo', comboTag: 'Combo',
+        comboParts: 'What’s in it?', comboPartsHint: 'Pick the items — add one twice for “2 ×”', comboPick: '＋ Add an item…',
+        comboNeed2: 'Pick at least two items', comboApart: 'Separately', comboSaves: 'Customers save',
+        comboNoSave: 'The combo costs no less than its items bought separately — customers won’t see a saving.',
+        comboNewCat: '＋ New category: Combos', comboPhotoHint: 'No photo? The menu shows its items’ photos together', comboLess: 'Fewer', comboMore: 'More' },
 };
 
 const thumb = (it: MenuItemResponse) => it.imageUrl
@@ -205,12 +220,17 @@ export default function MenuManager() {
   };
 
   const [catModal, setCatModal] = useState<CategoryResponse | 'new' | null>(null);
-  const [itemModal, setItemModal] = useState<MenuItemResponse | { categoryId: number } | null>(null);
+  const [itemModal, setItemModal] = useState<MenuItemResponse | { categoryId: number } | { combo: true } | null>(null);
+  const allItems = useMemo(() => itemsQ.data ?? [], [itemsQ.data]);
+  const itemsById = useMemo(() => new Map(allItems.map((i) => [i.id, i])), [allItems]);
+  // A combo needs two things to bundle; until then the button would only open an empty picker.
+  const canCombo = allItems.filter((i) => !isCombo(i)).length >= 2;
 
   return (
     <div className="tables-wrap">
       <div className="tables-tool">
         <button className="btn sm" onClick={() => setCatModal('new')}>{t('addCat')}</button>
+        {canCombo && <button className="btn sm ghost" onClick={() => setItemModal({ combo: true })}>{t('addCombo')}</button>}
       </div>
 
       {catsQ.isLoading ? <div className="center"><div className="spinner" /></div>
@@ -231,18 +251,22 @@ export default function MenuManager() {
                 <div className="mitems">
                   {items.map((it) => {
                     const ds = discountState(it);
+                    const parts = comboParts(it, itemsById);
                     return (
                     <div className={'mitem' + (sellable(it) ? '' : ' off')} key={it.id}>
                       <div className="c-thumb" style={{ ...thumb(it), width: 54, height: 54, flex: '0 0 54px', borderRadius: 12 }}>
-                        {!it.imageUrl && <span className="glyph" style={{ fontSize: 20 }}>{pick(it, 'name', lang).charAt(0)}</span>}
+                        {!it.imageUrl && (parts.length > 0
+                          ? <ComboArt parts={parts} lang={lang} />
+                          : <span className="glyph" style={{ fontSize: 20 }}>{pick(it, 'name', lang).charAt(0)}</span>)}
                       </div>
                       <div className="mitem-main">
                         <div className="mitem-name">{pick(it, 'name', lang)}
+                          {parts.length > 0 && <span className="mitem-combo">{t('comboTag')}</span>}
                           {ds && <span className={'mitem-disc ' + (ds.active ? 'on' : ds.scheduled ? 'sched' : 'ended')}>
                             {ds.active ? `−${discountPercent(it.price, ds.sale)}%` : ds.scheduled ? t('discScheduled') : t('discEnded')}
                           </span>}
                         </div>
-                        <div className="mitem-sub">{it.nameEn}{it.preparationTimeMinutes ? ` · ⏱ ${it.preparationTimeMinutes}m` : ''}</div>
+                        <div className="mitem-sub">{parts.length > 0 ? partsLabel(parts, lang) : it.nameEn}{it.preparationTimeMinutes ? ` · ⏱ ${it.preparationTimeMinutes}m` : ''}</div>
                       </div>
                       <div className="mitem-price num">
                         {ds && <span className="mitem-was">{omr(it.price)}</span>}
@@ -284,7 +308,9 @@ export default function MenuManager() {
       )}
 
       {catModal && <CategoryEditor rid={rid} cat={catModal === 'new' ? null : catModal} onClose={() => setCatModal(null)} onDone={() => { invalidate(); setCatModal(null); }} />}
-      {itemModal && <ItemEditor rid={rid} cats={cats} item={'id' in itemModal ? itemModal : null} defaultCat={'categoryId' in itemModal ? itemModal.categoryId : undefined} onClose={() => setItemModal(null)} onDone={() => { invalidate(); setItemModal(null); }} />}
+      {itemModal && <ItemEditor rid={rid} cats={cats} allItems={allItems} combo={'combo' in itemModal}
+        item={'id' in itemModal ? itemModal : null} defaultCat={'categoryId' in itemModal && !('id' in itemModal) ? itemModal.categoryId : undefined}
+        onClose={() => setItemModal(null)} onDone={() => { invalidate(); setItemModal(null); }} />}
     </div>
   );
 }
@@ -896,7 +922,7 @@ function LivePreview({ draft, restaurant, branch, cats, itemsByCat }:
 
 function CategoryEditor({ rid, cat, onClose, onDone }: { rid: number; cat: CategoryResponse | null; onClose: () => void; onDone: () => void }) {
   const t = useT(DICT); const toast = useToast();
-  const [f, setF] = useState({ nameAr: cat?.nameAr ?? '', nameEn: cat?.nameEn ?? '', descriptionAr: cat?.descriptionAr ?? '', descriptionEn: cat?.descriptionEn ?? '', displayOrder: cat?.displayOrder ?? 0 });
+  const [f, setF] = useState({ nameAr: cat?.nameAr ?? '', nameEn: cat?.nameEn ?? '', descriptionAr: cat?.descriptionAr ?? '', descriptionEn: cat?.descriptionEn ?? '', displayOrder: cat?.displayOrder ?? 0, courseType: (cat?.courseType ?? null) as CourseType | null });
   const set = (k: string, v: any) => setF((p) => ({ ...p, [k]: v }));
   const save = useMutation({
     mutationFn: () => cat
@@ -914,6 +940,16 @@ function CategoryEditor({ rid, cat, onClose, onDone }: { rid: number; cat: Categ
         </div>
         <div className="field"><label>{t('descAr')}</label><input value={f.descriptionAr} onChange={(e) => set('descriptionAr', e.target.value)} /></div>
         <div className="field"><label>{t('descEn')}</label><input value={f.descriptionEn} onChange={(e) => set('descriptionEn', e.target.value)} /></div>
+        <div className="field">
+          <label>{t('catType')}</label>
+          <select value={f.courseType ?? ''} onChange={(e) => set('courseType', e.target.value || null)}>
+            <option value="">{t('typeNone')}</option>
+            <option value="DRINK">{t('typeDrink')}</option>
+            <option value="FOOD">{t('typeFood')}</option>
+            <option value="DESSERT">{t('typeDessert')}</option>
+          </select>
+          <p className="hint">{t('catTypeHint')}</p>
+        </div>
         <div className="modal-actions">
           <button className="btn ghost" onClick={onClose}>{t('cancel')}</button>
           <button className="btn" disabled={!f.nameAr || !f.nameEn || save.isPending} onClick={() => save.mutate()}>{t('save')}</button>
@@ -923,15 +959,38 @@ function CategoryEditor({ rid, cat, onClose, onDone }: { rid: number; cat: Categ
   );
 }
 
-function ItemEditor({ rid, cats, item, defaultCat, onClose, onDone }:
-  { rid: number; cats: CategoryResponse[]; item: MenuItemResponse | null; defaultCat?: number; onClose: () => void; onDone: () => void }) {
+/** The category a new combo lands in: one the owner already made for deals, else a new one. */
+const COMBO_CAT_RE = /combo|deal|offer|meal|bundle|كومبو|عرض|عروض|وجب|باقة|باقات/i;
+const NEW_COMBO_CAT = -1;
+
+function ItemEditor({ rid, cats, allItems, combo, item, defaultCat, onClose, onDone }:
+  { rid: number; cats: CategoryResponse[]; allItems: MenuItemResponse[]; combo: boolean; item: MenuItemResponse | null;
+    defaultCat?: number; onClose: () => void; onDone: () => void }) {
   const t = useT(DICT); const toast = useToast();
+  const { lang } = useI18n();
+
+  // A combo is an item with a list of parts. The editor is the item editor plus the part picker;
+  // a plain item's editor is unchanged. Parts are ids, repeated for "2 ×".
+  const isComboEditor = combo || isCombo(item ?? {});
+  const [parts, setParts] = useState<number[]>(item?.comboItemIds ?? []);
+  const pickable = useMemo(
+    () => allItems.filter((i) => !isCombo(i) && i.id !== item?.id),
+    [allItems, item?.id],
+  );
+  const byId = useMemo(() => new Map(allItems.map((i) => [i.id, i])), [allItems]);
+  const folded = useMemo(() => comboParts({ comboItemIds: parts }, byId), [parts, byId]);
+  const apart = separateTotal(folded);
+  const addPart = (id: number) => setParts((p) => (p.length >= 8 ? p : [...p, id]));
+  const dropPart = (id: number) => setParts((p) => { const i = p.lastIndexOf(id); return i < 0 ? p : p.filter((_, j) => j !== i); });
+  const comboCatDefault = isComboEditor && !item
+    ? (cats.find((c) => COMBO_CAT_RE.test(c.nameEn) || COMBO_CAT_RE.test(c.nameAr))?.id ?? NEW_COMBO_CAT)
+    : undefined;
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const MAX_PHOTOS = 6;
   const initialImages = item ? (item.images?.length ? item.images : item.imageUrl ? [item.imageUrl] : []) : [];
   const [f, setF] = useState({
-    categoryId: item?.categoryId ?? defaultCat ?? cats[0]?.id,
+    categoryId: item?.categoryId ?? comboCatDefault ?? defaultCat ?? cats[0]?.id,
     nameAr: item?.nameAr ?? '', nameEn: item?.nameEn ?? '',
     descriptionAr: item?.descriptionAr ?? '', descriptionEn: item?.descriptionEn ?? '',
     price: item ? String(item.price) : '', preparationTimeMinutes: item?.preparationTimeMinutes ?? '',
@@ -942,6 +1001,25 @@ function ItemEditor({ rid, cats, item, defaultCat, onClose, onDone }:
     discountEnd: isoToLocalInput(item?.discountEndsAt),
   });
   const set = (k: string, v: any) => setF((p) => ({ ...p, [k]: v }));
+
+  // A new combo names and prices itself from its parts until the owner types over it:
+  // "Latte + Croissant", at about 10% under the parts, rounded down to a 50-baisa step.
+  const auto = useRef({ nameAr: '', nameEn: '', price: '' });
+  useEffect(() => {
+    if (!isComboEditor || item) return;
+    const nameEn = partsLabel(folded, 'en').slice(0, 150);
+    const nameAr = partsLabel(folded, 'ar').slice(0, 150);
+    const suggested = Math.floor((apart * 0.9) / 0.05 + 1e-9) * 0.05;
+    const price = apart > 0 ? (suggested > 0 ? suggested : apart).toFixed(3) : '';
+    const last = auto.current;   // the updater runs later; read the previous values now
+    auto.current = { nameAr, nameEn, price };
+    setF((p) => ({
+      ...p,
+      nameEn: p.nameEn === last.nameEn ? nameEn : p.nameEn,
+      nameAr: p.nameAr === last.nameAr ? nameAr : p.nameAr,
+      price: p.price === last.price ? price : p.price,
+    }));
+  }, [folded, apart, isComboEditor, item]);
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []); if (!files.length) return;
@@ -978,10 +1056,20 @@ function ItemEditor({ rid, cats, item, defaultCat, onClose, onDone }:
   const removeOption = (oi: number) => setOpts((p) => p.filter((_, j) => j !== oi));
 
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const hadImage = Boolean(item?.imageUrl || item?.images?.length);
+      // First combo and no deals category yet: make one, at the top of the menu.
+      let categoryId = f.categoryId;
+      if (categoryId === NEW_COMBO_CAT) {
+        const top = cats.reduce((m, c) => Math.min(m, c.displayOrder), 0);
+        const created = await api.post<CategoryResponse>('/api/menu/categories', {
+          restaurantId: rid, nameAr: 'كومبو', nameEn: 'Combos', displayOrder: top - 1,
+        });
+        categoryId = created.id;
+        set('categoryId', created.id);   // a retry after a failed save must not make a second one
+      }
       const body: any = {
-        categoryId: f.categoryId, nameAr: f.nameAr, nameEn: f.nameEn,
+        categoryId, nameAr: f.nameAr, nameEn: f.nameEn,
         descriptionAr: f.descriptionAr || null, descriptionEn: f.descriptionEn || null,
         price: Number(f.price),
         // Discount: null type clears it; otherwise send value + optional window (as ISO instants).
@@ -1005,6 +1093,7 @@ function ItemEditor({ rid, cats, item, defaultCat, onClose, onDone }:
           }];
         })(),
       };
+      if (isComboEditor) body.comboItemIds = parts;
       if (item) body.removeImage = hadImage && f.images.length === 0;
       return item ? api.patch<MenuItemResponse>(`/api/menu/items/${item.id}`, body)
         : api.post<MenuItemResponse>('/api/menu/items', { restaurantId: rid, ...body });
@@ -1023,12 +1112,60 @@ function ItemEditor({ rid, cats, item, defaultCat, onClose, onDone }:
       : null;
   const windowValid = !f.discountStart || !f.discountEnd || new Date(f.discountEnd) > new Date(f.discountStart);
   const discountValid = !f.discountType || (discountSale != null && windowValid);
-  const valid = f.nameAr && f.nameEn && Number(f.price) > 0 && f.categoryId && discountValid;
+  const comboValid = !isComboEditor || parts.length >= 2;
+  const valid = f.nameAr && f.nameEn && Number(f.price) > 0 && f.categoryId && discountValid && comboValid;
+  const comboPrice = discountSale ?? priceNum;
 
   return (
     <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-card item-modal">
-        <h3>{item ? t('editItem') : t('newItem')}</h3>
+        <h3>{isComboEditor ? (item ? t('editCombo') : t('newCombo')) : (item ? t('editItem') : t('newItem'))}</h3>
+        {isComboEditor && (
+          <div className="comboedit">
+            <div className="optedit-hd">
+              <div><b>{t('comboParts')}</b><span className="optedit-hint">{t('comboPartsHint')}</span></div>
+            </div>
+            {folded.length > 0 && (
+              <div className="comboedit-parts">
+                {folded.map(({ item: p, count }) => (
+                  <div className="comboedit-part" key={p.id}>
+                    <span className="comboedit-thumb" style={p.imageUrl ? { backgroundImage: `url('${p.imageUrl}')` } : undefined}>
+                      {!p.imageUrl && pick(p, 'name', lang).charAt(0)}
+                    </span>
+                    <span className="comboedit-name">{pick(p, 'name', lang)}</span>
+                    <div className="comboedit-qty">
+                      <button type="button" aria-label={t('comboLess')} onClick={() => dropPart(p.id)}>{count > 1 ? '−' : '✕'}</button>
+                      <span className="num">{count}</span>
+                      <button type="button" aria-label={t('comboMore')} disabled={parts.length >= 8} onClick={() => addPart(p.id)}>＋</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <select className="comboedit-pick" value="" disabled={parts.length >= 8}
+              onChange={(e) => { if (e.target.value) addPart(Number(e.target.value)); }}>
+              <option value="">{t('comboPick')}</option>
+              {cats.map((c) => {
+                const opts = pickable.filter((i) => i.categoryId === c.id);
+                return opts.length === 0 ? null : (
+                  <optgroup key={c.id} label={pick(c, 'name', lang)}>
+                    {opts.map((i) => <option key={i.id} value={i.id}>{pick(i, 'name', lang)} · {omr(i.price)}</option>)}
+                  </optgroup>
+                );
+              })}
+            </select>
+            {parts.length < 2
+              ? <div className="comboedit-note">{t('comboNeed2')}</div>
+              : (
+                <div className="comboedit-sum">
+                  <span>{t('comboApart')}: <b className="num">{omr(apart)}</b> {t('cur')}</span>
+                  {comboPrice > 0 && apart - comboPrice >= 0.001
+                    ? <span className="comboedit-save">{t('comboSaves')} <b className="num">{omr(apart - comboPrice)}</b> {t('cur')} <Ltr>(−{discountPercent(apart, comboPrice)}%)</Ltr></span>
+                    : comboPrice > 0 && <span className="comboedit-warn">{t('comboNoSave')}</span>}
+                </div>
+              )}
+          </div>
+        )}
         <div className="itemedit">
           <div className="imgedit">
             <div className="imggrid">
@@ -1045,12 +1182,13 @@ function ItemEditor({ rid, cats, item, defaultCat, onClose, onDone }:
                 </button>
               )}
             </div>
-            <div className="imghint">{t('photosHint')}</div>
+            <div className="imghint">{isComboEditor && f.images.length === 0 ? t('comboPhotoHint') : t('photosHint')}</div>
           </div>
           <input ref={fileRef} type="file" accept="image/*" hidden multiple onChange={onFile} />
           <div style={{ flex: 1 }}>
             <div className="field"><label>{t('category')}</label>
               <select value={f.categoryId} onChange={(e) => set('categoryId', Number(e.target.value))}>
+                {comboCatDefault === NEW_COMBO_CAT && <option value={NEW_COMBO_CAT}>{t('comboNewCat')}</option>}
                 {cats.map((c) => <option key={c.id} value={c.id}>{c.nameAr} / {c.nameEn}</option>)}
               </select>
             </div>

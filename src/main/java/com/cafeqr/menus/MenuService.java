@@ -70,6 +70,7 @@ public class MenuService {
         category.setDescriptionAr(request.descriptionAr());
         category.setDisplayOrder(request.displayOrder() != null ? request.displayOrder() : 0);
         category.setActive(request.active() == null || request.active());
+        category.setCourseType(request.courseType());
         return CategoryResponse.from(categoryRepository.save(category));
     }
 
@@ -107,6 +108,9 @@ public class MenuService {
         }
         if (request.active() != null) {
             category.setActive(request.active());
+        }
+        if (request.courseType() != null) {
+            category.setCourseType(request.courseType());
         }
         return CategoryResponse.from(category);
     }
@@ -151,6 +155,7 @@ public class MenuService {
         item.setDisplayOrder(request.displayOrder() != null ? request.displayOrder() : 0);
         applyImages(item, request.imageUrls(), request.imageUrl());
         applyOptionGroups(item, request.optionGroups());
+        applyCombo(item, request.comboItemIds());
         return MenuItemResponse.from(itemRepository.save(item));
     }
 
@@ -222,6 +227,9 @@ public class MenuService {
         if (request.optionGroups() != null) {
             applyOptionGroups(item, request.optionGroups());
         }
+        if (request.comboItemIds() != null) {
+            applyCombo(item, request.comboItemIds());
+        }
         if (request.available() != null) {
             item.setAvailable(request.available());
         }
@@ -246,6 +254,14 @@ public class MenuService {
     public void deleteItem(Long id) {
         MenuItem item = getItemEntity(id);
         accessGuard.requireBranchAccess(item.getRestaurantId(), item.getBranchId());
+        // A combo cannot keep promising something that no longer exists: take the item out of
+        // every combo it was in. The combo stays — its price and photo are the owner's to rethink.
+        for (MenuItem other : itemRepository.findByRestaurantIdOrderByDisplayOrderAscIdAsc(item.getRestaurantId())) {
+            List<Long> parts = other.getComboItemIds();
+            if (parts.contains(item.getId())) {
+                other.setComboItemIds(parts.stream().filter(p -> !p.equals(item.getId())).toList());
+            }
+        }
         itemRepository.delete(item);
     }
 
@@ -411,6 +427,46 @@ public class MenuService {
      *
      * <p>Anything not matched is removed, so orphanRemoval still does the real deleting.
      */
+    /** Most items one combo may bundle, repeats included. A meal deal, not a second menu. */
+    private static final int COMBO_MAX_ITEMS = 8;
+
+    /**
+     * Sets what a combo bundles. Every part must be a plain item of the same restaurant — not the
+     * combo itself, not another combo (a combo of combos is a menu nobody can read). An empty
+     * list turns the combo back into a plain item.
+     */
+    private void applyCombo(MenuItem item, List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            item.setComboItemIds(null);
+            return;
+        }
+        if (ids.size() < 2) {
+            throw new BadRequestException("A combo needs at least two items");
+        }
+        if (ids.size() > COMBO_MAX_ITEMS) {
+            throw new BadRequestException("A combo can hold at most " + COMBO_MAX_ITEMS + " items");
+        }
+        Map<Long, MenuItem> parts = new HashMap<>();
+        itemRepository.findAllById(new HashSet<>(ids)).forEach(p -> parts.put(p.getId(), p));
+        for (Long id : ids) {
+            MenuItem part = parts.get(id);
+            if (part == null || !part.getRestaurantId().equals(item.getRestaurantId())) {
+                throw new BadRequestException("Combo item not found: " + id);
+            }
+            if (id.equals(item.getId())) {
+                throw new BadRequestException("A combo cannot contain itself");
+            }
+            if (part.isCombo()) {
+                throw new BadRequestException("\"" + part.getNameEn() + "\" is already a combo");
+            }
+        }
+        if (item.getId() != null && itemRepository.findByRestaurantIdOrderByDisplayOrderAscIdAsc(item.getRestaurantId())
+                .stream().anyMatch(o -> o.getComboItemIds().contains(item.getId()))) {
+            throw new BadRequestException("This item is part of another combo, so it cannot be a combo itself");
+        }
+        item.setComboItemIds(ids);
+    }
+
     private void applyOptionGroups(MenuItem item, List<CreateMenuItemRequest.OptionGroupInput> groups) {
         if (groups == null) {
             return;

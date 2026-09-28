@@ -17,6 +17,7 @@ import { parseMenuInfo, houseFacts } from './menuInfo';
 import { usePresence } from './usePresence';
 import { CustomerFrame } from './CustomerFrame';
 import { ItemDetailModal } from './ItemDetailModal';
+import { ComboArt, comboParts, partsLabel, separateTotal } from './combo';
 import { loyaltyCardStyle } from './StampCard';
 import { FACT_ICONS, IconTimer, IconGift, IconTicket, IconCart, type FactIconKey } from './icons';
 import './loyalty.css';
@@ -28,14 +29,16 @@ const DICT: Dict = {
         browseHint: 'امسح رمز طاولتك أو رمز خدمة السيارة لإرسال طلب.',
         welcome: 'أهلاً بعودتك', usual: 'طلبك المعتاد', addUsual: '＋ أضف', lastOrderLbl: 'طلبك السابق', reorderLast: '↻ أضِفه للسلة', lastAdded: 'أُضيف طلبك السابق إلى السلة ✓',
         loyStamps: 'أختام', loyReady: 'مكافأتك جاهزة! 🎉', loyReadySub: 'استبدل مكافأتك المجانية عند الدفع', loyMinTag: 'الحد الأدنى',
-        loyPickAny: 'اختر أي صنف:', qtyMinus: 'إنقاص الكمية', qtyPlus: 'زيادة الكمية', loyRewardBadge: 'مكافأة الولاء', loyFreeBadge: 'مجاني بمكافأتك' },
+        loyPickAny: 'اختر أي صنف:', qtyMinus: 'إنقاص الكمية', qtyPlus: 'زيادة الكمية', loyRewardBadge: 'مكافأة الولاء', loyFreeBadge: 'مجاني بمكافأتك',
+        combo: 'كومبو', save: 'وفّر' },
   en: { table: 'Table', viewCart: 'View cart', items: 'items', cur: 'OMR', min: 'min', from: 'from',
         soldout: 'Sold out', left: '{n} left', loading: 'Loading the menu…', unavailable: 'Menu is unavailable right now', retry: 'Try again', car: 'Car order', added: 'Added ✓', menuOnly: 'Menu',
         ordersPaused: 'The café is closed', ordersPausedSub: 'You can browse the menu and order once this branch opens.',
         browseHint: 'Scan your table’s QR or the car-service QR to place an order.',
         welcome: 'Welcome back', usual: 'Your usual', addUsual: '＋ Add', lastOrderLbl: 'Your last order', reorderLast: '↻ Add to cart', lastAdded: 'Your last order is in the cart ✓',
         loyStamps: 'stamps', loyReady: 'Your reward is ready! 🎉', loyReadySub: 'Redeem your free reward at checkout', loyMinTag: 'min order',
-        loyPickAny: 'Pick any:', qtyMinus: 'Decrease quantity', qtyPlus: 'Increase quantity', loyRewardBadge: 'Loyalty reward', loyFreeBadge: 'Free with your reward' },
+        loyPickAny: 'Pick any:', qtyMinus: 'Decrease quantity', qtyPlus: 'Increase quantity', loyRewardBadge: 'Loyalty reward', loyFreeBadge: 'Free with your reward',
+        combo: 'Combo', save: 'Save' },
 };
 
 export default function MenuPage() {
@@ -358,15 +361,24 @@ export default function MenuPage() {
               // priority; everything below the fold lazy-loads as the customer scrolls.
               const eager = ci === 0 && idx < 4;
               const open = () => setOpenItem(it);
+              // A combo shows what is in it, and — when the bundle is cheaper than its parts —
+              // the parts' price struck through and what the customer saves.
+              const parts = comboParts(it, itemsById);
+              const combo = parts.length > 0;
+              const unit = it.salePrice ?? it.price;
+              const apart = combo ? separateTotal(parts) : 0;
+              const saves = combo && apart - unit >= 0.001;
               // The rise is a welcome, not a queue: the stagger stops after the first handful.
               // Uncapped, item 25 of a long category sat at opacity 0 for a second and a half —
               // a customer scrolling fast scrolled into nothing.
               return (
-                <article className={'c-item' + (sellable(it) ? '' : ' out')}
+                <article className={'c-item' + (sellable(it) ? '' : ' out') + (combo ? ' is-combo' : '')}
                   style={{ animationDelay: `${Math.min(idx, 6) * 60}ms` }} key={it.id}>
-                  <button className={'c-thumb' + (it.imageUrl ? '' : ' is-empty')} type="button" onClick={open}
+                  <button className={'c-thumb' + (it.imageUrl || combo ? '' : ' is-empty')} type="button" onClick={open}
                     aria-label={pick(it, 'name', lang)}>
-                    {it.imageUrl
+                    {!it.imageUrl && combo
+                      ? <ComboArt parts={parts} lang={lang} eager={eager} />
+                      : it.imageUrl
                       ? <img src={it.imageUrl} alt="" decoding="async" loading={eager ? 'eager' : 'lazy'}
                           width={82} height={82}
                           {...({ fetchpriority: eager ? 'high' : 'low' } as object)} />
@@ -381,8 +393,10 @@ export default function MenuPage() {
                   )}
                   <div className="c-body">
                     <button className="c-body-btn" type="button" onClick={open}>
+                      {combo && <span className="c-combo-tag">{t('combo')}</span>}
                       <h3>{pick(it, 'name', lang)}</h3>
                       {lang === 'ar' && it.nameEn && <div className="sub">{it.nameEn}</div>}
+                      {combo && <div className="c-combo-parts">{partsLabel(parts, lang)}</div>}
                       {pick(it, 'description', lang) && <p>{pick(it, 'description', lang)}</p>}
                     </button>
                     <div className="c-foot">
@@ -391,11 +405,17 @@ export default function MenuPage() {
                           {/* the qualifier leads the number in both languages: "from 1.600",
                               "يبدأ من ١٫٦٠٠" — trailing it read as "1.600 from" in English */}
                           {hasOptions && <span className="c-from">{t('from')}</span>}
-                          {it.salePrice != null && (
-                            <Money value={it.price} className="c-was num" />
-                          )}
-                          <Money value={it.salePrice ?? it.price} className={'num' + (it.salePrice != null ? ' c-sale' : '')} />
-                          {it.salePrice != null && <span className="c-off"><Ltr>−{discountPercent(it.price, it.salePrice)}%</Ltr></span>}
+                          {saves ? <>
+                            <Money value={apart} className="c-was num" />
+                            <Money value={unit} className="num c-sale" />
+                            <span className="c-off c-save">{t('save')} <Money value={apart - unit} className="num" /></span>
+                          </> : <>
+                            {it.salePrice != null && (
+                              <Money value={it.price} className="c-was num" />
+                            )}
+                            <Money value={unit} className={'num' + (it.salePrice != null ? ' c-sale' : '')} />
+                            {it.salePrice != null && <span className="c-off"><Ltr>−{discountPercent(it.price, it.salePrice)}%</Ltr></span>}
+                          </>}
                         </div>
                         {it.preparationTimeMinutes ? <div className="c-prep"><IconTimer size={13} /><span className="num">{it.preparationTimeMinutes}</span> {t('min')}</div> : null}
                         {loyRewardIds.includes(it.id) && !loyRewardIsAnything && (
@@ -456,6 +476,7 @@ export default function MenuPage() {
           branchId={bId}
           qrTableToken={token}
           orderable={orderable}
+          itemsById={itemsById}
           onClose={() => setOpenItem(null)}
           onAdd={(qty, options) => addFromModal(openItem, qty, options)}
         />

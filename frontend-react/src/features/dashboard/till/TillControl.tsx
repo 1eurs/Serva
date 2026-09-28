@@ -5,13 +5,13 @@ import { useAuth, can } from '../../../lib/auth';
 import { useI18n, useT } from '../../../lib/i18n';
 import { Money } from '../../../lib/Money';
 import { useToast } from '../../../lib/toast';
-import type { TillSession, TillState } from '../../../lib/types';
+import type { TillMovement, TillSession, TillState } from '../../../lib/types';
 import omrSymbolUrl from '../../../assets/omr-symbol.svg';
 import { DICT, fill } from './copy';
 import './till.css';
 
 type T = (k: string) => string;
-type Mode = 'menu' | 'close' | 'result';
+type Mode = 'menu' | 'close' | 'move' | 'result';
 
 /** How long the drawer has been open, in the biggest unit that fits. */
 const openFor = (iso: string, t: T): string => {
@@ -80,7 +80,9 @@ export default function TillControl({ branchId }: { branchId?: number }) {
         onClick={() => { setSheet(true); stateQ.refetch(); }}
       >
         <span className="status-dot" aria-hidden="true" />
-        <span className="ost-label">{label}</span>
+        {/* The chip is named for what it is — the till; open or shut is carried by the dot's
+            colour and the title, not by a label that changes width twice a day. */}
+        <span className="ost-label">{t('till')}</span>
       </button>
       {sheet && (
         <TillSheet
@@ -115,6 +117,8 @@ function TillSheet({ branchId, state, canCount, onClose, onChanged, toast, t }: 
 }) {
   const [mode, setMode] = useState<Mode>('menu');
   const [cash, setCash] = useState('');
+  const [dir, setDir] = useState<'OUT' | 'IN'>('OUT');
+  const [note, setNote] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const [result, setResult] = useState<TillSession | null>(null);
 
@@ -142,11 +146,29 @@ function TillSheet({ branchId, state, canCount, onClose, onChanged, toast, t }: 
     onError: fail,
   });
 
-  const busy = openTill.isPending || closeTill.isPending;
+  const addMove = useMutation({
+    mutationFn: () => api.post<TillMovement>(`/api/branches/${branchId}/till/movements`,
+      { amount: Number(cash), direction: dir, note: note.trim() }),
+    onSuccess: () => {
+      onChanged(); toast(t('recordedToast'));
+      setCash(''); setNote(''); setDir('OUT'); setMode('menu');
+    },
+    onError: fail,
+  });
+
+  const removeMove = useMutation({
+    mutationFn: (id: number) => api.del(`/api/branches/${branchId}/till/movements/${id}`),
+    onSuccess: () => onChanged(),
+    onError: fail,
+  });
+
+  const busy = openTill.isPending || closeTill.isPending || addMove.isPending;
   const session = state.session;
   const counted = Number(cash);
   const ready = cash.trim() !== '' && Number.isFinite(counted) && counted >= 0;
+  const moveReady = ready && counted > 0 && note.trim() !== '';
   const title = mode === 'close' ? t('closeT')
+    : mode === 'move' ? t('moveT')
     : mode === 'result' ? t('resultT')
     : session ? t('till') : t('openT');
 
@@ -202,6 +224,12 @@ function TillSheet({ branchId, state, canCount, onClose, onChanged, toast, t }: 
                 {state.cashTaken != null && (
                   <div><dt>{t('cashSoFar')}</dt><dd><Money value={state.cashTaken} /></dd></div>
                 )}
+                {state.paidOut != null && state.paidOut > 0 && (
+                  <div><dt>{t('paidOut')}</dt><dd className="short">− <Money value={state.paidOut} /></dd></div>
+                )}
+                {state.paidIn != null && state.paidIn > 0 && (
+                  <div><dt>{t('paidIn')}</dt><dd className="exact">+ <Money value={state.paidIn} /></dd></div>
+                )}
                 {state.cardTaken != null && (
                   <div className="till-cut"><dt>{t('cardSoFar')}</dt><dd><Money value={state.cardTaken} /></dd></div>
                 )}
@@ -209,8 +237,31 @@ function TillSheet({ branchId, state, canCount, onClose, onChanged, toast, t }: 
               </dl>
             )}
 
+            {canCount && state.movements && state.movements.length > 0 && (
+              <div className="till-past">
+                <span>{t('moves')}</span>
+                {state.movements.map((m) => (
+                  <div className="till-move-row" key={m.id}>
+                    <span className="till-move-note">{m.note}</span>
+                    <b className={m.direction === 'OUT' ? 'short' : 'exact'}>
+                      {m.direction === 'OUT' ? '−' : '+'} <Money value={m.amount} />
+                    </b>
+                    <button className="till-move-x" aria-label={t('removeMove')} title={t('removeMove')}
+                      disabled={removeMove.isPending}
+                      onClick={() => { setProblem(null); removeMove.mutate(m.id); }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {canCount && problem && <p className="till-problem" role="alert">{problem}</p>}
+
             {canCount && (
               <div className="till-actions">
+                <button className="btn" disabled={busy}
+                  onClick={() => { setProblem(null); setCash(''); setNote(''); setDir('OUT'); setMode('move'); }}>
+                  {t('moveBtn')}
+                </button>
                 <button className="btn ghost" disabled={busy}
                   onClick={() => { setProblem(null); setCash(''); setMode('close'); }}>
                   {t('closeT')}
@@ -227,6 +278,35 @@ function TillSheet({ branchId, state, canCount, onClose, onChanged, toast, t }: 
           </div>
         )}
 
+        {/* ---------------- cash in or out, mid-shift ---------------- */}
+        {mode === 'move' && (
+          <div className="till-body">
+            <div className="till-seg" role="group" aria-label={t('moveT')}>
+              <button type="button" className={dir === 'OUT' ? 'on' : ''}
+                aria-pressed={dir === 'OUT'} onClick={() => setDir('OUT')}>{t('cashOut')}</button>
+              <button type="button" className={dir === 'IN' ? 'on' : ''}
+                aria-pressed={dir === 'IN'} onClick={() => setDir('IN')}>{t('cashIn')}</button>
+            </div>
+            <CashLine label={t('howMuch')} value={cash} onChange={setCash}
+              onEnter={() => { if (moveReady && !busy) { setProblem(null); addMove.mutate(); } }} />
+            <label className="till-reason">
+              <span>{t('reason')}</span>
+              <input type="text" value={note} placeholder={t('reasonPh')} maxLength={200}
+                onChange={(e) => setNote(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && moveReady && !busy) { setProblem(null); addMove.mutate(); } }} />
+            </label>
+            {problem && <p className="till-problem" role="alert">{problem}</p>}
+            <div className="till-actions">
+              <button className="btn" disabled={busy || !moveReady}
+                onClick={() => { setProblem(null); addMove.mutate(); }}>{t('recordBtn')}</button>
+              <button className="btn ghost" disabled={busy}
+                onClick={() => { setCash(''); setNote(''); setDir('OUT'); setProblem(null); setMode('menu'); }}>
+                {t('cancel')}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ---------------- what the count came to ---------------- */}
         {mode === 'result' && result && (
           <div className="till-body">
@@ -237,6 +317,12 @@ function TillSheet({ branchId, state, canCount, onClose, onChanged, toast, t }: 
               <div><dt>{t('counted')}</dt><dd><Money value={result.countedCash ?? 0} /></dd></div>
               <div className="till-cut"><dt>{t('expected')}</dt><dd><Money value={result.expectedCash ?? 0} /></dd></div>
               <div><dt>{t('cashSales')}</dt><dd><Money value={result.cashSales ?? 0} /></dd></div>
+              {!!result.paidOut && (
+                <div><dt>{t('paidOut')}</dt><dd className="short">− <Money value={result.paidOut} /></dd></div>
+              )}
+              {!!result.paidIn && (
+                <div><dt>{t('paidIn')}</dt><dd className="exact">+ <Money value={result.paidIn} /></dd></div>
+              )}
               <div><dt>{t('cardSales')}</dt><dd><Money value={result.cardSales ?? 0} /></dd></div>
               <div><dt>{t('ordersDone')}</dt><dd>{result.orderCount ?? 0}</dd></div>
             </dl>

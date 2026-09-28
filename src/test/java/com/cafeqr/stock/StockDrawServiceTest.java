@@ -72,6 +72,7 @@ class StockDrawServiceTest {
     @Mock private OptionRecipeLineRepository optionRecipes;
     @Mock private StockItemRepository stockItems;
     @Mock private OrderItemDrawRepository draws;
+    @Mock private com.cafeqr.menus.repository.MenuItemRepository menuItems;
     @Mock private MenuItemDailyTallyRepository tallies;
 
     private StockDrawService service;
@@ -86,7 +87,7 @@ class StockDrawServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new StockDrawService(caps, recipes, optionRecipes, stockItems, draws, tallies, new ObjectMapper());
+        service = new StockDrawService(caps, recipes, optionRecipes, stockItems, draws, tallies, new ObjectMapper(), menuItems);
 
         restaurant = new Restaurant();
         restaurant.setHideWhenOutOfStock(true);
@@ -372,6 +373,78 @@ class StockDrawServiceTest {
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("Only 1");
         service.requireAvailable(restaurant, BRANCH, List.of(line(1L, TEA, 1)));
+    }
+
+    // ------------------------------------------------------------------ combos
+
+    private static final long COMBO = 20L;
+
+    /** COMBO bundles the given parts; every other id is a plain item. */
+    private void comboOf(long... parts) {
+        com.cafeqr.menus.domain.MenuItem combo = new com.cafeqr.menus.domain.MenuItem();
+        combo.setId(COMBO);
+        combo.setComboItemIds(java.util.Arrays.stream(parts).boxed().toList());
+        lenient().when(menuItems.findAllById(any())).thenAnswer(inv -> {
+            List<com.cafeqr.menus.domain.MenuItem> out = new ArrayList<>();
+            for (Object o : (Iterable<?>) inv.getArgument(0)) {
+                long id = (Long) o;
+                if (id == COMBO) { out.add(combo); continue; }
+                com.cafeqr.menus.domain.MenuItem plain = new com.cafeqr.menus.domain.MenuItem();
+                plain.setId(id);
+                plain.setNameEn("item " + id);
+                out.add(plain);
+            }
+            return out;
+        });
+    }
+
+    @Test
+    void aComboSaleDrawsAndCountsEachOfItsParts() {
+        comboOf(LATTE, CROISSANT, CROISSANT);
+        Order order = order(line(1L, COMBO, 1));
+
+        service.draw(order);
+
+        assertThat(box.getQuantity()).isEqualByComparingTo("3");      // two croissants
+        assertThat(milk.getQuantity()).isEqualByComparingTo("3.8");   // one latte
+        verify(tallies).add(COMBO, BRANCH, LocalDate.now(TimeZones.CAFES), 1);
+        verify(tallies, times(2)).add(CROISSANT, BRANCH, LocalDate.now(TimeZones.CAFES), 1);
+        verify(tallies).add(LATTE, BRANCH, LocalDate.now(TimeZones.CAFES), 1);
+    }
+
+    @Test
+    void cancellingAComboPutsItsPartsBack() {
+        comboOf(LATTE, CROISSANT);
+        Order order = order(line(1L, COMBO, 2));
+
+        service.draw(order);
+        service.restore(order);
+
+        assertThat(box.getQuantity()).isEqualByComparingTo("5");
+        assertThat(milk.getQuantity()).isEqualByComparingTo("4");
+        verify(tallies).subtract(eq(CROISSANT), eq(BRANCH), any(), eq(2));
+        verify(tallies).subtract(eq(LATTE), eq(BRANCH), any(), eq(2));
+    }
+
+    @Test
+    void aComboIsRefusedWhenAPartsDailyCapIsSpent() {
+        comboOf(TEA, CROISSANT);
+        soldToday(TEA, 3);   // all three teas gone
+
+        assertThatThrownBy(() -> service.requireAvailable(restaurant, BRANCH, List.of(line(1L, COMBO, 1))))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("sold out");
+    }
+
+    @Test
+    void aComboAndItsPartOrderedSeparatelyShareTheShelf() {
+        comboOf(LATTE, CROISSANT);
+        box.setQuantity(new BigDecimal("1"));   // one croissant left
+
+        assertThatThrownBy(() -> service.requireAvailable(restaurant, BRANCH,
+                List.of(line(1L, COMBO, 1), line(2L, CROISSANT, 1))))
+                .isInstanceOf(BadRequestException.class);
+        service.requireAvailable(restaurant, BRANCH, List.of(line(1L, COMBO, 1)));
     }
 
     // ------------------------------------------------------------------ the menu's verdict

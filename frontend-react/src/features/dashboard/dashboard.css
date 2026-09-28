@@ -41,8 +41,13 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
 .dtop .spacer{flex:1}
 .status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ready);box-shadow:0 0 0 3px color-mix(in srgb,var(--ready) 18%,transparent)}
 .order-toggle.resume .status-dot{background:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 18%,transparent)}
-.dnew{border:0;background:var(--accent);color:var(--accent-ink);border-radius:11px;padding:9px 15px;font-family:var(--font-ar);font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap}
+/* New order + the till, as one right-side cluster: a tighter gap binds the pair, then .dtop's
+   own gap sets them off from the sound and account controls. Both share a height so the solid
+   primary and the outlined status chip sit on one line. */
+.dtop-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.dnew{border:0;background:var(--accent);color:var(--accent-ink);border-radius:11px;padding:0 15px;min-block-size:38px;display:inline-flex;align-items:center;font-family:var(--font-ar);font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap}
 .dnew:hover{filter:brightness(1.05)}
+.dtop-actions .order-status-toggle{min-block-size:38px}
 .select{background:var(--surface);border:1px solid var(--line-2);color:var(--text);border-radius:11px;padding:9px 12px;font-family:var(--font-ar);font-size:13px;cursor:pointer}
 .select:focus-visible{outline:none;border-color:var(--accent);box-shadow:var(--focus-shadow)}
 .who{position:relative;padding-inline-start:6px}
@@ -666,6 +671,14 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
 .profile-setting{display:flex;align-items:center;justify-content:space-between;gap:18px;min-height:68px;border: var(--bw-hair) solid var(--line-2);border-radius:7px;background:var(--paper);padding:11px 12px}
 .profile-setting>div{min-width:0}.profile-setting b{display:block;color:var(--ink);font-size:12.5px;font-weight:900}.profile-setting div>span{display:block;max-width:58ch;margin-top:3px;color:var(--muted);font-size:10.5px;line-height:1.4}
 .profile-payment-setting,.profile-printer-setting,.profile-counter-setting,.profile-pad-setting{grid-column:1 / -1}
+/* Single-select rows (e.g. cart-suggestion placement): a radio dot, accent when chosen. */
+.profile-choice{grid-column:1 / -1;cursor:pointer;text-align:start;font:inherit;
+  transition:border-color .15s,background-color .15s}
+.profile-choice:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line-2))}
+.profile-choice.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,var(--paper))}
+.profile-choice-dot{flex:0 0 auto;width:18px;height:18px;border-radius:50%;border:2px solid var(--line-2);position:relative}
+.profile-choice.on .profile-choice-dot{border-color:var(--accent)}
+.profile-choice.on .profile-choice-dot::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--accent)}
 .printer-station-actions{display:flex;align-items:center;gap:10px;flex:0 0 auto}
 .print-server-status{display:block;margin-top:5px;font-size:10.5px;font-weight:800}
 .print-server-status.ok{color:var(--ready,#15803d)}
@@ -731,6 +744,28 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 .imghint{font-size:11px;color:var(--faint);line-height:1.3}
 .checkrow{display:flex;align-items:center;gap:9px;font-size:14px;color:var(--text);cursor:pointer;margin-top:4px}
 .checkrow.sm{font-size:12.5px;margin-top:0}
+
+/* combo editor: the parts picked so far, a picker for the next, and what the bundle saves */
+.mitem-combo{font-family:var(--font-ar);font-weight:700;font-size:10.5px;letter-spacing:.02em;padding:2px 7px;border-radius:999px;white-space:nowrap;
+  color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.comboedit{display:flex;flex-direction:column;gap:10px;margin-bottom:14px;padding:12px;border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line-2));
+  border-radius:12px;background:color-mix(in srgb,var(--accent) 5%,var(--bg-2))}
+.comboedit-parts{display:flex;flex-direction:column;gap:6px}
+.comboedit-part{display:flex;align-items:center;gap:10px;min-width:0}
+.comboedit-thumb{flex:0 0 34px;width:34px;height:34px;border-radius:9px;background:var(--surface) center/cover no-repeat;
+  display:grid;place-items:center;font-weight:700;color:var(--faint);border:1px solid var(--line-2)}
+.comboedit-name{flex:1;min-width:0;font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.comboedit-qty{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--line-2);border-radius:9px;background:var(--surface);padding:2px}
+.comboedit-qty button{width:28px;height:28px;border:0;border-radius:7px;background:transparent;color:var(--text);cursor:pointer;font-size:14px;line-height:1}
+.comboedit-qty button:hover:not(:disabled){background:var(--bg-2)}
+.comboedit-qty button:disabled{opacity:.35;cursor:default}
+.comboedit-qty .num{min-width:18px;text-align:center;font-size:13px;font-weight:700}
+.comboedit-pick{width:100%;background:var(--surface);border:1px dashed var(--line-2);border-radius:10px;padding:9px 11px;color:var(--text);
+  font-family:inherit;font-size:13.5px;cursor:pointer}
+.comboedit-note{font-size:12px;color:var(--faint)}
+.comboedit-sum{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;font-size:12.5px;color:var(--muted)}
+.comboedit-save{color:var(--accent);font-weight:600}
+.comboedit-warn{flex-basis:100%;color:var(--warn,#d97706);font-size:12px;line-height:1.4}
 
 /* option groups editor (size, milk type, extras) */
 .optedit{margin-top:14px;border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:10px}

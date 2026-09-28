@@ -4,6 +4,7 @@ import com.cafeqr.till.domain.TillSession;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,4 +21,8 @@ public interface TillSessionRepository extends JpaRepository<TillSession, Long> 
 
     /** The history list, newest first. */
     List<TillSession> findByBranchIdOrderByOpenedAtDesc(Long branchId, Pageable pageable);
+
+    /** Every session opened within one day, oldest first — the till half of a daily report. */
+    List<TillSession> findByBranchIdAndOpenedAtGreaterThanEqualAndOpenedAtLessThanOrderByOpenedAtAsc(
+            Long branchId, Instant from, Instant to);
 }

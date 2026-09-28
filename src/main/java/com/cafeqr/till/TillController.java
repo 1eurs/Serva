@@ -1,7 +1,9 @@
 package com.cafeqr.till;
 
 import com.cafeqr.common.api.ApiResponse;
+import com.cafeqr.till.dto.TillDtos.AddMovementRequest;
 import com.cafeqr.till.dto.TillDtos.CloseTillRequest;
+import com.cafeqr.till.dto.TillDtos.MovementResponse;
 import com.cafeqr.till.dto.TillDtos.OpenTillRequest;
 import com.cafeqr.till.dto.TillDtos.TillSessionResponse;
 import com.cafeqr.till.dto.TillDtos.TillStateResponse;
@@ -9,6 +11,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -56,6 +59,23 @@ public class TillController {
     public ApiResponse<TillSessionResponse> close(@PathVariable Long branchId,
                                                   @Valid @RequestBody CloseTillRequest request) {
         return ApiResponse.ok("Till closed", tillService.close(branchId, request));
+    }
+
+    @Operation(summary = "Record cash taken out of, or added to, the open drawer")
+    @PreAuthorize("hasAuthority('PAYMENTS')")
+    @PostMapping("/api/branches/{branchId}/till/movements")
+    public ApiResponse<MovementResponse> addMovement(@PathVariable Long branchId,
+                                                     @Valid @RequestBody AddMovementRequest request) {
+        return ApiResponse.ok("Recorded", tillService.addMovement(branchId, request));
+    }
+
+    @Operation(summary = "Remove a cash movement while the drawer is still open")
+    @PreAuthorize("hasAuthority('PAYMENTS')")
+    @DeleteMapping("/api/branches/{branchId}/till/movements/{movementId}")
+    public ApiResponse<Void> removeMovement(@PathVariable Long branchId,
+                                            @PathVariable Long movementId) {
+        tillService.removeMovement(branchId, movementId);
+        return ApiResponse.ok("Removed", null);
     }
 
     @Operation(summary = "Past sessions of this branch's till, newest first")

@@ -33,7 +33,9 @@ public record CreateMenuItemRequest(
         @Positive Integer preparationTimeMinutes,
         Integer displayOrder,
         /** Option groups (size, milk type, extras). Replaces any existing groups on update. */
-        List<OptionGroupInput> optionGroups
+        List<OptionGroupInput> optionGroups,
+        /** Items this combo bundles (repeat an id for "2 x"). Null or empty = a plain item. */
+        List<Long> comboItemIds
         ) {
 
     public record OptionGroupInput(

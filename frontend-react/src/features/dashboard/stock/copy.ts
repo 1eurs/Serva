@@ -58,7 +58,9 @@ export const DICT: Dict = {
     rulesLoading: 'جارٍ التحميل…', rulesNoShelf: 'أضف أصنافًا للمخزون أولًا لربطها من هنا.',
     usedSince: '≈ {q} استُهلك منذ آخر عدّ',
     optT: 'ماذا يغيّر اختيار العميل', optHint: 'اختيار بلا قاعدة لا يغيّر شيئًا — هذا معنى «الحليب العادي».',
-    insteadOf: 'بدلًا من', useTin: 'استخدم', optNone: '— لا شيء —', addsLink: 'يضيف…', optSum: '{n} خيارات',
+    insteadOf: 'بدلًا من', useTin: 'استخدم', optNone: '— لا شيء —', optSum: '{n} خيارات',
+    swapNote: 'يأخذ {q} من {tin} بدلًا من {base} — نفس الكمية، لا حاجة لكتابتها.',
+    addsLink: 'يأخذ أيضًا شيئًا إضافيًا…',
     nudgeT: 'الآن حدّد ما يأخذه كل صنف من المخزون', nudgeS: 'اضغط على «القائمة» واختر صنفًا.',
 
     /* the menu, seen from the shelf */
@@ -118,7 +120,9 @@ export const DICT: Dict = {
     rulesLoading: 'Loading…', rulesNoShelf: 'Add items to the shelf first to link them here.',
     usedSince: '≈ {q} used since you last counted',
     optT: 'What a choice changes', optHint: 'A choice with no rule changes nothing — that is what “regular milk” means.',
-    insteadOf: 'instead of', useTin: 'use', optNone: '— nothing —', addsLink: 'adds…', optSum: '{n} choices',
+    insteadOf: 'instead of', useTin: 'use', optNone: '— nothing —', optSum: '{n} choices',
+    swapNote: 'Takes {q} of {tin} instead of {base} — same amount, nothing more to type.',
+    addsLink: 'also takes something extra…',
     nudgeT: 'Now say what each item takes from the shelf', nudgeS: 'Open Menu and tap an item.',
 
     /* the menu, seen from the shelf */

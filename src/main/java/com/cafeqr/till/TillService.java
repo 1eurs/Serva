@@ -6,14 +6,20 @@ import com.cafeqr.auth.security.SecurityUtils;
 import com.cafeqr.branches.BranchService;
 import com.cafeqr.branches.domain.Branch;
 import com.cafeqr.common.exception.ConflictException;
+import com.cafeqr.common.util.TimeZones;
 import com.cafeqr.orders.domain.OrderStatus;
 import com.cafeqr.orders.repository.OrderRepository;
 import com.cafeqr.payments.repository.PaymentRepository;
+import com.cafeqr.till.domain.TillMovement;
+import com.cafeqr.till.domain.TillMovement.Direction;
 import com.cafeqr.till.domain.TillSession;
+import com.cafeqr.till.dto.TillDtos.AddMovementRequest;
 import com.cafeqr.till.dto.TillDtos.CloseTillRequest;
+import com.cafeqr.till.dto.TillDtos.MovementResponse;
 import com.cafeqr.till.dto.TillDtos.OpenTillRequest;
 import com.cafeqr.till.dto.TillDtos.TillSessionResponse;
 import com.cafeqr.till.dto.TillDtos.TillStateResponse;
+import com.cafeqr.till.repository.TillMovementRepository;
 import com.cafeqr.till.repository.TillSessionRepository;
 import com.cafeqr.users.domain.Permission;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -24,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
@@ -57,21 +64,27 @@ public class TillService {
     private static final int HISTORY_LIMIT = 30;
 
     private final TillSessionRepository sessions;
+    private final TillMovementRepository movements;
     private final BranchService branchService;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final AccessGuard accessGuard;
+    private final org.springframework.context.ApplicationEventPublisher events;
 
     public TillService(TillSessionRepository sessions,
+                       TillMovementRepository movements,
                        BranchService branchService,
                        OrderRepository orderRepository,
                        PaymentRepository paymentRepository,
-                       AccessGuard accessGuard) {
+                       AccessGuard accessGuard,
+                       org.springframework.context.ApplicationEventPublisher events) {
         this.sessions = sessions;
+        this.movements = movements;
         this.branchService = branchService;
         this.orderRepository = orderRepository;
         this.paymentRepository = paymentRepository;
         this.accessGuard = accessGuard;
+        this.events = events;
     }
 
     // ============================================================ reading
@@ -81,9 +94,13 @@ public class TillService {
         requireBranch(branchId);
         Optional<TillSession> open = sessions.findFirstByBranchIdAndClosedAtIsNull(branchId);
 
+        boolean money = canSeeMoney();
         BigDecimal cash = null;
         BigDecimal card = null;
         BigDecimal expected = null;
+        BigDecimal paidOut = null;
+        BigDecimal paidIn = null;
+        List<MovementResponse> moves = List.of();
         long orders = 0;
         if (open.isPresent()) {
             TillSession session = open.get();
@@ -92,10 +109,15 @@ public class TillService {
             Totals totals = totals(branchId, session.getOpenedAt(), now);
             cash = totals.cash();
             card = totals.card();
-            expected = session.getOpeningFloat().add(totals.cash());
+            paidOut = paidOut(session.getId());
+            paidIn = paidIn(session.getId());
+            expected = expected(session.getOpeningFloat(), totals.cash(), paidOut, paidIn);
+            if (money) {
+                moves = movements.findBySessionIdOrderByCreatedAtDesc(session.getId())
+                        .stream().map(MovementResponse::from).toList();
+            }
         }
 
-        boolean money = canSeeMoney();
         return new TillStateResponse(
                 branchId,
                 open.isPresent(),
@@ -103,6 +125,9 @@ public class TillService {
                 money ? cash : null,
                 money ? card : null,
                 money ? expected : null,
+                money ? paidOut : null,
+                money ? paidIn : null,
+                moves,
                 orders);
     }
 
@@ -164,8 +189,10 @@ public class TillService {
 
         Instant closedAt = Instant.now();
         Totals totals = totals(branchId, session.getOpenedAt(), closedAt);
+        BigDecimal paidOut = paidOut(session.getId());
+        BigDecimal paidIn = paidIn(session.getId());
         BigDecimal counted = scaled(request.countedCash());
-        BigDecimal expected = session.getOpeningFloat().add(totals.cash());
+        BigDecimal expected = expected(session.getOpeningFloat(), totals.cash(), paidOut, paidIn);
         BigDecimal variance = counted.subtract(expected);
 
         CustomUserDetails actor = SecurityUtils.currentUser();
@@ -177,12 +204,74 @@ public class TillService {
         session.setVariance(variance);
         session.setCashSales(totals.cash());
         session.setCardSales(totals.card());
+        session.setCashPaidOut(paidOut);
+        session.setCashPaidIn(paidIn);
         session.setOrderCount((int) orderRepository.countInWindow(
                 branchId, session.getOpenedAt(), closedAt, NOT_SOLD));
+
+        // The owner's end-of-day copy. Published now, delivered after commit (see the reports
+        // listener) so a failed email can never roll back a counted drawer.
+        LocalDate businessDate = LocalDate.ofInstant(session.getOpenedAt(), TimeZones.CAFES);
+        events.publishEvent(new TillClosedEvent(branchId, session.getRestaurantId(), businessDate));
         return TillSessionResponse.from(session);
     }
 
+    // ============================================================ cash in and out
+
+    /**
+     * Records cash leaving or entering the open drawer, with the reason on it. Only the open
+     * session can take one — a closed session is a finished count, and its expected cash has
+     * already been frozen against the movements it had.
+     */
+    @Transactional
+    public MovementResponse addMovement(Long branchId, AddMovementRequest request) {
+        requireBranch(branchId);
+        TillSession session = sessions.findFirstByBranchIdAndClosedAtIsNull(branchId)
+                .orElseThrow(() -> new ConflictException("The till isn't open."));
+
+        CustomUserDetails actor = SecurityUtils.currentUser();
+        TillMovement movement = new TillMovement();
+        movement.setSessionId(session.getId());
+        movement.setRestaurantId(session.getRestaurantId());
+        movement.setBranchId(branchId);
+        movement.setAmount(scaled(request.amount()));
+        movement.setDirection(request.direction());
+        movement.setNote(request.note().strip());
+        movement.setCreatedBy(actor.getUserId());
+        movement.setCreatedByName(actor.getUsername());
+        return MovementResponse.from(movements.save(movement));
+    }
+
+    /**
+     * Removes a movement — a fat-fingered amount, undone. Only while the drawer is still open:
+     * once a session is closed its expected cash is frozen, and a movement that moved it must
+     * not vanish out from under a count that was measured against it.
+     */
+    @Transactional
+    public void removeMovement(Long branchId, Long movementId) {
+        requireBranch(branchId);
+        TillSession session = sessions.findFirstByBranchIdAndClosedAtIsNull(branchId)
+                .orElseThrow(() -> new ConflictException("The till isn't open."));
+        TillMovement movement = movements.findByIdAndSessionId(movementId, session.getId())
+                .orElseThrow(() -> new ConflictException("That entry is no longer here to remove."));
+        movements.delete(movement);
+    }
+
     // ============================================================ helpers
+
+    private BigDecimal paidOut(Long sessionId) {
+        return scaled(movements.sumBySession(sessionId, Direction.OUT));
+    }
+
+    private BigDecimal paidIn(Long sessionId) {
+        return scaled(movements.sumBySession(sessionId, Direction.IN));
+    }
+
+    /** What should be in the drawer: the float, plus cash sales, less what left, plus what came in. */
+    private static BigDecimal expected(BigDecimal openingFloat, BigDecimal cashSales,
+                                       BigDecimal paidOut, BigDecimal paidIn) {
+        return openingFloat.add(cashSales).subtract(paidOut).add(paidIn);
+    }
 
     /** What the drawer and the card machine took between two moments. */
     private Totals totals(Long branchId, Instant from, Instant to) {

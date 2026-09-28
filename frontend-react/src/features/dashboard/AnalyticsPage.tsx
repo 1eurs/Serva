@@ -21,6 +21,7 @@ interface Summary {
   preparingOrders: number; readyOrders: number; completedOrders: number; cancelledOrders: number;
   totalRevenue: string; averageOrderValue: string;
   uncollectedOrders: number; uncollectedAmount: string;
+  suggestionRevenue: string;
   bestSellingItems: BestItem[]; busiestHours: HourlyCount[];
 }
 interface DailyPoint { date: string; orders: number; revenue: string }
@@ -59,6 +60,7 @@ const DICT: Dict = {
     a_today: 'اليوم', a_7d: '٧ أيام', a_30d: '٣٠ يوم', a_90d: '٩٠ يوم', a_custom: 'مخصّص', a_pro: 'برو',
     a_orders: 'طلبات', a_revenue: 'الإيرادات', a_aov: 'متوسط الطلب',
     a_uncollected: 'غير محصّلة', a_uncollectedSub: '{n} طلب مكتمل لم يُدفع — راجعها في سجل الطلبات (غير مدفوع)',
+    a_suggRevenue: 'من الاقتراحات', a_suggRevenueSub: 'إيرادات محصّلة من أصناف أضافها الزبائن من اقتراحات السلة',
     a_avgShort: 'المتوسط', a_doneShort: 'مكتمل',
     a_comparedWith: 'مقارنة بـ {d}', a_new: 'جديد',
     a_byHour: 'بالساعة', a_byDay: 'باليوم',
@@ -105,6 +107,7 @@ const DICT: Dict = {
     a_today: 'Today', a_7d: '7 days', a_30d: '30 days', a_90d: '90 days', a_custom: 'Custom', a_pro: 'Pro',
     a_orders: 'Orders', a_revenue: 'Revenue', a_aov: 'Avg order',
     a_uncollected: 'uncollected', a_uncollectedSub: '{n} completed orders never paid — find them under Order history (Unpaid)',
+    a_suggRevenue: 'from suggestions', a_suggRevenueSub: 'collected takings from add-ons customers tapped in the cart',
     a_avgShort: 'avg', a_doneShort: 'done',
     a_comparedWith: 'compared with {d}', a_new: 'new',
     a_byHour: 'by hour', a_byDay: 'by day',
@@ -520,6 +523,13 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
                   <div className="an-uncollected" role="note">
                     <span className="an-unc-amt">{omr(s.uncollectedAmount)} <span className="an-unc-cur">{cur}</span> {t('a_uncollected')}</span>
                     <span className="an-unc-sub">{t('a_uncollectedSub').replace('{n}', String(s.uncollectedOrders))}</span>
+                  </div>
+                )}
+
+                {Number(s.suggestionRevenue) > 0 && (
+                  <div className="an-uncollected an-sugg" role="note">
+                    <span className="an-unc-amt">{omr(s.suggestionRevenue)} <span className="an-unc-cur">{cur}</span> {t('a_suggRevenue')}</span>
+                    <span className="an-unc-sub">{t('a_suggRevenueSub')}</span>
                   </div>
                 )}
 

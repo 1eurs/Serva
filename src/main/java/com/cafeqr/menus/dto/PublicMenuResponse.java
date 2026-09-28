@@ -35,13 +35,15 @@ public record PublicMenuResponse(
             BigDecimal vatRate,
             String theme,
             String themeCustomJson,
-            String menuInfoJson
+            String menuInfoJson,
+            String suggestionsPlacement
     ) {
         public static PublicRestaurant from(Restaurant r) {
             return new PublicRestaurant(r.getId(), r.getName(), r.getNameEn(), r.getNameAr(),
                     r.getSlug(), r.getLogoUrl(),
                     r.getPhone(), r.getInstagramUrl(), r.getCurrency(), r.isVatEnabled(), r.getVatRate(),
-                    r.getTheme(), r.getThemeCustomJson(), r.getMenuInfoJson());
+                    r.getTheme(), r.getThemeCustomJson(), r.getMenuInfoJson(),
+                    r.getSuggestionsPlacement().name());
         }
     }
 
@@ -119,7 +121,10 @@ public record PublicMenuResponse(
             Integer remainingToday,
             Integer preparationTimeMinutes,
             int displayOrder,
-            List<PublicOptionGroup> optionGroups
+            List<PublicOptionGroup> optionGroups,
+            /** Items this combo bundles, repeats included; empty for a plain item. The customer
+             *  menu draws them from the items it already has. */
+            List<Long> comboItemIds
     ) {
         public static PublicItem from(MenuItem i, Instant now) {
             return from(i, now, false, null);
@@ -131,7 +136,8 @@ public record PublicMenuResponse(
                     i.getDescriptionEn(), i.getDescriptionAr(), i.getPrice(), salePrice, i.getImageUrl(),
                     i.getImages().stream().map(MenuItemImage::getUrl).toList(),
                     i.isAvailable(), soldOut, remainingToday, i.getPreparationTimeMinutes(), i.getDisplayOrder(),
-                    i.getOptionGroups().stream().map(PublicOptionGroup::from).toList());
+                    i.getOptionGroups().stream().map(PublicOptionGroup::from).toList(),
+                    i.getComboItemIds());
         }
     }
 

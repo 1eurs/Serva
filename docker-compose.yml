@@ -53,6 +53,34 @@ services:
       retries: 3
       start_period: 60s
 
+  # The hosted MCP: one stateless endpoint owners point their AI tools at. It holds no secret —
+  # each request carries its own serva_sk_ key, which it forwards to the backend over the private
+  # compose network. Published on loopback only; the host nginx proxies /mcp to it, exactly as it
+  # does /api for the backend. Built from deploy/mcp (prebuilt dist + lockfile), like the staging one.
+  mcp:
+    image: cafeqr-mcp:deploy
+    build: ./deploy/mcp
+    container_name: cafeqr-mcp
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      MCP_HTTP: "1"
+      MCP_HTTP_PORT: "3000"
+      SERVA_API_BASE: "http://backend:8080"
+    ports:
+      - "127.0.0.1:3001:3000"
+    mem_limit: 160m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - cafeqr-net
+
 networks:
   cafeqr-net:
     name: cafeqr-net

@@ -216,8 +216,9 @@ public class AuthService {
             throw new BadRequestException(ErrorCode.INVALID_CREDENTIALS, "Current password is incorrect");
         }
 
+        String oldEmail = user.getEmail();
         String normalizedEmail = Pasted.identifier(newEmail);
-        if (user.getEmail().equalsIgnoreCase(normalizedEmail)) {
+        if (oldEmail != null && oldEmail.equalsIgnoreCase(normalizedEmail)) {
             throw new BadRequestException(ErrorCode.VALIDATION_ERROR, "New email must be different");
         }
         userRepository.findByEmailIgnoreCase(normalizedEmail)
@@ -226,7 +227,23 @@ public class AuthService {
                     throw new ConflictException(ErrorCode.EMAIL_ALREADY_EXISTS, "Email is already registered");
                 });
 
+        // Accounts whose login handle *is* their email — owners, and anyone onboarded that way —
+        // keep the two together, so you always sign in with your current address rather than the
+        // one you first registered with. A staff member who logs in with a separate handle keeps
+        // it: their username was never their email, so moving the email must not touch it.
+        boolean loginFollowsEmail = oldEmail != null && oldEmail.equalsIgnoreCase(user.getUsername());
+        if (loginFollowsEmail) {
+            userRepository.findByUsernameIgnoreCase(normalizedEmail)
+                    .filter(existing -> !existing.getId().equals(userId))
+                    .ifPresent(existing -> {
+                        throw new ConflictException(ErrorCode.EMAIL_ALREADY_EXISTS, "Email is already registered");
+                    });
+        }
+
         user.setEmail(normalizedEmail);
+        if (loginFollowsEmail) {
+            user.setUsername(normalizedEmail);
+        }
         refreshTokenRepository.revokeAllForUser(userId);
         return issueTokens(CustomUserDetails.from(user), user);
     }

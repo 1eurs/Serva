@@ -45,7 +45,9 @@ public class SmtpEmailSender implements EmailSender {
         try {
             String[] sender = parseSender(config.from());
             MimeMessage mime = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(mime, message.html() != null, "UTF-8");
+            // Multipart when there's HTML or a file to carry — a plain text-only mail stays simple.
+            boolean multipart = message.html() != null || message.attachment() != null;
+            MimeMessageHelper helper = new MimeMessageHelper(mime, multipart, "UTF-8");
             helper.setFrom(sender[1], sender[0]);
             helper.setTo(message.to());
             helper.setSubject(message.subject());
@@ -53,6 +55,11 @@ public class SmtpEmailSender implements EmailSender {
                 helper.setText(message.text() != null ? message.text() : "", message.html());
             } else {
                 helper.setText(message.text() != null ? message.text() : "");
+            }
+            EmailMessage.Attachment att = message.attachment();
+            if (att != null) {
+                helper.addAttachment(att.filename(),
+                        new org.springframework.core.io.ByteArrayResource(att.content()), att.contentType());
             }
             mailSender.send(mime);
             log.info("[EMAIL:smtp] sent to={} subject=\"{}\"", message.to(), message.subject());

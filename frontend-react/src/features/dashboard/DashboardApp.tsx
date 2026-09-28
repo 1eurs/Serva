@@ -32,6 +32,7 @@ import TeamPage from './TeamPage';
 // Analytics pulls in recharts + motion (~150KB gzipped), so code-split it — staff on the
 // live board never download those bytes unless they open the analytics tab.
 const AnalyticsPage = lazy(() => import('./AnalyticsPage'));
+const ReportsPage = lazy(() => import('./ReportsPage'));
 import OrderPad, { PagerIcon } from './OrderPad';
 import { SplitBill } from './SplitBill';
 import LoyaltyPage from './LoyaltyPage';
@@ -41,7 +42,7 @@ import './settings.css';
 
 const DICT: Dict = {
   ar: { title: 'شاشة المطبخ', live: 'مباشر', logoutT: 'خروج', cur: 'ر.ع', min: 'د', empty: 'لا طلبات',
-        nav_board: 'الطلبات المباشرة', nav_tables: 'الطاولات ورموز QR', nav_orders: 'سجل الطلبات', nav_menu: 'إدارة القائمة', nav_look: 'شكل قائمة العملاء', nav_team: 'الفريق', nav_analytics: 'التحليلات', nav_neworder: 'طلب جديد', nav_profile: 'ملف المطعم', nav_loyalty: 'الولاء', nav_loyaltySetup: 'إعدادات الولاء', nav_stock: 'المخزون', nav_settings: 'الإعدادات', more: 'المزيد', beta: 'تجريبي',
+        nav_board: 'الطلبات المباشرة', nav_tables: 'الطاولات ورموز QR', nav_orders: 'سجل الطلبات', nav_menu: 'إدارة القائمة', nav_look: 'شكل قائمة العملاء', nav_team: 'الفريق', nav_analytics: 'التحليلات', nav_reports: 'التقارير', nav_neworder: 'طلب جديد', nav_profile: 'ملف المطعم', nav_loyalty: 'الولاء', nav_loyaltySetup: 'إعدادات الولاء', nav_stock: 'المخزون', nav_settings: 'الإعدادات', more: 'المزيد', beta: 'تجريبي',
         col_PENDING: 'جديد', col_ACCEPTED: 'قيد التنفيذ', col_PREPARING: 'قيد التحضير', col_READY: 'جاهز',
         table: 'طاولة', car: 'خدمة السيارة', note: 'ملاحظة', loyaltyReward: 'مكافأة ولاء', coupon: 'كود خصم',
         pager: 'جهاز النداء',
@@ -73,7 +74,7 @@ const DICT: Dict = {
         emailChanged: 'تم تغيير البريد الإلكتروني', emailInvalid: 'أدخل بريدًا صحيحًا',
         role_owner: 'مالك المطعم', role_staff: 'موظف' },
   en: { title: 'Kitchen Display', live: 'Live', logoutT: 'Logout', cur: 'OMR', min: 'min', empty: 'No orders',
-        nav_board: 'Live orders', nav_tables: 'Tables & QR', nav_orders: 'Order history', nav_menu: 'Menu', nav_look: 'Customer menu look', nav_team: 'Team', nav_analytics: 'Analytics', nav_neworder: 'New order', nav_profile: 'Restaurant profile', nav_loyalty: 'Loyalty', nav_loyaltySetup: 'Loyalty settings', nav_stock: 'Stock', nav_settings: 'Settings', more: 'More', beta: 'Beta',
+        nav_board: 'Live orders', nav_tables: 'Tables & QR', nav_orders: 'Order history', nav_menu: 'Menu', nav_look: 'Customer menu look', nav_team: 'Team', nav_analytics: 'Analytics', nav_reports: 'Reports', nav_neworder: 'New order', nav_profile: 'Restaurant profile', nav_loyalty: 'Loyalty', nav_loyaltySetup: 'Loyalty settings', nav_stock: 'Stock', nav_settings: 'Settings', more: 'More', beta: 'Beta',
         col_PENDING: 'New', col_ACCEPTED: 'In progress', col_PREPARING: 'Preparing', col_READY: 'Ready',
         table: 'Table', car: 'Outdoor car', note: 'Note', loyaltyReward: 'Loyalty reward', coupon: 'Coupon',
         pager: 'Pager',
@@ -182,10 +183,10 @@ function SupportSessionBanner() {
 /* Menu look, the restaurant profile and loyalty setup used to be pages of their own (two of
    them reachable only from the avatar dropdown, which is a "who am I" affordance nobody
    opens looking for a VAT rate). They're now sections inside `settings`. */
-type Page = 'board' | 'neworder' | 'orders' | 'menu' | 'team' | 'analytics' | 'tables' | 'loyalty' | 'stock' | 'settings';
+type Page = 'board' | 'neworder' | 'orders' | 'menu' | 'team' | 'analytics' | 'reports' | 'tables' | 'loyalty' | 'stock' | 'settings';
 /** The URL owns the active page (/dashboard/<page>, /dashboard/settings/<section>), so an
     incoming path segment is validated against this list before we trust it. */
-const PAGES: Page[] = ['board', 'neworder', 'orders', 'menu', 'team', 'analytics', 'tables', 'loyalty', 'stock', 'settings'];
+const PAGES: Page[] = ['board', 'neworder', 'orders', 'menu', 'team', 'analytics', 'reports', 'tables', 'loyalty', 'stock', 'settings'];
 
 function LivePill({ stream, t }: { stream: StreamStatus; t: (k: string) => string }) {
   if (stream === 'open') {
@@ -336,6 +337,7 @@ const IcLive = () => <Ico><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3
 const IcNew = () => <Ico><path d="M12 5v14M5 12h14" /></Ico>;
 const IcHistory = () => <Ico><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" /><path d="M14 8H8M16 12H8M13 16H8" /></Ico>;
 const IcAnalytics = () => <Ico><path d="M3 3v18h18" /><path d="M18 17V9M13 17V5M8 17v-3" /></Ico>;
+const IcReports = () => <Ico><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M8 13h8M8 17h8M8 9h2" /></Ico>;
 const IcMenu = () => <Ico><path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" /></Ico>;
 const IcTables = () => <Ico><rect width="5" height="5" x="3" y="3" rx="1" /><rect width="5" height="5" x="16" y="3" rx="1" /><rect width="5" height="5" x="3" y="16" rx="1" /><path d="M21 16h-3a2 2 0 0 0-2 2v3M21 21v.01M12 7v3a2 2 0 0 1-2 2H7M3 12h.01M12 3h.01M12 16v.01M16 12h1M21 12v.01M12 21v-1" /></Ico>;
 const IcTeam = () => <Ico><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></Ico>;
@@ -377,7 +379,7 @@ function Shell() {
   const [focusBoard, setFocusBoard] = useState(0);
   const [moreOpen, setMoreOpen] = useState(false);
   const sound = useOrderSound();
-  const titles: Record<string, string> = { board: t('title'), neworder: t('nav_neworder'), orders: t('nav_orders'), menu: t('nav_menu'), team: t('nav_team'), analytics: t('nav_analytics'), tables: t('tablesTitle'), loyalty: t('nav_loyalty'), stock: t('nav_stock'), settings: t('nav_settings') };
+  const titles: Record<string, string> = { board: t('title'), neworder: t('nav_neworder'), orders: t('nav_orders'), menu: t('nav_menu'), team: t('nav_team'), analytics: t('nav_analytics'), reports: t('nav_reports'), tables: t('tablesTitle'), loyalty: t('nav_loyalty'), stock: t('nav_stock'), settings: t('nav_settings') };
 
   // Ordered by daily workflow: run the floor (live → new → history), read the numbers
   // (analytics), then set things up (menu → stock → tables → team). Settings sits last —
@@ -388,6 +390,7 @@ function Shell() {
     { key: 'neworder', icon: <IcNew />, label: t('nav_neworder'), show: can(user, 'ORDERS') },
     { key: 'orders', icon: <IcHistory />, label: t('nav_orders'), show: can(user, 'ORDERS') },
     { key: 'analytics', icon: <IcAnalytics />, label: t('nav_analytics'), show: can(user, 'ANALYTICS') },
+    { key: 'reports', icon: <IcReports />, label: t('nav_reports'), show: can(user, 'ANALYTICS') },
     { key: 'loyalty', icon: <IcLoyalty />, label: t('nav_loyalty'), show: can(user, 'PROFILE') },
     { key: 'menu', icon: <IcMenu />, label: t('nav_menu'), show: can(user, 'MENU') },
     // Next to the menu because that is the pair an owner sets up together: what you sell,
@@ -673,13 +676,17 @@ function Shell() {
             </span>
           )}
           <div className="spacer" />
-          {page === 'board' && can(user, 'ORDERS') && (
-            <button className="dnew" onClick={() => setPage('neworder')}>＋ {t('nav_neworder')}</button>
+          {/* One right-side cluster: taking an order and the drawer it goes into belong together.
+              New order is the solid primary; the till rides beside it as a status chip whose dot
+              says open or shut — the question a café already answers twice a day with the drawer. */}
+          {can(user, 'ORDERS') && (page === 'board' || selectedBranch) && (
+            <div className="dtop-actions">
+              {page === 'board' && (
+                <button className="dnew" onClick={() => setPage('neworder')}>＋ {t('nav_neworder')}</button>
+              )}
+              {selectedBranch && <TillControl branchId={selectedBranch.id} />}
+            </div>
           )}
-          {/* Whether the café is selling is operational state the whole floor needs to see at
-              a glance. It used to be a boolean anyone could flip; it is now the till, which is
-              the question a café already answers twice a day with the drawer. */}
-          {can(user, 'ORDERS') && selectedBranch && <TillControl branchId={selectedBranch.id} />}
           <SoundToggle soundOn={sound.soundOn} onToggle={sound.toggle} />
           <AccountMenu
             t={t}
@@ -701,6 +708,7 @@ function Shell() {
         {page === 'menu' && <MenuManager />}
         {page === 'team' && <TeamPage branches={branches} branchId={branchId} />}
         {page === 'analytics' && <Suspense fallback={<div className="an-msg">…</div>}><AnalyticsPage branches={isManager(user) && pinnedBranch == null ? activeBranches : []} /></Suspense>}
+        {page === 'reports' && <Suspense fallback={<div className="an-msg">…</div>}><ReportsPage branchId={branchId} /></Suspense>}
         {page === 'stock' && <StockPage branchId={branchId} />}
         {page === 'tables' && <TablesPage branchId={branchId} />}
         {/* pushes (not replaces) so the back button returns to the loyalty dashboard */}

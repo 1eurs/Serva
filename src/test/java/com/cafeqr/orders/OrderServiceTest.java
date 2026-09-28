@@ -148,7 +148,7 @@ class OrderServiceTest {
 
         CreateOrderRequest request = new CreateOrderRequest(
                 "demo", 5L, "tok", OrderType.DINE_IN, "Sara", "9999", null, null, "no sugar", null, "ptok",
-                false, null, List.of(new CreateOrderRequest.Item(100L, 2, null, null)));
+                false, null, List.of(new CreateOrderRequest.Item(100L, 2, null, null, null)));
 
         OrderTrackingResponse response = orderService.createOrder(request);
 
@@ -186,7 +186,7 @@ class OrderServiceTest {
 
     private static CreateStaffOrderRequest staffOrder(Boolean paid, PaymentMethod method, List<PaymentTender> tenders) {
         return new CreateStaffOrderRequest(5L, OrderType.DINE_IN, null, null, null, null, null, null, null, null,
-                List.of(new CreateOrderRequest.Item(100L, 1, null, null)), paid, method, tenders);
+                List.of(new CreateOrderRequest.Item(100L, 1, null, null, null)), paid, method, tenders);
     }
 
     @Test
@@ -289,7 +289,7 @@ class OrderServiceTest {
 
         OrderTrackingResponse response = orderService.createOrder(new CreateOrderRequest(
                 "demo", 5L, "tok", OrderType.DINE_IN, "Sara", "9999", null, null, null, null, null,
-                false, null, List.of(new CreateOrderRequest.Item(100L, 1, null, null))));
+                false, null, List.of(new CreateOrderRequest.Item(100L, 1, null, null, null))));
 
         // The ticket prints at the counter on arrival, so nobody taps Accept; payment is unknown.
         assertThat(response.status()).isEqualTo(OrderStatus.ACCEPTED);
@@ -306,7 +306,7 @@ class OrderServiceTest {
 
         CreateOrderRequest request = new CreateOrderRequest(
                 "demo", 5L, null, OrderType.CAR, "Ali", "9999", "ABC1234", null, null, null, "ptok",
-                false, null, List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
+                false, null, List.of(new CreateOrderRequest.Item(100L, 1, null, null, null)));
 
         assertThatThrownBy(() -> orderService.createOrder(request))
                 .isInstanceOf(BadRequestException.class)
@@ -327,7 +327,7 @@ class OrderServiceTest {
 
         CreateOrderRequest request = new CreateOrderRequest(
                 "demo", 5L, null, OrderType.CAR, "Ali", "9999", null, null, null, null, "ptok",
-                false, null, List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
+                false, null, List.of(new CreateOrderRequest.Item(100L, 1, null, null, null)));
 
         assertThatThrownBy(() -> orderService.createOrder(request))
                 .isInstanceOf(BadRequestException.class)
@@ -357,7 +357,7 @@ class OrderServiceTest {
 
         CreateOrderRequest request = new CreateOrderRequest(
                 "demo", 5L, "tok", OrderType.DINE_IN, "Sara", null, null, null, null, null, null,
-                false, null, List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
+                false, null, List.of(new CreateOrderRequest.Item(100L, 1, null, null, null)));
 
         OrderTrackingResponse response = orderService.createOrder(request);
 
@@ -374,7 +374,7 @@ class OrderServiceTest {
 
         CreateOrderRequest request = new CreateOrderRequest(
                 "demo", 5L, null, OrderType.DINE_IN, null, null, null, null, null, null, null,
-                false, null, List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
+                false, null, List.of(new CreateOrderRequest.Item(100L, 1, null, null, null)));
 
         assertThatThrownBy(() -> orderService.createOrder(request))
                 .isInstanceOf(BadRequestException.class)
@@ -396,7 +396,7 @@ class OrderServiceTest {
 
         CreateOrderRequest request = new CreateOrderRequest(
                 "demo", 5L, null, OrderType.CAR, "Sara", "9999", "  a 1234  ", "  White ", null, null, "ptok",
-                false, null, List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
+                false, null, List.of(new CreateOrderRequest.Item(100L, 1, null, null, null)));
 
         OrderTrackingResponse response = orderService.createOrder(request);
 
@@ -412,7 +412,7 @@ class OrderServiceTest {
 
         CreateOrderRequest request = new CreateOrderRequest(
                 "demo", 5L, null, OrderType.CAR, "Sara", null, "A 1234", null, null, null, null,
-                false, null, List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
+                false, null, List.of(new CreateOrderRequest.Item(100L, 1, null, null, null)));
 
         assertThatThrownBy(() -> orderService.createOrder(request))
                 .isInstanceOf(BadRequestException.class)
@@ -433,7 +433,7 @@ class OrderServiceTest {
 
         CreateOrderRequest request = new CreateOrderRequest(
                 "demo", 5L, null, OrderType.CAR, "Sara", "9999", " ", null, null, null, "ptok",
-                false, null, List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
+                false, null, List.of(new CreateOrderRequest.Item(100L, 1, null, null, null)));
 
         OrderTrackingResponse response = orderService.createOrder(request);
 
@@ -449,7 +449,7 @@ class OrderServiceTest {
 
         CreateOrderRequest request = new CreateOrderRequest(
                 "demo", 5L, null, OrderType.CAR, "Ali", "9999-0000", "ABC1234", null, null, null, "ptok",
-                false, null, List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
+                false, null, List.of(new CreateOrderRequest.Item(100L, 1, null, null, null)));
 
         assertThatThrownBy(() -> orderService.createOrder(request))
                 .isInstanceOf(BadRequestException.class)

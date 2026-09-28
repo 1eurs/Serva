@@ -1,5 +1,6 @@
 package com.cafeqr.restaurants.dto;
 
+import com.cafeqr.restaurants.domain.SuggestionsPlacement;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
@@ -31,5 +32,7 @@ public record UpdateRestaurantRequest(
         /** What the counter's order pad asks for: customer name, phone, pager number. */
         Boolean padAskName,
         Boolean padAskPhone,
-        Boolean padAskPager
+        Boolean padAskPager,
+        /** Where the customer cart shows its "goes well with your order" upsell. */
+        SuggestionsPlacement suggestionsPlacement
 ) {}

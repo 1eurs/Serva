@@ -91,6 +91,21 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- HTML -> PDF for the branded daily report. Helvetica carries the Latin chrome; a
+             bundled Noto Sans Arabic (see resources/fonts) gives shop and item names their
+             glyphs, and the rtl-support module shapes/orders the Arabic so it joins and reads
+             right-to-left instead of coming out as boxes. -->
+        <dependency>
+            <groupId>com.openhtmltopdf</groupId>
+            <artifactId>openhtmltopdf-pdfbox</artifactId>
+            <version>1.0.10</version>
+        </dependency>
+        <dependency>
+            <groupId>com.openhtmltopdf</groupId>
+            <artifactId>openhtmltopdf-rtl-support</artifactId>
+            <version>1.0.10</version>
+        </dependency>
+
         <!-- OpenAPI / Swagger -->
         <dependency>
             <groupId>org.springdoc</groupId>

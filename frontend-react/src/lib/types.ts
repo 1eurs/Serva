@@ -56,7 +56,11 @@ export interface PublicRestaurant {
   themeCustomJson?: string | null;
   /** House card shown above the categories in every layout (see menuInfo.ts); optional. */
   menuInfoJson?: string | null;
+  /** Where the cart shows its "goes well with your order" upsell; defaults to under the items. */
+  suggestionsPlacement?: SuggestionsPlacement | null;
 }
+
+export type SuggestionsPlacement = 'UNDER_ITEMS' | 'BEFORE_CHECKOUT' | 'POPUP';
 export interface PublicBranch {
   id: number; name: string; nameEn?: string | null; nameAr?: string | null; address?: string | null; phone?: string | null;
   /** Whether an order placed right now would be taken — the café's till, open or shut. */
@@ -80,6 +84,8 @@ export interface PublicItem {
   /** How many can still go out today, when the owner has capped it. Null/absent = no cap. */
   remainingToday?: number | null;
   preparationTimeMinutes?: number | null; displayOrder: number; optionGroups?: PublicOptionGroup[];
+  /** Items this combo bundles, repeats included ("2 × Croissant" = the id twice). Empty = plain item. */
+  comboItemIds?: number[] | null;
 }
 
 /** Can a customer order this right now? The café's own switch, and then the shelf's say. */
@@ -137,7 +143,20 @@ export interface TillSession {
   countedCash?: number | null; expectedCash?: number | null;
   /** Counted minus expected: negative is short, positive is over. */
   variance?: number | null;
-  cashSales?: number | null; cardSales?: number | null; orderCount?: number | null;
+  cashSales?: number | null; cardSales?: number | null;
+  /** Cash taken out of / added to the drawer this session, frozen at close. */
+  paidOut?: number | null; paidIn?: number | null;
+  orderCount?: number | null;
+}
+
+/** One movement of cash in or out of the open drawer, with the reason on it. */
+export interface TillMovement {
+  id: number;
+  direction: 'OUT' | 'IN';
+  amount: number;
+  note: string;
+  by?: string | null;
+  at: string;
 }
 
 export interface TillState {
@@ -148,8 +167,13 @@ export interface TillState {
   /** The money figures are null for anyone without the Payments permission. */
   cashTaken?: number | null;
   cardTaken?: number | null;
-  /** Starting cash plus cash sales: what should be in the drawer right now. */
+  /** Starting cash plus cash sales, less paid out, plus paid in: what should be in the drawer now. */
   expectedCash?: number | null;
+  /** Cash taken out of / added to the drawer so far this session. */
+  paidOut?: number | null;
+  paidIn?: number | null;
+  /** The session's movements, newest first — empty without the Payments permission. */
+  movements?: TillMovement[];
   orderCount: number;
 }
 export interface TableResponse {
@@ -164,9 +188,11 @@ export interface OrderSummaryResponse {
 export interface PageResponse<T> { content: T[]; page: number; size: number; totalElements: number; totalPages: number; last: boolean; }
 
 /* ---- menu management ---- */
+export type CourseType = 'DRINK' | 'FOOD' | 'DESSERT';
 export interface CategoryResponse {
   id: number; restaurantId: number; branchId?: number | null; nameEn: string; nameAr: string;
   descriptionEn?: string | null; descriptionAr?: string | null; displayOrder: number; active: boolean;
+  courseType?: CourseType | null;
 }
 export interface MenuItemOptionRow { id?: number; nameEn: string; nameAr: string; priceDelta: number; displayOrder: number; }
 export interface MenuItemOptionGroupRow {
@@ -182,12 +208,16 @@ export interface MenuItemResponse {
   discountStartsAt?: string | null; discountEndsAt?: string | null;
   images?: string[] | null; available: boolean; preparationTimeMinutes?: number | null; displayOrder: number;
   optionGroups?: MenuItemOptionGroupRow[] | null;
+  /** Items this combo bundles, repeats included. Empty = plain item. */
+  comboItemIds?: number[] | null;
 }
 
 export interface SelectedOption { optionGroupId: number; optionId: number; }
 export interface CreateOrderItem {
   menuItemId: number; quantity: number; note?: string | null;
   selectedOptions?: SelectedOption[] | null;
+  /** True when this line was added from the cart's suggestion upsell (revenue attribution). */
+  fromSuggestion?: boolean;
 }
 export interface CreateOrderPayload {
   restaurantSlug: string; branchId: number; tableToken?: string | null; orderType: OrderType;
@@ -335,6 +365,8 @@ export interface Restaurant {
   hideWhenOutOfStock?: boolean;
   /** What the counter's order pad asks for. Name/phone default on, pager off. */
   padAskName?: boolean; padAskPhone?: boolean; padAskPager?: boolean;
+  /** Where the customer cart shows its "goes well with your order" upsell. */
+  suggestionsPlacement?: SuggestionsPlacement;
   active: boolean; plan?: Plan; createdAt?: string;
 }
 export type BillingCycle = 'ONE_TIME' | 'MONTHLY' | 'YEARLY';

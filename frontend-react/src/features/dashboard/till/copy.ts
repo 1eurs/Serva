@@ -27,6 +27,13 @@ export const DICT: Dict = {
     justNow: 'الآن', forMins: 'قبل {n} دقيقة', forHours: 'قبل {n} ساعة', forDays: 'قبل {n} يوم',
     floatIn: 'نقد البداية', cashSoFar: 'مبيعات نقدية', cardSoFar: 'مبيعات بالبطاقة', ordersSoFar: 'الطلبات',
 
+    /* cash taken out of, or added to, the drawer mid-shift */
+    moveBtn: 'نقد داخل/خارج', moveT: 'نقد داخل أو خارج',
+    cashOut: 'نقد خارج', cashIn: 'نقد داخل',
+    howMuch: 'كم المبلغ؟', reason: 'لماذا؟', reasonPh: 'حليب، خبز…',
+    recordBtn: 'سجّل', recordedToast: 'تم التسجيل', removeMove: 'حذف',
+    moves: 'نقد الدرج', paidOut: 'نقد خارج', paidIn: 'نقد داخل',
+
     /* the answer */
     resultT: 'قفلة اليوم', diff: 'الفرق',
     shortWord: 'ناقص', overWord: 'زائد', exact: 'مطابق',
@@ -54,6 +61,12 @@ export const DICT: Dict = {
     openedBy: 'Opened by {who} · {t}', openedAt: 'Opened {t}',
     justNow: 'just now', forMins: '{n}m ago', forHours: '{n}h ago', forDays: '{n}d ago',
     floatIn: 'Starting cash', cashSoFar: 'Cash sales', cardSoFar: 'Card sales', ordersSoFar: 'Orders',
+
+    moveBtn: 'Cash in / out', moveT: 'Cash in or out',
+    cashOut: 'Cash out', cashIn: 'Cash in',
+    howMuch: 'How much?', reason: 'What for?', reasonPh: 'Milk, bread…',
+    recordBtn: 'Record', recordedToast: 'Recorded', removeMove: 'Remove',
+    moves: 'Cash in & out', paidOut: 'Paid out', paidIn: 'Paid in',
 
     resultT: 'Tonight’s count', diff: 'Difference',
     shortWord: 'short', overWord: 'over', exact: 'Exactly right',

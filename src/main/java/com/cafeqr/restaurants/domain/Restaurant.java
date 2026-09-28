@@ -80,6 +80,11 @@ public class Restaurant extends BaseEntity implements BilingualNamed {
     @Column(name = "pad_ask_pager", nullable = false)
     private boolean padAskPager = false;
 
+    /** Where the customer cart shows its "goes well with your order" upsell. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "suggestions_placement", nullable = false, length = 20)
+    private SuggestionsPlacement suggestionsPlacement = SuggestionsPlacement.UNDER_ITEMS;
+
     @Column(name = "menu_theme", nullable = false, length = 40)
     private String theme = "onyx";
 
@@ -263,6 +268,14 @@ public class Restaurant extends BaseEntity implements BilingualNamed {
 
     public void setPadAskPager(boolean padAskPager) {
         this.padAskPager = padAskPager;
+    }
+
+    public SuggestionsPlacement getSuggestionsPlacement() {
+        return suggestionsPlacement;
+    }
+
+    public void setSuggestionsPlacement(SuggestionsPlacement suggestionsPlacement) {
+        this.suggestionsPlacement = suggestionsPlacement;
     }
 
     public String getTheme() {
