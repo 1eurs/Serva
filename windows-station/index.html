@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+<title>Serva Station</title>
+<style>
+  /* Same hex as android-station/res/values/colors.xml and the dashboard theme. */
+  :root {
+    --chassis: #03120D; --paper: #FAFAF7; --well: #ECF3EE; --ink: #15181C; --muted: #566058;
+    --faint: #8A938B; --line: #C5D4CC; --lime: #10B981; --lime-pressed: #059669;
+    --accent: #047857; --bad: #FF6B5A; --bad-text: #B93A2B;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: var(--chassis); color: var(--ink);
+    font: 15px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 26px 20px 0; }
+  header, .slip { width: 100%; max-width: 440px; }
+  header { margin-bottom: 16px; }
+  .wordmark { color: var(--paper); font-size: 30px; font-weight: 650; letter-spacing: -0.04em; line-height: 1; }
+  .wordmark span { color: var(--lime); }
+  .sub { color: #8FA89A; font-size: 14px; margin-top: 6px; }
+
+  /* The slip, coming out of the printer's mouth. */
+  .mouth { width: 100%; max-width: 460px; height: 8px; background: #0B2A1F; border-radius: 4px; }
+  .slip {
+    flex: 1 0 auto; margin-top: -4px; background: var(--paper);
+    padding: 24px 24px 28px; box-shadow: 0 -2px 0 rgba(0, 0, 0, .25) inset;
+  }
+  .ticks { display: flex; gap: 6px; margin-bottom: 20px; }
+  .ticks i { width: 28px; height: 3px; border-radius: 1px; background: var(--line); }
+  .ticks i.on { background: var(--ink); }
+  .perf { border: 0; border-top: 1.5px dashed var(--line); margin: 20px -24px; }
+
+  h1 { font-size: 25px; font-weight: 600; letter-spacing: -0.03em; margin: 0 0 6px; line-height: 1.15; }
+  p { color: var(--muted); margin: 0 0 12px; }
+  .error { color: var(--bad-text); font-size: 14px; margin: 8px 0 0; }
+  .error:empty { display: none; }
+
+  input[type=text], input[type=password] {
+    display: block; width: 100%; min-height: 48px; margin-top: 10px; padding: 0 14px;
+    font: inherit; color: var(--ink); background: var(--well);
+    border: 1px solid var(--line); border-radius: 4px;
+  }
+  input::placeholder { color: var(--faint); }
+  input:focus-visible, button:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
+  .check { display: flex; align-items: center; gap: 10px; margin: 4px 0 6px; color: var(--ink); cursor: pointer; }
+  .check input { width: 18px; height: 18px; accent-color: var(--lime); }
+
+  button {
+    display: block; width: 100%; min-height: 48px; margin-top: 10px; padding: 0 16px;
+    font: inherit; font-weight: 600; color: var(--ink); cursor: pointer;
+    border-radius: 4px; border: 1.5px solid transparent; transition: background-color .12s, border-color .12s;
+  }
+  button:disabled { opacity: .55; cursor: default; }
+  .primary { background: var(--lime); }
+  .primary:not(:disabled):hover { background: var(--lime-pressed); }
+  .ghost { background: transparent; border-color: var(--line); }
+  .ghost:not(:disabled):hover { background: var(--well); }
+  .link { width: auto; min-height: 40px; padding: 0; background: none; color: var(--accent); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
+  .row { display: flex; gap: 10px; }
+
+  .picks { margin: 6px 0 4px; }
+  .pick { display: flex; flex-direction: column; align-items: flex-start; text-align: left; padding: 12px 14px; background: var(--well); }
+  .pick:hover { border-color: var(--lime); }
+  .pick strong, .pick span { align-self: stretch; text-align: start; }
+  .pick span { color: var(--muted); font-weight: 400; font-size: 13.5px; }
+  .pick.warn span { color: var(--bad-text); }
+
+  .headline { display: flex; align-items: center; gap: 14px; font-size: 40px; font-weight: 650; letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 8px; }
+  .dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--faint); }
+  .dot.ok { background: var(--lime); }
+  .dot.bad { background: var(--bad); }
+  .headline .dot { width: 16px; height: 16px; }
+  .headline .dot.ok { animation: breathe 2.4s ease-in-out infinite; }
+  @keyframes breathe { 50% { box-shadow: 0 0 0 7px rgba(16, 185, 129, .18); } }
+  @media (prefers-reduced-motion: reduce) { .headline .dot.ok { animation: none; } }
+  .card { background: var(--well); border-radius: 4px; padding: 10px 14px; margin: 14px 0; }
+  .health { display: flex; align-items: baseline; gap: 10px; padding: 4px 0; }
+  .health .dot { transform: translateY(-1px); }
+  .note { font-size: 13.5px; }
+  .meta { font-size: 12.5px; color: var(--faint); margin: 18px 0 0; overflow-wrap: anywhere; }
+
+  dialog { max-width: 420px; border: 0; border-radius: 6px; padding: 24px; background: var(--paper); color: var(--ink); }
+  dialog::backdrop { background: rgba(3, 18, 13, .65); }
+  dialog p { white-space: pre-line; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="wordmark">Serva<span>.</span></div>
+    <div class="sub">The printer at your counter</div>
+  </header>
+  <div class="mouth"></div>
+  <section class="slip">
+    <div class="ticks" id="ticks"><i></i><i></i><i></i><i></i></div>
+
+    <div class="step" data-step="1" hidden>
+      <h1>Sign in</h1>
+      <p>Use a staff account for this café. This computer stays signed in, so you only do this once.</p>
+      <form id="signInForm">
+        <input id="username" type="text" placeholder="Staff email" autocomplete="username" spellcheck="false">
+        <input id="password" type="password" placeholder="Password" autocomplete="current-password">
+        <p class="error" id="signInError"></p>
+        <button class="primary" id="signIn" type="submit">Sign in</button>
+      </form>
+    </div>
+
+    <div class="step" data-step="2" hidden>
+      <h1>Which branch?</h1>
+      <p>This computer will print the tickets for one branch.</p>
+      <div class="picks" id="branchList"></div>
+      <button class="ghost" type="button" data-back="1">Back</button>
+    </div>
+
+    <div class="step" data-step="3" hidden>
+      <h1>Find your printer</h1>
+      <p id="printerBody"></p>
+      <div class="picks" id="printerList"></div>
+      <div class="row">
+        <button class="ghost" type="button" id="scan">Search again</button>
+        <button class="ghost" type="button" id="cancelScan" hidden>Cancel</button>
+      </div>
+      <button class="ghost" type="button" id="wider" hidden>Search wider (takes a minute)</button>
+      <button class="link" type="button" id="manual">Enter the address myself</button>
+      <form id="manualBox" hidden>
+        <input id="printerHost" type="text" placeholder="Printer IP address, like 192.168.1.50" spellcheck="false">
+        <p class="error" id="manualError"></p>
+        <button class="primary" type="submit" id="useManual">Use this address</button>
+      </form>
+      <button class="ghost" type="button" id="back3">Back</button>
+    </div>
+
+    <div class="step" data-step="4" hidden>
+      <h1>Print a test</h1>
+      <p id="testBody"></p>
+      <label class="check"><input type="checkbox" id="paper58"> Small paper roll (58 mm)</label>
+      <button class="primary" type="button" id="testPrint">Send a test slip</button>
+      <div id="askBox" hidden>
+        <hr class="perf">
+        <h1>Did a slip come out of the printer at your counter?</h1>
+        <button class="primary" type="button" id="yes">Yes, start printing</button>
+        <button class="ghost" type="button" id="no">Nothing came out</button>
+      </div>
+      <p id="troubleshoot" hidden>Check the paper roll is the right way round — thermal paper only prints on one side, so a reversed roll feeds through and comes out blank. Then check the printer is not out of paper, and try again.</p>
+      <button class="ghost" type="button" data-back="3">Back</button>
+    </div>
+
+    <div class="step" data-step="0" hidden>
+      <div class="headline"><i class="dot" id="statusDot"></i><span id="statusHeadline"></span></div>
+      <p id="statusDetail"></p>
+      <div class="card">
+        <div class="health"><i class="dot" id="cloudDot"></i><span id="cloudHealth"></span></div>
+        <div class="health"><i class="dot" id="printerDot"></i><span id="printerHealth"></span></div>
+      </div>
+      <p class="note">Leave this computer switched on. Closing this window does not stop printing: Serva Station stays by the clock, and starts by itself with Windows.</p>
+      <button class="primary" type="button" id="pause"></button>
+      <button class="ghost" type="button" id="statusTest">Send a test slip</button>
+      <button class="ghost" type="button" id="change">Change setup</button>
+      <p class="meta" id="meta"></p>
+    </div>
+  </section>
+</main>
+
+<dialog id="wrongNetwork">
+  <h1>The printer is on a different network</h1>
+  <p id="wrongNetworkBody"></p>
+  <form method="dialog"><button class="primary">OK</button></form>
+</dialog>
+
+<script src="ui.js"></script>
+</body>
+</html>

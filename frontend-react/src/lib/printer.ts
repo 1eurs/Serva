@@ -67,6 +67,9 @@ export function setPrintApp(app: PrintApp): void {
 /** Where a café downloads the station app from — served with the frontend, so it deploys
  *  with the build and the guide can never point at a version the server does not have. */
 export const STATION_APK_PATH = '/downloads/serva-station.apk';
+/** The same station for a Windows PC at the counter. Too big for git: windows-station/make-exe.sh
+ *  drops it into public/downloads before a deploy. */
+export const STATION_EXE_PATH = '/downloads/serva-station-setup.exe';
 
 /** The roll in the Bluetooth printer this tablet drives through Cleanter. RawBT prints at
  *  the width measured on the café's 80mm printer and ignores this. */

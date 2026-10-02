@@ -4,3 +4,7 @@ scripts/.mock-prints/
 # that deployed without it would hand cafés a broken download. Rebuild with
 # android-station/make-apk.sh, which writes it here.
 !public/downloads/serva-station.apk
+
+# The Windows station is NOT committed: at ~100MB it is over GitHub's file limit. Rebuild with
+# windows-station/make-exe.sh, which writes it here, before deploying from a fresh clone.
+public/downloads/serva-station-setup.exe
