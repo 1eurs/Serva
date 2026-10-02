@@ -119,4 +119,5 @@ beyond AndroidX and coroutines.
 ## The same contract, without Android
 
 `station/` in this repo is the identical loop in Node — for a Raspberry Pi, a mini PC or an
-old laptop. The server cannot tell the two apart.
+old laptop — and `windows-station/` is the same again as an installable Windows app. The
+server cannot tell them apart.

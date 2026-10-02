@@ -61,6 +61,9 @@ fingerprint() {
 }
 
 build() {
+  # Not in git (too big), so a fresh clone lacks it and the rsync --delete would remove it.
+  [ -f frontend-react/public/downloads/serva-station-setup.exe ] ||
+    warn "No Windows station installer in frontend-react/public/downloads — its download in Settings will 404. Run windows-station/make-exe.sh first."
   step "Building frontend"
   (cd frontend-react && npm run build)
 

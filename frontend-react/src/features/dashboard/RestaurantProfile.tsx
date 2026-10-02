@@ -6,7 +6,7 @@ import { useI18n, useT, nameOf, Ltr, ltrText, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import {
   getLastPrintAttempt, subscribePrintAttempts, isPrintStation, setPrintStation, isPrinterVerified, setPrinterVerified,
-  isAndroidDevice, RAWBT_PLAY_URL, STATION_APK_PATH, getPrintApp, setPrintApp, getPaperWidth, setPaperWidth,
+  isAndroidDevice, RAWBT_PLAY_URL, STATION_APK_PATH, STATION_EXE_PATH, getPrintApp, setPrintApp, getPaperWidth, setPaperWidth,
   type PrintAttempt, type PrintApp,
 } from '../../lib/printer';
 import {
@@ -79,6 +79,9 @@ const DICT: Dict = {
     s1Body: 'تطبيق Serva الخاص للطباعة. يعمل في الخلفية، ويعود بنفسه بعد انقطاع الكهرباء، ويعرض إشعاراً دائماً يخبرك أنه يعمل.',
     s1Get: 'تحميل Serva Station', s1Qr: 'امسح هذا الرمز بتابلت الكاونتر لتحميل التطبيق عليه.',
     s1Unknown: 'لأنه لا يأتي من متجر Google، سيسألك أندرويد عند التثبيت هل تسمح بتثبيت التطبيقات من هذا المصدر. اختر السماح، مرة واحدة فقط.',
+    s1Windows: 'كمبيوتر الكاونتر يعمل بويندوز؟ ثبّت Serva Station لويندوز عليه بدلاً من التابلت: نفس الإعداد، ويبقى بجانب الساعة ويعمل تلقائياً مع تشغيل ويندوز.',
+    s1WinGet: 'تحميل لويندوز',
+    s1WinNote: 'قد يقول ويندوز إنه حمى جهازك: اختر «مزيد من المعلومات» ثم «تشغيل على أي حال».',
     s2: 'هيّئه من داخل التطبيق',
     s2Body: 'افتح التطبيق: سجّل الدخول بحساب موظف، اختر الفرع، ثم اضغط على الطابعة التي يجدها على شبكة WiFi — أو اختر طابعة Bluetooth مقترنة بالتابلت. إن ظهرت أكثر من طابعة فلكل واحدة عنوانها: اختر طابعة الكاونتر، أو اكتب العنوان من ورقة FEED. ثم اطبع ورقة تجريبية حتى تخرج من الجهاز الصحيح.',
     s4: 'شاهده يستقبل الطباعة',
@@ -243,6 +246,9 @@ const DICT: Dict = {
     s1Body: 'Serva’s own printing app. It runs in the background, comes back by itself after a power cut, and keeps a notification up so you can see it is alive.',
     s1Get: 'Download Serva Station', s1Qr: 'Scan this with the counter tablet to download the app there.',
     s1Unknown: 'Because it does not come from the Google store, Android will ask once whether to allow installing from this source. Choose allow. It only asks the first time.',
+    s1Windows: 'Counter computer runs Windows? Install Serva Station for Windows on it instead of a tablet: the same setup, and it sits by the clock and starts with Windows.',
+    s1WinGet: 'Download for Windows',
+    s1WinNote: 'Windows may say it protected your PC: choose More info, then Run anyway.',
     s2: 'Set it up inside the app',
     s2Body: 'Open it: sign in with a staff account, pick the branch, then tap the printer it finds on the WiFi — or pick a Bluetooth printer already paired with the tablet. If several printers appear, each has its own address: pick the counter one, or type the address from the printer’s FEED slip. Then print a test slip so paper comes out of the right machine.',
     s4: 'Watch it collect',
@@ -1111,6 +1117,7 @@ export function BranchPrinterSection({ branchId }: { branchId?: number }) {
                 {android ? (
                   <a className="btn sm" href={STATION_APK_PATH} download="serva-station.apk">↓ {t('s1Get')}</a>
                 ) : null}
+                <a className="btn sm ghost" href={STATION_EXE_PATH} download="serva-station-setup.exe">↓ {t('s1WinGet')}</a>
                 <button className="btn sm ghost" type="button" onClick={() => chooseApp('station')}>{t('offerSwitch')}</button>
               </div>
               {!android && (
@@ -1140,6 +1147,11 @@ export function BranchPrinterSection({ branchId }: { branchId?: number }) {
                 </div>
               )}
               <p className="stg-step-note">{t('s1Unknown')}</p>
+              <p>{t('s1Windows')}</p>
+              <div className="stg-step-actions">
+                <a className="btn sm ghost" href={STATION_EXE_PATH} download="serva-station-setup.exe">↓ {t('s1WinGet')}</a>
+              </div>
+              <p className="stg-step-note">{t('s1WinNote')}</p>
             </GuideStep>
 
             <GuideStep no={2} state={stationCollecting ? 'ok' : 'todo'} title={t('s2')}>

@@ -1,0 +1,58 @@
+{
+  "name": "serva-station-windows",
+  "productName": "Serva Station",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Serva print station for a Windows PC: pulls print jobs and writes them to a network thermal printer.",
+  "author": "Serva",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "om.serva.station",
+    "productName": "Serva Station",
+    "files": [
+      "main.js",
+      "station.js",
+      "printer.js",
+      "preload.js",
+      "index.html",
+      "ui.js",
+      "icon.png"
+    ],
+    "electronLanguages": [
+      "en-US",
+      "ar"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "serva-station-setup.exe",
+      "shortcutName": "Serva Station"
+    },
+    "toolsets": {
+      "nsis": "1.2.1"
+    },
+    "compression": "maximum"
+  }
+}

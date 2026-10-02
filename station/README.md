@@ -2,7 +2,8 @@
 
 The print station as a small background process, for a Raspberry Pi, a mini PC or an old
 laptop sitting beside the printer. Identical contract to the Android app in
-`android-station/` — the server cannot tell them apart.
+`android-station/` — the server cannot tell them apart. On a Windows PC, use
+`windows-station/` instead: the same loop with a setup screen and an installer.
 
 ```
 pull  →  render  →  print  →  acknowledge
