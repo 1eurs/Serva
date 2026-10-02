@@ -1,9 +1,9 @@
 import { useEffect, Fragment, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 import { useI18n } from '../../lib/i18n';
 import { ensureGoogleFonts } from '../../lib/fonts';
 import type { Lang } from '../../lib/types';
 import { SiteFooter } from './SiteFooter';
+import { SiteHeader } from './SiteHeader';
 import './site.css';
 
 /* Public guide to dashboard analytics — plain-language explanations for café
@@ -317,40 +317,27 @@ export default function AnalyticsGuidePage() {
   const { lang, dir } = useI18n();
 
   useEffect(() => {
-    ensureGoogleFonts(['Space+Grotesk:wght@400;500;700', 'Tajawal:wght@400;500;700;900']);
+    ensureGoogleFonts(['Sora:wght@500;600;700', 'IBM+Plex+Sans:wght@400;500;600']);
     window.scrollTo(0, 0);
   }, []);
 
   return (
     <div id="neo" dir={dir} className={lang === 'ar' ? 'lang-ar' : ''}>
-      {/* top bar */}
-      <header className="sticky top-0 z-50 border-b-4 border-black bg-neo-bg">
-        <div className="mx-auto flex h-20 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-          <Link to="/" className="flex items-center text-2xl font-black tracking-tighter">
-            <span className="flex h-11 items-center border-4 border-black bg-neo-accent px-3 text-black shadow-neo-sm">SERVA</span>
-          </Link>
-          <Link to="/"
-            className="inline-flex h-11 items-center gap-2 border-4 border-black bg-white px-4 text-sm font-bold uppercase tracking-wide shadow-neo-sm transition-all duration-100 hover:-translate-y-0.5 hover:shadow-neo active:translate-x-[2px] active:translate-y-[2px] active:shadow-none">
-            <span aria-hidden="true">{lang === 'ar' ? '→' : '←'}</span> {UI.back[lang]}
-          </Link>
-        </div>
-      </header>
+      <SiteHeader back={UI.back[lang]} />
 
-      <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
+      <main className="mx-auto max-w-6xl px-5 py-14 sm:px-8 md:py-20">
         {/* hero */}
-        <span className="inline-block -rotate-1 border-4 border-black bg-neo-accent px-3 py-1 text-xs font-black uppercase tracking-widest shadow-neo-sm">
+        <p className={lang === 'ar' ? 'text-sm font-semibold text-sv-green' : 'font-mono text-xs font-medium uppercase tracking-[0.16em] text-sv-green'}>
           {UI.eyebrow[lang]}
-        </span>
-        <h1 className="mt-6 max-w-3xl text-4xl font-black uppercase leading-[0.95] tracking-tighter md:text-5xl">
-          {UI.title[lang]}
-        </h1>
-        <p className="mt-6 max-w-3xl text-lg font-bold leading-relaxed text-black/80">{UI.lede[lang]}</p>
+        </p>
+        <h1 className="sv-h2 mt-4 max-w-3xl">{UI.title[lang]}</h1>
+        <p className="mt-6 max-w-3xl text-lg leading-relaxed text-sv-slate">{UI.lede[lang]}</p>
 
-        <div className="mt-7 flex flex-wrap gap-3">
-          <span className="inline-flex items-center gap-2 text-sm font-bold text-black/70">
+        <div className="mt-7 flex flex-wrap gap-x-6 gap-y-3">
+          <span className="inline-flex items-center gap-2 text-sm text-sv-slate">
             <StdBadge lang={lang} /> {UI.legendStd[lang]}
           </span>
-          <span className="inline-flex items-center gap-2 text-sm font-bold text-black/70">
+          <span className="inline-flex items-center gap-2 text-sm text-sv-slate">
             <ProBadge lang={lang} /> {UI.legendPro[lang]}
           </span>
         </div>
@@ -371,30 +358,30 @@ export default function AnalyticsGuidePage() {
         <Note tone="amber" text={UI.benchmarkNote[lang]} />
 
         {/* Compare */}
-        <div className="mt-16">
-          <h2 className="text-3xl font-black uppercase leading-none tracking-tighter md:text-4xl">{UI.cmpHeading[lang]}</h2>
-          <p className="mt-3 max-w-3xl text-base font-bold text-black/70">{UI.cmpSub[lang]}</p>
+        <div className="mt-20">
+          <h2 className="sv-h3">{UI.cmpHeading[lang]}</h2>
+          <p className="mt-3 max-w-3xl text-sv-slate">{UI.cmpSub[lang]}</p>
 
-          <div className="mt-7 overflow-x-auto border-4 border-black shadow-neo">
+          <div className="mt-7 overflow-x-auto rounded-2xl bg-white shadow-card ring-1 ring-sv-line">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="bg-neo-ink text-white">
-                  <th className="px-4 py-3 text-start font-black uppercase tracking-wide">{UI.colCapability[lang]}</th>
-                  <th className="w-32 px-4 py-3 text-center font-black uppercase tracking-wide">{UI.badgeStd[lang]}</th>
-                  <th className="w-32 px-4 py-3 text-center font-black uppercase tracking-wide">{UI.badgePro[lang]}</th>
+                <tr className="border-b border-sv-line">
+                  <th className="px-5 py-3.5 text-start font-semibold">{UI.colCapability[lang]}</th>
+                  <th className="w-32 px-4 py-3.5 text-center font-semibold">{UI.badgeStd[lang]}</th>
+                  <th className="w-32 px-4 py-3.5 text-center font-semibold">{UI.badgePro[lang]}</th>
                 </tr>
               </thead>
               <tbody>
                 {COMPARE.map((g) => (
                   <Fragment key={g.group.en}>
-                    <tr className="bg-neo-accent/15">
-                      <td colSpan={3} className="px-4 py-2 text-xs font-black uppercase tracking-widest text-black/70">{g.group[lang]}</td>
+                    <tr className="bg-sv-mist">
+                      <td colSpan={3} className="px-5 py-2 text-xs font-medium text-sv-slate">{g.group[lang]}</td>
                     </tr>
                     {g.rows.map((r) => (
-                      <tr key={r.label.en} className="border-t-4 border-black/10">
-                        <td className="px-4 py-2.5 font-bold text-black/85">{r.label[lang]}</td>
-                        <td className="px-4 py-2.5 text-center">{renderCell(r.std, lang)}</td>
-                        <td className="px-4 py-2.5 text-center">{renderCell(r.pro, lang)}</td>
+                      <tr key={r.label.en} className="border-t border-sv-line">
+                        <td className="px-5 py-3 text-sv-ink">{r.label[lang]}</td>
+                        <td className="px-4 py-3 text-center">{renderCell(r.std, lang)}</td>
+                        <td className="px-4 py-3 text-center">{renderCell(r.pro, lang)}</td>
                       </tr>
                     ))}
                   </Fragment>
@@ -416,7 +403,7 @@ export default function AnalyticsGuidePage() {
 
 function StdBadge({ lang }: { lang: Lang }) {
   return (
-    <span className="inline-block border-2 border-black bg-neo-accent px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-black">
+    <span className="inline-flex items-center rounded-full bg-sv-tint px-2.5 py-0.5 text-xs font-medium text-sv-green">
       {UI.badgeStd[lang]}
     </span>
   );
@@ -424,41 +411,43 @@ function StdBadge({ lang }: { lang: Lang }) {
 
 function ProBadge({ lang }: { lang: Lang }) {
   return (
-    <span className="inline-flex items-center gap-1 border-2 border-black bg-neo-ink px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-white">
-      <span aria-hidden="true">🔒</span>{UI.badgePro[lang]}
+    <span className="inline-flex items-center gap-1 rounded-full bg-sv-ink px-2.5 py-0.5 text-xs font-medium text-white">
+      <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" /><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
+      </svg>
+      {UI.badgePro[lang]}
     </span>
   );
 }
 
 function SectionHead({ heading, sub, badge }: { heading: string; sub: string; badge: ReactNode }) {
   return (
-    <div className="mt-16">
+    <div className="mb-7 mt-20">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-3xl font-black uppercase leading-none tracking-tighter md:text-4xl">{heading}</h2>
+        <h2 className="sv-h3">{heading}</h2>
         {badge}
       </div>
-      <p className="mt-3 max-w-3xl text-base font-bold text-black/70">{sub}</p>
-      <div className="mt-6" />
+      <p className="mt-3 max-w-3xl leading-relaxed text-sv-slate">{sub}</p>
     </div>
   );
 }
 
 function Card({ m, lang, pro, className = '' }: { m: Metric; lang: Lang; pro: boolean; className?: string }) {
   return (
-    <article className={`border-4 border-black bg-white p-6 shadow-neo ${className}`}>
+    <article className={`rounded-2xl bg-white p-6 shadow-card ring-1 ring-sv-line ${className}`}>
       <div className="mb-3">{pro ? <ProBadge lang={lang} /> : <StdBadge lang={lang} />}</div>
-      <h3 className="text-xl font-black leading-snug tracking-tight">{m.t[lang]}</h3>
-      <p className="mt-2 text-base font-medium leading-relaxed text-black/80">{m.what[lang]}</p>
-      <dl className="mt-4 space-y-2.5 border-t-4 border-black/10 pt-4">
+      <h3 className="text-lg font-semibold leading-snug">{m.t[lang]}</h3>
+      <p className="mt-2 leading-relaxed text-sv-slate">{m.what[lang]}</p>
+      <dl className="mt-4 space-y-2.5 border-t border-sv-line pt-4">
         {m.tip && (
           <div className="flex gap-3">
-            <dt className="w-[5.5rem] shrink-0 pt-0.5 text-[10px] font-black uppercase tracking-widest text-black/45">{UI.tip[lang]}</dt>
-            <dd className="text-sm font-medium leading-relaxed text-black/75">{m.tip[lang]}</dd>
+            <dt className="w-[6rem] shrink-0 pt-0.5 text-xs font-medium text-sv-slate">{UI.tip[lang]}</dt>
+            <dd className="text-sm leading-relaxed text-sv-slate">{m.tip[lang]}</dd>
           </div>
         )}
         <div className="flex gap-3">
-          <dt className="w-[5.5rem] shrink-0 pt-0.5 text-[10px] font-black uppercase tracking-widest text-black/45">{UI.why[lang]}</dt>
-          <dd className="text-sm font-bold leading-relaxed text-black/85">{m.why[lang]}</dd>
+          <dt className="w-[6rem] shrink-0 pt-0.5 text-xs font-medium text-sv-slate">{UI.why[lang]}</dt>
+          <dd className="text-sm font-medium leading-relaxed text-sv-ink">{m.why[lang]}</dd>
         </div>
       </dl>
     </article>
@@ -466,16 +455,16 @@ function Card({ m, lang, pro, className = '' }: { m: Metric; lang: Lang; pro: bo
 }
 
 function renderCell(cell: Cell, lang: Lang) {
-  if (cell === 'yes') return <span className="text-lg font-black text-neo-accent">✓</span>;
-  if (cell === 'no') return <span className="text-lg font-black text-black/25">—</span>;
-  return <span className="text-xs font-bold text-black/70">{cell[lang]}</span>;
+  if (cell === 'yes') return <span className="text-base font-semibold text-sv-green" aria-label={lang === 'ar' ? 'نعم' : 'Yes'}>✓</span>;
+  if (cell === 'no') return <span className="text-base text-sv-slate/50" aria-label={lang === 'ar' ? 'لا' : 'No'}>—</span>;
+  return <span className="text-xs text-sv-slate">{cell[lang]}</span>;
 }
 
 function Note({ tone, text }: { tone: 'amber' | 'accent'; text: string }) {
-  const border = tone === 'amber' ? 'border-s-[6px] border-s-amber-400' : 'border-s-[6px] border-s-neo-accent';
+  const edge = tone === 'amber' ? 'border-s-amber-500 bg-amber-50/60' : 'border-s-sv-green bg-sv-tint/60';
   return (
-    <div className={`mt-8 border-4 border-black bg-white p-5 shadow-neo-sm ${border}`}>
-      <p className="text-sm font-bold leading-relaxed text-black/75">{text}</p>
+    <div className={`mt-8 rounded-xl border-s-4 p-5 ${edge}`}>
+      <p className="text-sm leading-relaxed text-sv-ink">{text}</p>
     </div>
   );
 }

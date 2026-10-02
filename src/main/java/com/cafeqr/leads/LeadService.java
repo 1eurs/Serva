@@ -1,6 +1,7 @@
 package com.cafeqr.leads;
 
 import com.cafeqr.audit.AuditService;
+import com.cafeqr.common.config.AppProperties;
 import com.cafeqr.audit.domain.AuditAction;
 import com.cafeqr.common.exception.ConflictException;
 import com.cafeqr.common.exception.ResourceNotFoundException;
@@ -10,6 +11,8 @@ import com.cafeqr.leads.dto.CreateLeadRequest;
 import com.cafeqr.leads.dto.LeadResponse;
 import com.cafeqr.leads.dto.UpdateLeadRequest;
 import com.cafeqr.leads.repository.LeadRepository;
+import com.cafeqr.notifications.email.EmailMessage;
+import com.cafeqr.notifications.email.EmailSender;
 import com.cafeqr.restaurants.RestaurantOnboardingService;
 import com.cafeqr.restaurants.dto.CreateRestaurantRequest;
 import com.cafeqr.restaurants.dto.RestaurantResponse;
@@ -25,13 +28,22 @@ public class LeadService {
     private final LeadRepository leadRepository;
     private final RestaurantOnboardingService onboardingService;
     private final AuditService audit;
+    private final EmailSender email;
+    private final String alertTo;
+    private final String pipelineUrl;
 
     public LeadService(LeadRepository leadRepository,
                        RestaurantOnboardingService onboardingService,
-                       AuditService audit) {
+                       AuditService audit,
+                       EmailSender email,
+                       AppProperties props) {
         this.leadRepository = leadRepository;
         this.onboardingService = onboardingService;
         this.audit = audit;
+        this.email = email;
+        var mail = props.notifications() != null ? props.notifications().email() : null;
+        this.alertTo = mail != null ? mail.adminAlertTo() : null;
+        this.pipelineUrl = props.publicBaseUrl() + "/admin";
     }
 
     @Transactional
@@ -44,7 +56,31 @@ public class LeadService {
         lead.setCity(request.city());
         lead.setNote(request.note());
         lead.setStatus(LeadStatus.NEW);
-        return LeadResponse.from(leadRepository.save(lead));
+        LeadResponse saved = LeadResponse.from(leadRepository.save(lead));
+        alert(saved);
+        return saved;
+    }
+
+    /** The landing form is the only way a café reaches us, so every new lead emails the team. */
+    private void alert(LeadResponse lead) {
+        if (alertTo == null || alertTo.isBlank()) return;
+        // NOTE: a CR/LF in the café name would otherwise break the subject header.
+        String subject = "New lead: " + lead.cafeName().replaceAll("[\\r\\n]+", " ");
+        String text = String.join("\n",
+                "Business: " + lead.cafeName(),
+                "Name: " + lead.contactName(),
+                "Phone: " + orDash(lead.phone()),
+                "Email: " + orDash(lead.email()),
+                "City: " + orDash(lead.city()),
+                "Note: " + orDash(lead.note()),
+                "",
+                "Pipeline: " + pipelineUrl);
+        // Off the request thread: the visitor shouldn't wait on the SMTP relay. EmailSender never throws.
+        Thread.startVirtualThread(() -> email.send(new EmailMessage(alertTo, subject, null, text)));
+    }
+
+    private static String orDash(String v) {
+        return v == null || v.isBlank() ? "-" : v;
     }
 
     @Transactional(readOnly = true)

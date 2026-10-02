@@ -115,7 +115,7 @@ app:
     email:                                         # Brevo SMTP relay (creds in spring.mail.* above)
       provider: ${APP_EMAIL_PROVIDER:log}          # set to 'smtp' to actually send
       from: ${APP_EMAIL_FROM:Serva <onboarding@example.com>}   # must be a Brevo-verified sender
-      admin-alert-to: ${APP_ADMIN_ALERT_EMAIL:}    # where 'new café signup' alerts go (optional)
+      admin-alert-to: ${APP_ADMIN_ALERT_EMAIL:}    # where new-lead alerts from the landing form go (optional)
     sms:                                           # Infobip — deferred paid feature, integration ready
       provider: ${APP_SMS_PROVIDER:log}            # set to 'infobip' to actually send
       from: ${APP_SMS_FROM:Serva}                  # approved alphanumeric sender id (or number)

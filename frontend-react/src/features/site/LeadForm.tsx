@@ -1,9 +1,6 @@
-// The landing page's "request access" form — the front door to the admin pipeline.
-//
-// Every CTA on this page used to be a wa.me link, so a café that wanted in had to open
-// WhatsApp and type. That converts well here and stays as the second option below, but it
-// records nothing: the pipeline board had no way to ever receive a row. This posts the six
-// fields LeadService.create reads, and the lead lands in NEW.
+// The landing page's call-back form — the only way in. It posts the six fields
+// LeadService.create reads; the lead lands in NEW on the admin pipeline and emails the team.
+// The page carries no WhatsApp link or phone number on purpose: every enquiry is recorded.
 //
 // Lives under src/features/site/ because that is the only tree tailwind.config.js scans —
 // a form built anywhere else would render unstyled.
@@ -26,74 +23,66 @@ type Copy = {
   optional: string;
   submit: string;
   submitting: string;
-  or: string;
-  wa: string;
   err: {
     cafeName: string; contactName: string; phone: string; phoneShort: string;
     email: string; rate: string; generic: string; offline: string;
   };
-  ok: { title: string; body: string; wa: string };
+  ok: { title: string; body: string };
 };
 
 const COPY: Record<Lang, Copy> = {
   en: {
     label: {
-      cafeName: 'Café name', contactName: 'Your name', phone: 'Phone / WhatsApp',
+      cafeName: 'Business name', contactName: 'Your name', phone: 'Phone',
       email: 'Email', city: 'City', note: 'Anything else?',
     },
     ph: {
-      cafeName: 'e.g. Qurum Juice', contactName: 'e.g. Mahmood Al Zeidi', phone: '9xxx xxxx',
-      email: 'you@cafe.om', city: 'e.g. Muscat', note: 'Branches, what you use today, when you want to go live…',
+      cafeName: 'e.g. Karak Corner', contactName: 'e.g. Ahmed Al Balushi', phone: '9xxx xxxx',
+      email: 'you@cafe.om', city: 'e.g. Muscat', note: 'Branches, current system, start date…',
     },
     optional: 'optional',
-    submit: 'Request access',
+    submit: 'Request a call back',
     submitting: 'Sending…',
-    or: 'Prefer to talk? ',
-    wa: 'Message us on WhatsApp',
     err: {
-      cafeName: 'Please tell us your café’s name.',
+      cafeName: 'Please tell us the name of your venue.',
       contactName: 'Please tell us your name.',
       phone: 'We need a number to call you back on.',
       phoneShort: 'That doesn’t look like a full phone number.',
       email: 'That email doesn’t look right.',
-      rate: 'Too many attempts — please wait a minute and try again.',
-      generic: 'Something went wrong on our side. Please try again, or message us on WhatsApp.',
-      offline: 'Couldn’t reach us — check your connection, or message us on WhatsApp.',
+      rate: 'Too many attempts. Wait a minute and try again.',
+      generic: 'Something went wrong on our side. Please try again.',
+      offline: 'Couldn’t reach us. Check your connection and try again.',
     },
     ok: {
-      title: 'Got it — thank you!',
-      body: 'Your request is with our team. We’ll call you back within one working day to get you set up.',
-      wa: 'Message us on WhatsApp',
+      title: 'Thank you. We got your details.',
+      body: 'We’ll call you within one working day.',
     },
   },
   ar: {
     label: {
-      cafeName: 'اسم المقهى', contactName: 'اسمك', phone: 'الهاتف / واتساب',
+      cafeName: 'اسم النشاط', contactName: 'اسمك', phone: 'رقم الهاتف',
       email: 'البريد الإلكتروني', city: 'المدينة', note: 'أي شيء آخر؟',
     },
     ph: {
-      cafeName: 'مثال: عصير و قهوة القرم', contactName: 'مثال: محمود الزيدي', phone: '‎9xxx xxxx',
-      email: 'you@cafe.om', city: 'مثال: مسقط', note: 'الفروع، ما تستخدمه حالياً، ومتى تودّ الانطلاق…',
+      cafeName: 'مثال: ركن الكرك', contactName: 'مثال: أحمد البلوشي', phone: '‎9xxx xxxx',
+      email: 'you@cafe.om', city: 'مثال: مسقط', note: 'الفروع، النظام الحالي، موعد البدء…',
     },
     optional: 'اختياري',
-    submit: 'اطلب الوصول',
+    submit: 'اطلب اتصالاً',
     submitting: 'جارٍ الإرسال…',
-    or: 'تفضّل التحدّث مباشرة؟ ',
-    wa: 'راسلنا عبر واتساب',
     err: {
-      cafeName: 'من فضلك اكتب اسم المقهى.',
+      cafeName: 'من فضلك اكتب اسم منشأتك.',
       contactName: 'من فضلك اكتب اسمك.',
       phone: 'نحتاج رقماً للتواصل معك.',
       phoneShort: 'الرقم يبدو غير مكتمل.',
       email: 'البريد الإلكتروني غير صحيح.',
-      rate: 'محاولات كثيرة — انتظر دقيقة ثم أعد المحاولة.',
-      generic: 'حدث خطأ لدينا. حاول مرة أخرى، أو راسلنا عبر واتساب.',
-      offline: 'تعذّر الوصول إلينا — تحقّق من اتصالك، أو راسلنا عبر واتساب.',
+      rate: 'محاولات كثيرة. انتظر دقيقة ثم حاول مجدداً.',
+      generic: 'حدث خطأ لدينا. حاول مرة أخرى.',
+      offline: 'تعذّر الاتصال. تحقّق من الإنترنت وحاول مجدداً.',
     },
     ok: {
-      title: 'وصلنا طلبك — شكراً لك!',
-      body: 'طلبك الآن لدى فريقنا. سنتصل بك خلال يوم عمل واحد لتجهيز حسابك.',
-      wa: 'راسلنا عبر واتساب',
+      title: 'شكراً لك، وصلتنا بياناتك.',
+      body: 'نتصل بك خلال يوم عمل.',
     },
   },
 };
@@ -104,7 +93,7 @@ const digitCount = (s: string) => (s.match(/\d/g) ?? []).length;
    on the obvious typos. A stricter pattern rejects addresses that are actually valid. */
 const looksLikeEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 
-export default function LeadForm({ waHref }: { waHref: string }) {
+export default function LeadForm() {
   const { lang } = useI18n();
   const c = COPY[lang];
   const uid = useId();
@@ -188,37 +177,34 @@ export default function LeadForm({ waHref }: { waHref: string }) {
       <div
         ref={okRef}
         tabIndex={-1}
-        className="mx-auto max-w-2xl border-4 border-black bg-white p-8 text-center shadow-neo outline-none md:p-10"
+        className="rounded-2xl bg-white p-8 text-center shadow-card outline-none ring-1 ring-sv-line md:p-10"
       >
-        <span aria-hidden="true" className="mx-auto flex h-14 w-14 items-center justify-center border-4 border-black bg-neo-accent text-3xl font-black leading-none shadow-neo-sm">✓</span>
-        <h3 className="mt-6 text-2xl font-black uppercase tracking-tighter md:text-3xl">{c.ok.title}</h3>
-        <p className="mx-auto mt-3 max-w-md text-base font-bold text-black/70">{c.ok.body}</p>
-        <a
-          href={waHref} target="_blank" rel="noopener noreferrer"
-          className="mt-7 inline-flex h-12 items-center justify-center border-4 border-black bg-black px-6 text-sm font-bold uppercase tracking-wide text-white shadow-neo-sm transition-all duration-100 hover:-translate-y-0.5 hover:shadow-neo active:translate-x-[3px] active:translate-y-[3px] active:shadow-none"
-        >
-          {c.ok.wa}
-        </a>
+        <span aria-hidden="true" className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-sv-tint text-sv-green">
+          <svg viewBox="0 0 16 16" width="22" height="22"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </span>
+        <h3 className="mt-5 text-2xl font-semibold">{c.ok.title}</h3>
+        <p className="mx-auto mt-3 max-w-md text-sv-slate">{c.ok.body}</p>
       </div>
     );
   }
 
   /* ── form ────────────────────────────────────────────────────────────── */
   const inputBase =
-    'w-full border-4 border-black bg-white px-4 py-3 text-base font-bold text-neo-ink shadow-none ' +
-    'transition-shadow duration-100 focus:shadow-neo-sm focus:outline-none';
-  const bad = 'border-red-600 bg-red-50';
+    'w-full rounded-xl border border-sv-line bg-white px-4 py-3 text-base text-sv-ink ' +
+    'transition-[border-color,box-shadow] duration-150 hover:border-sv-slate/40 ' +
+    'focus:border-sv-green focus:shadow-[0_0_0_4px_rgba(4,120,87,0.14)] focus:outline-none';
+  const bad = 'border-red-600 bg-red-50/40';
 
   function Err({ f }: { f: Field }) {
     if (!errors[f]) return null;
-    return <p id={id(`${f}-err`)} className="mt-1.5 text-sm font-bold text-red-700">{errors[f]}</p>;
+    return <p id={id(`${f}-err`)} className="mt-1.5 text-sm text-red-700">{errors[f]}</p>;
   }
 
   function Label({ f, optional }: { f: Field; optional?: boolean }) {
     return (
-      <label htmlFor={id(f)} className="mb-1.5 block text-xs font-black uppercase tracking-widest">
+      <label htmlFor={id(f)} className="mb-1.5 block text-sm font-medium text-sv-ink">
         {c.label[f]}
-        {optional && <span className="ms-2 font-bold normal-case tracking-normal text-black/40">({c.optional})</span>}
+        {optional && <span className="ms-1.5 font-normal text-sv-slate">({c.optional})</span>}
       </label>
     );
   }
@@ -227,7 +213,7 @@ export default function LeadForm({ waHref }: { waHref: string }) {
     ({ 'aria-invalid': errors[f] ? true : undefined, 'aria-describedby': errors[f] ? id(`${f}-err`) : undefined }) as const;
 
   return (
-    <form onSubmit={submit} noValidate className="mx-auto max-w-2xl border-4 border-black bg-white p-6 text-start shadow-neo md:p-8">
+    <form onSubmit={submit} noValidate className="rounded-2xl bg-white p-6 text-start shadow-card ring-1 ring-sv-line md:p-8">
       {/* Bait for bots that fill every field they find. Off-screen rather than display:none,
           which some crawlers skip, and hidden from assistive tech and the tab order. */}
       <div className="neo-hp" aria-hidden="true">
@@ -276,7 +262,7 @@ export default function LeadForm({ waHref }: { waHref: string }) {
         <div>
           <Label f="email" optional />
           <input
-            id={id('email')} name="email" type="email" inputMode="email" autoComplete="email"
+            id={id('email')} name="email" type="email" inputMode="email" autoComplete="email" spellCheck={false}
             maxLength={MAX.email} value={v.email}
             placeholder={c.ph.email} onChange={(e) => set('email', e.target.value)}
             className={`${inputBase} ${errors.email ? bad : ''}`} dir="ltr" {...aria('email')}
@@ -307,23 +293,16 @@ export default function LeadForm({ waHref }: { waHref: string }) {
           that silently did nothing. */}
       <div role="alert" aria-live="polite">
         {formError && (
-          <p className="mt-4 border-4 border-red-600 bg-red-50 p-3 text-sm font-bold text-red-700">{formError}</p>
+          <p className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{formError}</p>
         )}
       </div>
 
       <button
         type="submit" disabled={pending}
-        className="mt-6 inline-flex h-14 w-full items-center justify-center gap-2 border-4 border-black bg-neo-accent px-7 text-sm font-bold uppercase tracking-wide text-black shadow-neo-sm transition-all duration-100 hover:-translate-y-0.5 hover:shadow-neo active:translate-x-[3px] active:translate-y-[3px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-neo-sm"
+        className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-sv-green px-6 text-[15px] font-medium text-white transition-colors hover:bg-sv-deep disabled:cursor-not-allowed disabled:opacity-60"
       >
         {pending ? c.submitting : c.submit}
       </button>
-
-      <p className="mt-4 text-center text-sm font-bold text-black/60">
-        {c.or}
-        <a href={waHref} target="_blank" rel="noopener noreferrer" className="underline decoration-4 underline-offset-4 hover:text-black">
-          {c.wa}
-        </a>
-      </p>
     </form>
   );
 }

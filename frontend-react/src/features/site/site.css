@@ -1,12 +1,13 @@
 /* =====================================================================
-   Serva — Neo-brutalist marketing landing styles
+   Serva — marketing site styles
    ---------------------------------------------------------------------
    Tailwind utilities power the layout (scoped to #neo via important:'#neo'
    in tailwind.config.js, with preflight OFF so the rest of the app is never
    touched). This file owns:
-     1. the #neo root reset (utilities can't target the root element itself)
-     2. the textures / text-stroke / decorative bits that read poorly inline
-   Imported only by LandingPage.tsx, so Vite code-splits it off the customer
+     1. the #neo root reset — preflight is off, so the UA defaults arrive intact
+     2. the display type scale, which needs an Arabic override utilities can't express
+     3. the day-of-service pieces: sky gradient, thermal ticket, reveal motion
+   Imported by the site pages only, so Vite code-splits it off the customer
    and dashboard bundles.
    ===================================================================== */
 @tailwind base;
@@ -16,117 +17,81 @@
 /* ---- root surface ------------------------------------------------- */
 #neo {
   min-height: 100%;
-  background: #fafaf7;
-  color: #15181c;
-  font-family: 'Space Grotesk', system-ui, sans-serif;
-  font-weight: 700;
-  line-height: 1.5;
+  background: #fff;
+  color: #0c1411;
+  font-family: 'IBM Plex Sans', 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  font-weight: 400;
+  line-height: 1.6;
   overflow-x: clip;
   position: relative;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 #neo.lang-ar {
-  font-family: 'Tajawal', 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;
 }
-/* Arabic script has no caps — neutralise the uppercase utility so AR text
-   doesn't render mangled, while English keeps its loud all-caps headings. */
-#neo.lang-ar .uppercase {
-  text-transform: none;
-  letter-spacing: normal;
+/* Tracking pulls Arabic letters apart instead of tightening them — the script is
+   joined, so any letter-spacing breaks the joins. Every tracking utility goes flat. */
+#neo.lang-ar [class*='tracking-'] {
+  letter-spacing: 0;
 }
 #neo ::selection {
-  background: #10b981;
-  color: #03120d;
+  background: #cdeee0;
+  color: #0c1411;
 }
 #neo :focus-visible {
-  outline: 4px solid #15181c;
-  outline-offset: 2px;
+  outline: 2px solid #047857;
+  outline-offset: 3px;
+  border-radius: 6px;
 }
 
-/* ---- display type: hollow text-stroke ----------------------------- */
-.neo-stroke {
-  -webkit-text-stroke: 2px #15181c;
-  text-stroke: 2px #15181c;
-  color: transparent;
-  paint-order: stroke fill;
+/* ---- UA reset (preflight is off) ---------------------------------- */
+/* Element selectors here sit at (1,0,1), under every utility's (1,1,0), so any
+   class that asks for a margin, padding or background still wins. */
+#neo h1, #neo h2, #neo h3, #neo h4, #neo p, #neo figure,
+#neo dl, #neo dd, #neo blockquote {
+  margin: 0;
 }
-@media (min-width: 768px) {
-  .neo-stroke {
-    -webkit-text-stroke: 3px #15181c;
-    text-stroke: 3px #15181c;
-  }
+#neo ul, #neo ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
-
-/* ---- background textures (decor layers) --------------------------- */
-.neo-dots {
-  background-image: radial-gradient(#000 1.6px, transparent 1.7px);
-  background-size: 22px 22px;
-}
-.neo-grid {
-  background-size: 40px 40px;
-  background-image:
-    linear-gradient(to right, rgba(0, 0, 0, 0.12) 2px, transparent 2px),
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.12) 2px, transparent 2px);
-}
-.neo-diag {
-  background-image: repeating-linear-gradient(
-    45deg,
-    #000 0,
-    #000 3px,
-    transparent 3px,
-    transparent 11px
-  );
-}
-
-/* ---- marquee ------------------------------------------------------ */
-/* Two copies of the content sit side by side; translating the track by -50%
-   loops seamlessly. Direction stays LTR-visual in both languages so the
-   ticker always sweeps the same way. */
-.neo-marquee-track {
-  display: flex;
-  width: max-content;
-  animation: neo-marquee 28s linear infinite;
-}
-@keyframes neo-marquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-
-/* ---- reduced motion ----------------------------------------------- */
-@media (prefers-reduced-motion: reduce) {
-  .neo-marquee-track {
-    animation: none !important;
-  }
-}
-
-/* ---- form controls ------------------------------------------------ */
-/* Preflight is off, so inputs arrive with full UA styling — their own font,
-   rounded corners, and on iOS an inner shadow. Utilities can restyle the box
-   but not the font inheritance, so the reset lives here.
-   16px is deliberate and load-bearing: iOS Safari zooms the page on focus for
-   anything smaller, which on a phone reads as the form "jumping". */
-#neo input,
-#neo textarea {
-  font: inherit;
-  font-size: 16px;
+#neo a {
   color: inherit;
-  appearance: none;
-  -webkit-appearance: none;
-  border-radius: 0;
-  background-clip: padding-box;
+  text-decoration: none;
 }
+#neo a, #neo button, #neo summary {
+  touch-action: manipulation;
+}
+#neo button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+#neo img, #neo svg {
+  display: block;
+  max-width: 100%;
+}
+#neo summary {
+  list-style: none;
+  cursor: pointer;
+}
+#neo summary::-webkit-details-marker {
+  display: none;
+}
+
 /* ---- border-style ------------------------------------------------- */
 /* Tailwind's border-* utilities set width and colour but never style — preflight is what
    normally declares `border-style: solid` on every element, and it is off here. So the
    initial value wins: `none` on most elements, which also forces the computed width to 0,
-   and the UA's bevel on form controls (inset on inputs, outset on buttons) painted grey
-   whatever colour was asked for. On a page whose entire look is 4px black borders, that
-   silently dropped most of them.
+   and the UA's bevel on form controls painted grey whatever colour was asked for.
 
    border-width:0 must ride along: once the style is no longer `none`, the initial width
    (`medium`, ~3px in currentColor) would apply to every element that never asked for a
-   border. The border-* utilities outrank this rule (#neo .border-4 beats #neo *), so the
+   border. The border-* utilities outrank this rule (#neo .border beats #neo *), so the
    ones that do ask still win. */
 #neo *,
 #neo *::before,
@@ -135,18 +100,180 @@
   border-style: solid;
 }
 
+/* ---- display type ------------------------------------------------- */
+/* Sora carries the Latin headings; it has no Arabic, so an Arabic heading falls
+   through to Plex Sans Arabic — which needs more line-height than Sora's tight
+   leading, or its ascenders collide across lines. */
+#neo .sv-h1,
+#neo .sv-h2,
+#neo .sv-h3 {
+  font-family: 'Sora', 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  font-weight: 600;
+  color: inherit;
+  text-wrap: balance; /* no lone word on the last line */
+}
+#neo .sv-h1 {
+  font-size: clamp(2.5rem, 1.4rem + 4.6vw, 5.25rem);
+  line-height: 1.02;
+  letter-spacing: -0.045em;
+}
+#neo .sv-h2 {
+  font-size: clamp(2rem, 1.3rem + 2.4vw, 3.25rem);
+  line-height: 1.06;
+  letter-spacing: -0.035em;
+}
+#neo .sv-h3 {
+  font-size: clamp(1.5rem, 1.15rem + 1.1vw, 2.125rem);
+  line-height: 1.14;
+  letter-spacing: -0.025em;
+}
+/* /v2's headline shares its row with the product mock, so it runs a size smaller. */
+#neo .sv-h1.sv-h1-split {
+  font-size: clamp(2.3rem, 1.4rem + 2.9vw, 3.75rem);
+  line-height: 1.05;
+}
+#neo.lang-ar .sv-h1 { line-height: 1.3; letter-spacing: 0; font-weight: 700; }
+#neo.lang-ar .sv-h2 { line-height: 1.35; letter-spacing: 0; font-weight: 700; }
+#neo.lang-ar .sv-h3 { line-height: 1.4; letter-spacing: 0; font-weight: 700; }
+
+/* Numbers that line up in columns — prices, times, counts. */
+#neo .tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- the sky ------------------------------------------------------ */
+/* One gradient for the whole day, 06:00 at 0% to midnight at 100% — sunset (18:00)
+   lands at two thirds. The ribbon, the clock track and the sunset band all read
+   from it, so a time sits on the same colour everywhere it appears. */
+#neo .sv-sky {
+  background: linear-gradient(
+    var(--sky-dir, 90deg),
+    #f2c7a2 0%,
+    #f5e3cf 7%,
+    #dcebe5 20%,
+    #eef4f1 42%,
+    #f1e8d6 58%,
+    #eb9d6c 66%,
+    #b4586b 72%,
+    #3a3553 80%,
+    #152032 90%,
+    #0c1411 100%
+  );
+}
+#neo[dir='rtl'] .sv-sky {
+  --sky-dir: 270deg;
+}
+#neo .sv-sunset {
+  background: linear-gradient(
+    180deg,
+    #faf7f0 0%,
+    #f4dcc2 18%,
+    #eb9d6c 38%,
+    #b4586b 56%,
+    #3a3553 76%,
+    #0f1a1f 100%
+  );
+}
+#neo .sv-sunrise {
+  background: linear-gradient(180deg, #0c1411 0%, #3a3553 22%, #d99a86 48%, #f5e3cf 72%, #fff 100%);
+}
+#neo .sv-dawn {
+  background: linear-gradient(180deg, #fbf0e6 0%, #fff 70%);
+}
+
+/* ---- thermal ticket ----------------------------------------------- */
+/* A torn bottom edge: the conic mask cuts a row of teeth along the bottom. The mask
+   also clips box-shadow, so the lift comes from a drop-shadow on the wrapper. */
+#neo .sv-ticket {
+  background: #fffefa;
+  -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 12px 100%;
+  mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 12px 100%;
+}
+#neo .sv-ticket-lift {
+  filter: drop-shadow(0 1px 1px rgba(12, 20, 17, 0.08)) drop-shadow(0 14px 18px rgba(12, 20, 17, 0.16));
+}
+/* Fed out of the printer slot once the chapter scrolls in. */
+#neo .sv-feed {
+  transform: translateY(-101%);
+}
+#neo .is-in .sv-feed {
+  animation: sv-feed 1.1s cubic-bezier(0.3, 0.7, 0.2, 1) 0.2s forwards;
+}
+@keyframes sv-feed {
+  to { transform: translateY(0); }
+}
+
+/* ---- swap: content redrawn by the /v2 venue pick fades in ---------- */
+#neo .sv-swap {
+  animation: sv-swap 0.35s ease-out;
+}
+@keyframes sv-swap {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---- reveal ------------------------------------------------------- */
+#neo .sv-reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+#neo .is-in .sv-reveal,
+#neo .sv-reveal.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---- the live dot ------------------------------------------------- */
+#neo .sv-live::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+  opacity: 0;
+  animation: sv-ping 2.4s ease-out infinite;
+}
+@keyframes sv-ping {
+  0% { transform: scale(0.6); opacity: 0.6; }
+  80%, 100% { transform: scale(1.5); opacity: 0; }
+}
+
+/* ---- chart tooltip ------------------------------------------------ */
+#neo .sv-bar:hover .sv-tip {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ---- reduced motion ----------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  #neo .sv-reveal { opacity: 1; transform: none; transition: none; }
+  #neo .sv-feed, #neo .is-in .sv-feed { transform: none; animation: none; }
+  #neo .sv-live::after { animation: none; }
+  #neo .sv-swap { animation: none; }
+}
+
+/* ---- form controls ------------------------------------------------ */
+/* Inputs arrive with full UA styling — their own font, rounded corners, and on iOS
+   an inner shadow. 16px is deliberate and load-bearing: iOS Safari zooms the page on
+   focus for anything smaller, which on a phone reads as the form "jumping". */
+#neo input,
+#neo textarea {
+  font: inherit;
+  font-size: 16px;
+  color: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  background-clip: padding-box;
+}
 #neo input::placeholder,
 #neo textarea::placeholder {
-  color: #15181c;
-  opacity: 0.35;
-  font-weight: 700;
+  color: #0c1411;
+  opacity: 0.38;
 }
-/* The border already carries focus, but a hard ring keeps keyboard users
-   oriented where the shadow alone is too subtle against the accent band. */
 #neo input:focus-visible,
 #neo textarea:focus-visible {
-  outline: 3px solid #15181c;
-  outline-offset: 2px;
+  outline: none;
 }
 
 /* ---- honeypot ------------------------------------------------------ */

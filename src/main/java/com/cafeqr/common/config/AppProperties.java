@@ -142,7 +142,7 @@ public record AppProperties(
         public record Email(
                 String provider,        // "smtp" to enable; anything else = log only
                 String from,            // e.g. "Serva <onboarding@yourdomain.com>" (Brevo-verified sender)
-                String adminAlertTo     // where new-signup alerts go (optional)
+                String adminAlertTo     // where new-lead alerts go (optional)
         ) {
             public boolean smtpEnabled() {
                 return "smtp".equalsIgnoreCase(provider);

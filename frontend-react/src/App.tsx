@@ -1,12 +1,15 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import MenuPage from './features/customer/MenuPage';
 import CartPage from './features/customer/CartPage';
 import TrackPage from './features/customer/TrackPage';
 import { useAuth } from './lib/auth';
 import JoinPage from './features/auth/JoinPage';
 
-const LandingPage = lazy(() => import('./features/site/LandingPage'));
+// The marketing landing ("built for your venue"). The earlier "day of service" concept
+// stays reachable at /day, unindexed, until it's decided what to do with it.
+const VenueLanding = lazy(() => import('./features/site/VenueLanding'));
+const DayLanding = lazy(() => import('./features/site/LandingPage'));
 const LoyaltyPortal = lazy(() => import('./features/customer/LoyaltyPortal'));
 const LegalPage = lazy(() => import('./features/site/LegalPage'));
 const AnalyticsGuidePage = lazy(() => import('./features/site/AnalyticsGuidePage'));
@@ -23,7 +26,10 @@ export default function App() {
         {/* Marketing landing (public) — but a session already in localStorage skips
             straight to the dashboard instead of showing the marketing page again;
             DashboardApp itself further routes platform admins on to /admin. */}
-        <Route path="/" element={authed ? <Navigate to="/dashboard" replace /> : <LandingPage />} />
+        <Route path="/" element={authed ? <Navigate to="/dashboard" replace /> : <VenueLanding />} />
+        <Route path="/day" element={<DayLanding />} />
+        {/* The landing was previewed at /v2 — links already sent (e.g. ?for=food-truck) keep working. */}
+        <Route path="/v2" element={<KeepQuery to="/" />} />
         <Route path="/legal/:slug" element={<LegalPage />} />
         <Route path="/guide/analytics" element={<AnalyticsGuidePage />} />
 
@@ -53,4 +59,10 @@ export default function App() {
       </Routes>
     </Suspense>
   );
+}
+
+/** Redirect that carries the query string along, so a venue preset in an old link survives. */
+function KeepQuery({ to }: { to: string }) {
+  const { search } = useLocation();
+  return <Navigate to={to + search} replace />;
 }

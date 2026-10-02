@@ -21,7 +21,6 @@ export const COMPANY = {
   legalName: { en: 'Siah Tech Solutions LLC', ar: 'سياه تك سوليوشنز ش.م.م' },
   cr: '1664835', // Commercial Registration number
   email: 'hello@serva.om',
-  phoneIntl: '+968 7695 9208',
   address: { en: 'Muscat, Sultanate of Oman', ar: 'مسقط، سلطنة عُمان' },
 };
 
