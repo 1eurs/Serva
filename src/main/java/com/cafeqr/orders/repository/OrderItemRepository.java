@@ -29,6 +29,27 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
                                @Param("to") Instant to);
 
     /**
+     * Revenue attributable to the cart's "goes well with your order" upsell: summed line totals of
+     * items the customer added from a suggestion, across orders that were actually collected
+     * (COMPLETED and PAID) — matching the collected-revenue definition of the headline so the two
+     * numbers reconcile.
+     */
+    @Query("""
+            SELECT COALESCE(SUM(oi.lineTotal), 0)
+            FROM OrderItem oi JOIN oi.order o
+            WHERE oi.fromSuggestion = true
+              AND (:restaurantId IS NULL OR o.restaurantId = :restaurantId)
+              AND (:branchId IS NULL OR o.branchId = :branchId)
+              AND o.status = com.cafeqr.orders.domain.OrderStatus.COMPLETED
+              AND o.paymentStatus = com.cafeqr.orders.domain.PaymentStatus.PAID
+              AND o.createdAt >= :from AND o.createdAt < :to
+            """)
+    java.math.BigDecimal sumSuggestionRevenue(@Param("restaurantId") Long restaurantId,
+                                              @Param("branchId") Long branchId,
+                                              @Param("from") Instant from,
+                                              @Param("to") Instant to);
+
+    /**
      * Distinct orders containing each menu item in the window (non-cancelled/declined) — the
      * numerator for the conversion radar (orders-per-view, not quantity-per-view). Branch-scoped
      * like {@link #bestSelling}. Rows: {@code [menuItemId, distinctOrders]}.
@@ -107,4 +128,50 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
                                 @Param("from") Instant from,
                                 @Param("to") Instant to,
                                 @Param("limit") int limit);
+
+    /**
+     * Cart-directed market basket: given the items already in a customer's cart ({@code seedIds}),
+     * find the other items most often ordered alongside them, ranked by how many distinct orders
+     * they co-occurred in. Powers the "goes well with your order" upsell on the cart.
+     *
+     * <p>A suggestion must complete the order, not duplicate it. Raw co-occurrence conflates
+     * complements (coffee + pastry) with duplicates ordered because two people are at the table
+     * (coffee + coffee). So a candidate is dropped when it shares the cart's <em>course type</em>
+     * (DRINK/FOOD/DESSERT) — which spans categories, so a second drink from a different drink
+     * category is caught too. Categories the owner hasn't tagged (null type) fall back to
+     * excluding only the exact same category. Joining {@code menu_items} also drops items no
+     * longer on the menu. The seeds themselves are excluded, and a suggestion must have
+     * co-occurred in at least two distinct orders — one shared basket is a coincidence, not a
+     * pairing. Rows: {@code [menuItemId, coOrders]}.
+     */
+    @Query(value = """
+            SELECT other.menu_item_id AS item_id,
+                   COUNT(DISTINCT other.order_id) AS co_orders
+            FROM order_items seed
+            JOIN order_items other ON other.order_id = seed.order_id
+                                  AND other.menu_item_id <> seed.menu_item_id
+            JOIN orders o ON o.id = seed.order_id
+            JOIN menu_items mi ON mi.id = other.menu_item_id
+            JOIN menu_categories mc ON mc.id = mi.category_id
+            WHERE o.restaurant_id = :restaurantId
+              AND seed.menu_item_id IN (:seedIds)
+              AND other.menu_item_id IS NOT NULL
+              AND other.menu_item_id NOT IN (:seedIds)
+              AND mi.category_id NOT IN (SELECT m2.category_id FROM menu_items m2 WHERE m2.id IN (:seedIds))
+              AND (mc.course_type IS NULL OR mc.course_type NOT IN (
+                      SELECT mc2.course_type FROM menu_items m3
+                      JOIN menu_categories mc2 ON mc2.id = m3.category_id
+                      WHERE m3.id IN (:seedIds) AND mc2.course_type IS NOT NULL))
+              AND o.status NOT IN ('DECLINED', 'CANCELLED')
+              AND o.created_at >= :from AND o.created_at < :to
+            GROUP BY other.menu_item_id
+            HAVING COUNT(DISTINCT other.order_id) >= 2
+            ORDER BY co_orders DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> suggestionsForItems(@Param("restaurantId") Long restaurantId,
+                                       @Param("seedIds") List<Long> seedIds,
+                                       @Param("from") Instant from,
+                                       @Param("to") Instant to,
+                                       @Param("limit") int limit);
 }

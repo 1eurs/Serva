@@ -11,11 +11,13 @@ import com.cafeqr.common.util.Phones;
 import com.cafeqr.common.util.TimeZones;
 import com.cafeqr.common.util.Tokens;
 import com.cafeqr.customers.CustomerService;
+import com.cafeqr.coupons.CouponService;
 import com.cafeqr.loyalty.LoyaltyService;
 import com.cafeqr.menus.MenuService;
 import com.cafeqr.otp.OtpService;
 import com.cafeqr.payments.PaymentService;
 import com.cafeqr.payments.domain.PaymentMethod;
+import com.cafeqr.payments.dto.PaymentTender;
 import com.cafeqr.menus.domain.MenuItem;
 import com.cafeqr.orders.domain.Order;
 import com.cafeqr.orders.domain.OrderItem;
@@ -80,6 +82,7 @@ public class OrderService {
     private final OtpService otpService;
     private final EventLogService eventLogService;
     private final LoyaltyService loyaltyService;
+    private final CouponService couponService;
     private final PaymentService paymentService;
     private final PrintJobService printJobService;
     private final StockDrawService stockDrawService;
@@ -98,6 +101,7 @@ public class OrderService {
                         OtpService otpService,
                         EventLogService eventLogService,
                         LoyaltyService loyaltyService,
+                        CouponService couponService,
                         PaymentService paymentService,
                         PrintJobService printJobService,
                         StockDrawService stockDrawService,
@@ -115,6 +119,7 @@ public class OrderService {
         this.otpService = otpService;
         this.eventLogService = eventLogService;
         this.loyaltyService = loyaltyService;
+        this.couponService = couponService;
         this.paymentService = paymentService;
         this.printJobService = printJobService;
         this.stockDrawService = stockDrawService;
@@ -224,10 +229,20 @@ public class OrderService {
         if (restaurantId == null) {
             throw new BadRequestException("Only café staff can take manual orders.");
         }
+        // Shape of the request first, before a single lookup: two answers to "how was this
+        // paid" is how a till ends the day disagreeing with itself, and there is no point
+        // pricing a basket for a request that cannot be settled either way.
+        List<PaymentTender> tenders = request.tenders() == null ? List.of() : request.tenders();
+        if (!tenders.isEmpty() && (Boolean.TRUE.equals(request.paid()) || request.paymentMethod() != null)) {
+            throw new BadRequestException("A split bill already says how it was paid.");
+        }
         Restaurant restaurant = restaurantService.getEntity(restaurantId);
         Branch branch = branchService.getEntityInRestaurant(restaurantId, request.branchId());
         accessGuard.requireBranchAccess(restaurantId, branch.getId());
         branchService.requireActive(branch);
+        // The counter serves through a pause — that is what a pause is for — but not through a
+        // closed drawer: there would be nowhere for the cash to go and nothing to count it against.
+        branchService.requireTillOpen(branch);
 
         Order order = new Order();
         order.setRestaurantId(restaurantId);
@@ -253,13 +268,15 @@ public class OrderService {
         order.setCustomerName(blankToNull(request.customerName()));
         order.setCustomerPhone(request.customerPhone() == null || request.customerPhone().isBlank()
                 ? null : Phones.normalize(request.customerPhone()));
+        order.setPagerNumber(blankToNull(request.pagerNumber()));
         order.setCustomerNote(blankToNull(request.customerNote()));
         // Counter mode: the kitchen works off the ticket printed at the counter, so the board
         // is only the hand-over list — and payment is what moves an order along it. Paid at
         // the counter: skip "in progress", open READY (it clears itself later). Not paid yet:
         // open ACCEPTED as an open tab; a Collect tap on the board pays it and moves it on.
         // READY must never mean "we haven't been paid".
-        boolean paid = Boolean.TRUE.equals(request.paid());
+        // A split IS payment, so it moves the order along exactly as a one-tap payment does.
+        boolean paid = Boolean.TRUE.equals(request.paid()) || !tenders.isEmpty();
         Instant now = Instant.now();
         order.setStatus(branch.isCounterMode() && paid ? OrderStatus.READY : OrderStatus.ACCEPTED);
         order.setAcceptedAt(now);
@@ -272,6 +289,9 @@ public class OrderService {
         order.setSubtotal(subtotal);
         order.setVatAmount(vatAmount);
         order.setTotal(subtotal.add(vatAmount));
+        // Before the save, and so before the split below is checked against this order's total:
+        // the shares a table hands over have to add up to the discounted bill, not the full one.
+        couponService.apply(order, restaurant, request.couponCode());
         order.setOrderNumber(nextOrderNumber());
         order.setDailyNumber(orderRepository.nextDailyNumber(branch.getId(), LocalDate.now(TimeZones.CAFES)));
         order.setTrackingToken(Tokens.random(18));
@@ -281,7 +301,12 @@ public class OrderService {
         // counter is looking at the shelf, and the draw simply clamps at zero.
         stockDrawService.draw(saved);
         eventLogService.recordOrderEvent(saved, saved.getStatus(), "Manual order (staff)");
-        if (paid) {
+        if (!tenders.isEmpty()) {
+            // Validates the shares against the total THIS method just computed, so a pad working
+            // from a stale price settles nothing: the whole order rolls back rather than closing
+            // a bill that was never covered.
+            paymentService.settleSplit(saved.getId(), tenders);
+        } else if (paid) {
             paymentService.markPaid(saved.getId(),
                     request.paymentMethod() != null ? request.paymentMethod() : PaymentMethod.CARD);
         }
@@ -318,10 +343,11 @@ public class OrderService {
     // ============================================================ dashboard
 
     @Transactional(readOnly = true)
-    public Page<OrderSummaryResponse> listForDashboard(OrderStatus status, Long branchId, Pageable pageable) {
+    public Page<OrderSummaryResponse> listForDashboard(OrderStatus status, boolean unpaid,
+                                                       Long branchId, Pageable pageable) {
         Long restaurantScope = accessGuard.scopedRestaurantId();
         Long branchScope = resolveBranchScope(branchId);
-        return orderRepository.search(restaurantScope, branchScope, status, pageable)
+        return orderRepository.search(restaurantScope, branchScope, status, unpaid, pageable)
                 .map(OrderSummaryResponse::from);
     }
 
@@ -483,7 +509,8 @@ public class OrderService {
         Instant pricedAt = Instant.now();
         for (CreateOrderRequest.Item line : items) {
             MenuItem menuItem = menuService.getOrderableItem(restaurant.getId(), branch.getId(), line.menuItemId());
-            ResolvedOptions resolved = resolveOptions(menuItem, line.selectedOptions());
+            ResolvedOptions resolved = resolveOptions(menuItem, line.selectedOptions(),
+                    comboContents(restaurant, branch, menuItem));
 
             // effectivePrice honours any active discount/window; option deltas stack on top.
             BigDecimal unitPrice = menuItem.effectivePrice(pricedAt).add(resolved.priceDelta());
@@ -502,6 +529,7 @@ public class OrderService {
             orderItem.setNote(line.note());
             orderItem.setLineTotal(lineTotal);
             orderItem.setSelectedOptionsJson(resolved.snapshotJson());
+            orderItem.setFromSuggestion(Boolean.TRUE.equals(line.fromSuggestion()));
             order.addItem(orderItem);
 
             subtotal = subtotal.add(lineTotal);
@@ -531,7 +559,8 @@ public class OrderService {
      * options (or where the customer chose none) — unless a SINGLE group is required.
      */
     private ResolvedOptions resolveOptions(MenuItem menuItem,
-                                           List<CreateOrderRequest.SelectedOption> selections) {
+                                           List<CreateOrderRequest.SelectedOption> selections,
+                                           java.util.List<SelectedOptionSnapshot> included) {
         var groupsById = new java.util.HashMap<Long, MenuItemOptionGroup>();
         var optionsByGroupId = new java.util.HashMap<Long, java.util.Map<Long, MenuItemOption>>();
         for (MenuItemOptionGroup g : menuItem.getOptionGroups()) {
@@ -543,7 +572,7 @@ public class OrderService {
 
         selections = selections == null ? List.of() : selections;
         java.util.Map<Long, Integer> countPerGroup = new java.util.HashMap<>();
-        java.util.List<SelectedOptionSnapshot> snapshots = new java.util.ArrayList<>(selections.size());
+        java.util.List<SelectedOptionSnapshot> snapshots = new java.util.ArrayList<>(included);
         BigDecimal delta = BigDecimal.ZERO.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
 
         for (CreateOrderRequest.SelectedOption s : selections) {
@@ -581,6 +610,27 @@ public class OrderService {
 
         String json = snapshots.isEmpty() ? null : serializeOptions(snapshots);
         return new ResolvedOptions(delta, json);
+    }
+
+    /**
+     * What a combo line holds, written onto the line as an "Includes" group so the order still
+     * says "Latte + Croissant" after the owner edits the combo. Each part must itself be orderable
+     * here — a combo is not a back door to an item the owner switched off or kept at another
+     * branch. Repeats collapse to "2 × Croissant". Empty for a plain item.
+     */
+    private java.util.List<SelectedOptionSnapshot> comboContents(Restaurant restaurant, Branch branch, MenuItem combo) {
+        java.util.List<Long> ids = combo.getComboItemIds();
+        if (ids.isEmpty()) return List.of();
+        java.util.Map<Long, Integer> counts = new java.util.LinkedHashMap<>();
+        ids.forEach(id -> counts.merge(id, 1, Integer::sum));
+        java.util.List<SelectedOptionSnapshot> out = new java.util.ArrayList<>(counts.size());
+        for (java.util.Map.Entry<Long, Integer> e : counts.entrySet()) {
+            MenuItem part = menuService.getOrderableItem(restaurant.getId(), branch.getId(), e.getKey());
+            String times = e.getValue() > 1 ? e.getValue() + " × " : "";
+            out.add(new SelectedOptionSnapshot(null, "Includes", "يشمل", part.getId(),
+                    times + part.getNameEn(), times + part.getNameAr(), BigDecimal.ZERO));
+        }
+        return out;
     }
 
     private String serializeOptions(java.util.List<SelectedOptionSnapshot> snapshots) {

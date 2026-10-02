@@ -5,6 +5,7 @@ import com.cafeqr.auth.security.AccessGuard;
 import com.cafeqr.branches.domain.Branch;
 import com.cafeqr.branches.dto.CreateBranchRequest;
 import com.cafeqr.branches.repository.BranchRepository;
+import com.cafeqr.till.repository.TillSessionRepository;
 import com.cafeqr.common.exception.ForbiddenException;
 import com.cafeqr.common.exception.PlanRequiredException;
 import com.cafeqr.plans.domain.Feature;
@@ -49,7 +50,8 @@ class StandardBranchAllowanceTest {
         // because a mocked Long answers 0, not null, and 0 would read as "pinned to a branch".
         when(accessGuard.scopedBranchId()).thenReturn(null);
         when(branches.save(any(Branch.class))).thenAnswer(i -> i.getArgument(0));
-        service = new BranchService(branches, restaurantService, accessGuard, entitlements);
+        service = new BranchService(branches, restaurantService, accessGuard, entitlements,
+                mock(TillSessionRepository.class));
     }
 
     /**

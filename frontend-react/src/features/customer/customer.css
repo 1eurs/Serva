@@ -27,12 +27,12 @@
 .c-brand{display:flex;align-items:center;gap:13px;min-width:0}
 .c-brand>div{min-width:0}
 .c-mark{width:52px;height:52px;flex:0 0 auto;border-radius:var(--r-mark,15px);display:grid;place-items:center;font-family:var(--font-display);font-weight:800;font-size:22px;color:var(--accent-ink);
-  background:linear-gradient(155deg,var(--accent),var(--accent-2));box-shadow:0 10px 24px -8px var(--accent-glow)}
+  background:linear-gradient(155deg,var(--accent),var(--accent-2))}
 .c-mark.has-logo{background:var(--surface-2);border:1px solid var(--line-2);overflow:hidden;padding:3px;box-shadow:0 12px 26px -14px var(--text)}
 .c-mark img{width:100%;height:100%;object-fit:cover;border-radius:calc(var(--r-mark,15px) - 4px);display:block}
 .c-brand h1{font-family:var(--font-display);font-weight:800;font-size:20px;line-height:1.12;letter-spacing:0;color:var(--text);
   white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.c-brand .en{font-family:var(--font-mono);font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.c-brand .en{font-size:11.5px;letter-spacing:0;color:var(--muted);margin-top:3px}
 .c-meta{display:flex;align-items:center;gap:10px;margin-top:16px;font-size:13px;color:var(--muted)}
 .c-table{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;font-weight:600;font-size:12.5px;color:var(--text);background:var(--surface);border:1px solid var(--line-2)}
 .c-table .num{color:var(--accent-text)}
@@ -48,18 +48,18 @@
   background:var(--glass);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
 .c-nav::-webkit-scrollbar{display:none}
 .c-nav button{white-space:nowrap;border:1px solid var(--line-2);background:transparent;color:var(--muted);font-family:var(--font-ar);
-  font-weight:500;font-size:13.5px;padding:8px 12px;border-radius:999px;cursor:pointer;transition:.22s;flex:0 0 auto;display:inline-flex;align-items:center;gap:7px}
+  font-weight:500;font-size:13.5px;padding:8px 12px;border-radius:999px;cursor:pointer;transition:background-color .22s,color .22s,border-color .22s;flex:0 0 auto;display:inline-flex;align-items:center;gap:7px}
 .c-nav button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
 .c-nav button em{min-width:20px;height:20px;border-radius:999px;display:grid;place-items:center;padding:0 6px;background:var(--surface);color:var(--muted);font-family:var(--font-mono);font-style:normal;font-size:11px;border:1px solid var(--line)}
 .c-nav button.on em{background:color-mix(in srgb,var(--accent-ink) 14%,transparent);color:var(--accent-ink);border-color:color-mix(in srgb,var(--accent-ink) 24%,transparent)}
 
 /* menu */
-.c-scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;scroll-behavior:smooth;scroll-padding-top:72px}
+.c-scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;scroll-behavior:smooth;scroll-padding-top:0}
 .c-scroll::-webkit-scrollbar{width:0}
-.c-cat{padding:24px 18px 4px;scroll-margin-top:72px}
+.c-cat{padding:24px 18px 4px;scroll-margin-top:12px}
 .c-cat-head{display:flex;align-items:center;gap:14px;margin-bottom:6px}
 .c-cat-head h2{font-family:var(--font-display);font-size:21px;font-weight:700;letter-spacing:-.01em;white-space:nowrap;color:var(--text)}
-.c-cat-head .en{font-family:var(--font-mono);font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--faint)}
+.c-cat-head .en{font-size:11px;letter-spacing:0;color:var(--faint)}
 .c-rule{flex:1;height:1px;background:linear-gradient(90deg,var(--line-2),transparent)}
 html[dir="ltr"] .c-rule{background:linear-gradient(270deg,var(--line-2),transparent)}
 .c-cat-desc{color:var(--faint);font-size:12.5px;margin:2px 0 14px}
@@ -77,7 +77,8 @@ html[dir="ltr"] .c-rule{background:linear-gradient(270deg,var(--line-2),transpar
   border:1px solid var(--line-2);background:var(--bg-2);color:var(--muted);font-size:11.5px;line-height:1.5}
 a.c-fact{text-decoration:none}
 a.c-fact:hover{border-color:var(--accent);color:var(--text)}
-.c-fact span{font-size:12px;line-height:1}
+.c-fact svg{color:var(--faint)}
+a.c-fact:hover svg{color:var(--accent-text,var(--accent))}
 
 .c-item{position:relative;display:flex;gap:14px;align-items:stretch;background:var(--surface);border:1px solid var(--line);
   border-radius:var(--r-card,var(--r-md));padding:12px;margin-bottom:12px;opacity:0;transform:translateY(14px);animation:c-rise .5s cubic-bezier(.2,.7,.2,1) forwards}
@@ -86,10 +87,21 @@ a.c-fact:hover{border-color:var(--accent);color:var(--text)}
 .c-thumb{position:relative;flex:0 0 82px;width:82px;height:82px;border-radius:var(--r-thumb,14px);overflow:hidden;background-size:cover;background-position:center;
   box-shadow:inset 0 0 0 1px var(--menu-paper-edge,rgba(255,255,255,.06))}
 .c-thumb img{position:absolute;inset:0;width:100%;height:100%;aspect-ratio:1/1;object-fit:cover}
-.c-thumb .glyph{position:absolute;inset:0;display:grid;place-items:center;font-weight:600;font-size:30px;color:rgba(255,255,255,.55)}
+/* No photo is a normal state for a café that has not shot its menu yet, so it gets a
+   designed tile rather than a random dark square: the theme's own paper, a hairline, and
+   the item's initial set large and quiet. Reads as a monogram, not as a failed image. */
+.c-thumb.is-empty{background:linear-gradient(160deg,
+  color-mix(in srgb,var(--accent) 10%,var(--surface-2,var(--surface))),
+  color-mix(in srgb,var(--accent) 3%,var(--surface-2,var(--surface))));
+  box-shadow:inset 0 0 0 1px var(--line-2)}
+.c-thumb .glyph{position:absolute;inset:0;display:grid;place-items:center;
+  font-family:var(--font-display);font-weight:600;font-size:30px;line-height:1;
+  color:color-mix(in srgb,var(--accent-text,var(--text)) 42%,transparent)}
 .c-body{flex:1;min-width:0;display:flex;flex-direction:column}
 .c-body h3{font-family:var(--font-display);font-weight:600;font-size:16px;line-height:1.25;color:var(--text)}
-.c-body .sub{font-family:var(--font-mono);font-size:11px;color:var(--faint);margin-top:3px;text-transform:uppercase;letter-spacing:.04em}
+/* was tracked-out uppercase mono on every row; the Latin name is a help to the reader,
+   not a label, so it is set as quiet text in the body face */
+.c-body .sub{font-size:11.5px;color:var(--faint);margin-top:2px;letter-spacing:0}
 .c-body p{font-size:12.5px;color:var(--muted);line-height:1.45;margin-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .c-foot{display:flex;align-items:flex-end;justify-content:space-between;margin-top:auto;padding-top:8px;gap:8px}
 .c-price{font-family:var(--font-mono);font-weight:600;font-size:17px;color:var(--text);display:inline-flex;align-items:baseline;gap:6px;flex-wrap:wrap}
@@ -99,10 +111,14 @@ a.c-fact:hover{border-color:var(--accent);color:var(--text)}
 .c-sale{color:var(--accent-text,#047857)}
 .c-off{font-family:var(--font-sans,inherit);font-weight:700;font-size:11px;letter-spacing:.02em;
   padding:2px 6px;border-radius:999px;color:var(--accent-ink);background:linear-gradient(135deg,var(--accent),var(--accent-2))}
-.c-prep{font-size:11px;color:var(--faint);display:inline-flex;align-items:center;gap:4px;margin-top:3px}
+/* its own line: price and prep were two unrelated facts sharing a row with a dot */
+.c-prep{font-size:11px;color:var(--faint);display:flex;align-items:center;gap:5px;margin-top:4px}
+.c-prep svg,.c-modal-prep svg,.c-table svg,.c-fact svg,.loy-item-badge svg{flex:0 0 auto;opacity:.85}
+.c-modal-prep{display:inline-flex;align-items:center;gap:5px}
+.c-table svg{opacity:.7}
 
 .c-add{flex:0 0 auto;width:40px;height:40px;border-radius:var(--r-ctl,13px);cursor:pointer;border:0;font-size:24px;font-weight:600;line-height:1;display:grid;place-items:center;
-  background:linear-gradient(155deg,var(--accent),var(--accent-2));color:var(--accent-ink);box-shadow:0 8px 18px -8px var(--accent-glow);transition:transform .12s}
+  background:linear-gradient(155deg,var(--accent),var(--accent-2));color:var(--accent-ink);transition:transform .12s}
 .c-add:active{transform:scale(.86)}
 .c-add:disabled{background:var(--surface-2);color:var(--faint);cursor:not-allowed;box-shadow:none}
 .c-qty{display:inline-flex;align-items:center;gap:2px;background:var(--bg-2);border:1px solid var(--line-2);border-radius:var(--r-ctl,13px);padding:3px}
@@ -116,6 +132,7 @@ a.c-fact:hover{border-color:var(--accent);color:var(--text)}
 /* cart bar — a contrast pill that each theme tunes via --cart-* (defaults below
    reproduce the original always-dark lime pill so the CTA stays legible). */
 .c-cartbar{position:absolute;inset-inline:14px;bottom:14px;z-index:30;display:flex;align-items:center;gap:12px;
+  width:auto;font-family:inherit;text-align:start;appearance:none;
   padding:11px 14px 11px 11px;border-radius:18px;cursor:pointer;color:var(--cart-ink,#F3F5F0);
   background:var(--cart-bg,rgba(21,23,28,.92));backdrop-filter:blur(18px);border:1px solid var(--cart-line,rgba(255,255,255,.14));box-shadow:0 16px 36px -16px rgba(0,0,0,.6);
   transform:translateY(150%);transition:transform .45s cubic-bezier(.2,.8,.2,1)}
@@ -135,7 +152,7 @@ a.c-fact:hover{border-color:var(--accent);color:var(--text)}
   .c-brand{gap:10px}
   .c-mark{width:48px;height:48px;font-size:20px;border-radius:13px}
   .c-brand h1{font-size:19px;max-width:calc(100vw - 200px)}
-  .c-brand .en{font-size:9px;letter-spacing:.22em}
+  .c-brand .en{font-size:11px}
   .c-meta{gap:8px;margin-top:13px;overflow-x:auto;scrollbar-width:none;white-space:nowrap}
   .c-meta::-webkit-scrollbar{display:none}
   .c-table{padding:6px 10px}
@@ -145,7 +162,7 @@ a.c-fact:hover{border-color:var(--accent);color:var(--text)}
   .c-cat{padding:20px 14px 2px}
   .c-cat-head{gap:10px}
   .c-cat-head h2{font-size:20px}
-  .c-cat-head .en{letter-spacing:.18em}
+  .c-cat-head .en{letter-spacing:0}
   .c-item{gap:11px;padding:10px;border-radius:16px;margin-bottom:10px}
   .c-thumb{flex-basis:76px;width:76px;height:76px}
   .c-thumb .glyph{font-size:27px}
@@ -177,7 +194,7 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
 .c-foot-bar{padding:14px 18px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--glass);backdrop-filter:blur(10px)}
 
 /* cart lines */
-.c-line{display:flex;gap:12px;padding:12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);margin-bottom:12px}
+.c-line{display:flex;flex-wrap:wrap;gap:12px;padding:12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);margin-bottom:12px}
 .c-line .c-thumb{flex:0 0 58px;width:58px;height:58px;border-radius:12px}
 .c-line .c-thumb .glyph{font-size:24px}
 .c-line-main{flex:1;min-width:0}
@@ -189,18 +206,66 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
    customer tapped it to add a note.
    field-sizing lets it grow with what is typed (Chrome/Edge); everywhere else the min-height
    plus a scrollbar keeps it usable rather than clipping the text out of sight. */
-.c-notein{width:100%;margin-top:8px;border:1px solid var(--line-2);background:var(--bg-2);border-radius:10px;padding:7px 10px;font-family:var(--font-ar);font-size:var(--fs-field);line-height:1.4;color:var(--text);resize:none;
+.c-notein{flex:1 0 100%;margin-top:0;border:1px solid var(--line-2);background:var(--bg-2);border-radius:10px;padding:7px 10px;font-family:var(--font-ar);font-size:var(--fs-field);line-height:1.4;color:var(--text);resize:none;
   field-sizing:content;min-height:calc(1.4em + 16px);max-height:7em;overflow-y:auto}
 .c-notein::placeholder{color:var(--faint)}
 .c-line-side{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between}
 .c-line-side .lt{font-family:var(--font-mono);font-weight:600;font-size:15px}
+
+/* Upsell picks: a row of small photo cards that scrolls sideways. The row bleeds to the
+   edges of the page (negative margin = the 18px body/sheet padding) so a card cut off at the
+   edge says "there is more"; with one or two picks it simply sits at the start. Scroll-snap
+   keeps a flick from stopping mid-card; direction follows the page, so Arabic scrolls from the right. */
+.c-suggest{margin:2px 0 20px;min-width:0}
+.c-suggest-hd{font-size:13px;font-weight:600;color:var(--muted);margin:0 0 10px}
+.c-suggest-row{display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;
+  scroll-snap-type:x mandatory;scroll-padding-inline:18px;-webkit-overflow-scrolling:touch;
+  margin-inline:-18px;padding:2px 18px 4px;scrollbar-width:none}
+.c-suggest-row::-webkit-scrollbar{display:none}
+.c-sugg{flex:0 0 112px;width:112px;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:4px;
+  padding:0;background:none;border:0;color:var(--text);font-family:inherit;cursor:pointer;text-align:start;
+  scroll-snap-align:start;transition:transform .1s;-webkit-tap-highlight-color:transparent}
+.c-sugg:active{transform:scale(.96)}
+.c-sugg:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:14px}
+.c-sugg-img{position:relative;display:block;width:112px;height:112px;border-radius:var(--r-thumb,14px);overflow:hidden;
+  background:var(--bg-2);box-shadow:inset 0 0 0 1px var(--menu-paper-edge,rgba(255,255,255,.06))}
+.c-sugg-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.c-sugg-img.is-empty{background:linear-gradient(160deg,
+  color-mix(in srgb,var(--accent) 10%,var(--surface-2,var(--surface))),
+  color-mix(in srgb,var(--accent) 3%,var(--surface-2,var(--surface))));
+  box-shadow:inset 0 0 0 1px var(--line-2)}
+.c-sugg-img .glyph{position:absolute;inset:0;display:grid;place-items:center;
+  font-family:var(--font-display);font-weight:600;font-size:36px;line-height:1;
+  color:color-mix(in srgb,var(--accent-text,var(--text)) 42%,transparent)}
+/* the add mark sits on the photo's corner, readable over any picture */
+.c-sugg-plus{position:absolute;inset-block-end:6px;inset-inline-end:6px;width:28px;height:28px;border-radius:50%;
+  display:grid;place-items:center;background:var(--accent);color:var(--accent-ink,#fff);
+  font-size:16px;font-weight:700;line-height:1;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.c-sugg:hover .c-sugg-img{box-shadow:inset 0 0 0 2px var(--accent)}
+/* long names wrap to two lines then ellipsis; the fixed min-height keeps prices on one baseline */
+.c-sugg-name{font-size:13px;font-weight:600;line-height:1.25;min-height:2.5em;margin-top:2px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.c-sugg-price{font-family:var(--font-mono);font-size:12px;color:var(--muted);white-space:nowrap}
+.c-sugg-price .c-from{font-family:var(--font-ar);font-size:10px;color:var(--faint);margin-inline-end:3px}
+@media(max-width:360px){.c-sugg{flex-basis:96px;width:96px}.c-sugg-img{width:96px;height:96px}}
+
+/* Pop-up placement: the same chips in a bottom sheet on the Place-order tap. */
+.c-sugg-sheet-bg{align-items:flex-end}
+.c-sugg-sheet{position:relative;width:100%;box-sizing:border-box;background:var(--surface);
+  border-top-left-radius:20px;border-top-right-radius:20px;padding:22px 18px calc(20px + env(safe-area-inset-bottom));
+  border-top:1px solid var(--line);display:flex;flex-direction:column;gap:16px;
+  animation:c-sheet-up .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes c-sheet-up{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.c-sugg-sheet .c-suggest{margin:0}
+.c-sugg-sheet-empty{color:var(--muted);font-size:13px;margin:0}
+@media (prefers-reduced-motion:reduce){.c-sugg-sheet{animation:none}}
 
 /* inline field validation (cart checkout) */
 .field-error{margin:6px 0 0;font-size:12px;line-height:1.4;color:var(--bad,#ff6b5a)}
 .field input[aria-invalid="true"]{border-color:var(--bad,#ff6b5a)}
 
 .c-seg{display:flex;gap:8px}
-.c-seg button{flex:1;padding:11px;border-radius:12px;border:1px solid var(--line-2);background:transparent;font-family:var(--font-ar);font-weight:600;color:var(--muted);cursor:pointer;transition:.2s}
+.c-seg button{flex:1;padding:11px;border-radius:12px;border:1px solid var(--line-2);background:transparent;font-family:var(--font-ar);font-weight:600;color:var(--muted);cursor:pointer;transition:background-color .2s,color .2s,border-color .2s}
 .c-seg button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 
 .c-totals{margin-top:6px;padding:16px;border-radius:var(--r-md);background:var(--surface);border:1px solid var(--line)}
@@ -257,7 +322,7 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
 .car-colors{display:flex;flex-wrap:wrap;gap:8px}
 .car-sw{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:999px;
   border:1px solid var(--line-2);background:var(--bg-2);color:var(--muted);
-  font-family:var(--font-ar);font-size:12.5px;font-weight:600;cursor:pointer;transition:.18s}
+  font-family:var(--font-ar);font-size:12.5px;font-weight:600;cursor:pointer;transition:background-color .18s,color .18s,border-color .18s,box-shadow .18s}
 .car-sw .dot{width:15px;height:15px;border-radius:50%;background:var(--sw);flex:0 0 auto;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}
 .car-sw.light .dot{box-shadow:inset 0 0 0 1px rgba(0,0,0,.32)}
 @media (hover:hover){.car-sw:hover{color:var(--text);border-color:var(--line)}}
@@ -279,8 +344,8 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
 .c-stepper::before{content:"";position:absolute;inset-inline-start:23px;top:10px;bottom:10px;width:2px;background:var(--line-2)}
 .c-step{position:relative;display:flex;gap:16px;padding:11px 0;align-items:center}
 .c-step .dot{position:relative;z-index:1;width:32px;height:32px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;
-  background:var(--bg-2);border:1px solid var(--line-2);color:var(--faint);font-size:14px;font-family:var(--font-mono);transition:.4s}
-.c-step .txt b{display:block;font-size:15px;font-weight:600;color:var(--faint);transition:.3s}
+  background:var(--bg-2);border:1px solid var(--line-2);color:var(--faint);font-size:14px;font-family:var(--font-mono);transition:background-color .4s,border-color .4s,color .4s,box-shadow .4s,transform .4s}
+.c-step .txt b{display:block;font-size:15px;font-weight:600;color:var(--faint);transition:color .3s}
 .c-step.done .dot{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .c-step.done .txt b{color:var(--text)}
 .c-step.active .dot{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);box-shadow:0 0 0 6px var(--accent-glow);transform:scale(1.1)}
@@ -359,11 +424,10 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
 .c-slider-empty .glyph{font-size:64px;font-weight:700;color:var(--faint)}
 .c-slider-dots{position:absolute;bottom:10px;inset-inline:0;display:flex;gap:6px;justify-content:center;align-items:center;pointer-events:none}
 .c-slider-dots span{width:6px;height:6px;border-radius:999px;background:rgba(255,255,255,.5);transition:width .2s,background .2s}
-/* The active dot is the first child by default — kept simple; full sync needs scroll listening. */
+.c-slider-dots span.on{width:16px;background:#fff}
 
 .c-modal-title{font-family:var(--font-display);font-weight:700;font-size:21px;line-height:1.25;color:var(--text)}
-.c-modal-sub{font-family:var(--font-mono);font-size:12px;color:var(--faint);margin-top:3px;
-  text-transform:uppercase;letter-spacing:.04em}
+.c-modal-sub{font-size:12.5px;color:var(--faint);margin-top:3px;letter-spacing:0}
 .c-modal-desc{font-size:13.5px;color:var(--muted);line-height:1.55;margin-top:8px}
 .c-modal-pricerow{display:flex;align-items:baseline;gap:14px;margin-top:10px}
 .c-modal-unit{font-family:var(--font-mono);font-weight:700;font-size:20px;color:var(--text);display:inline-flex;align-items:baseline;gap:8px;flex-wrap:wrap}
@@ -394,9 +458,11 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
 .c-modal-foot{display:flex;align-items:center;gap:12px;padding:14px 18px;
   border-top:1px solid var(--line-2);background:var(--bg-2)}
 .c-modal-foot .c-qty{flex:0 0 auto}
-.c-modal-add{flex:1;height:46px;border:0;border-radius:var(--r-ctl,13px);
+.c-modal-add{flex:1;min-height:46px;border:0;border-radius:var(--r-ctl,13px);
   background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:15px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;gap:5px;font-family:var(--font-ar)}
+.c-modal-add{flex-wrap:wrap;gap:4px 8px;line-height:1.25;padding-inline:10px}
+.c-modal-add-lbl{white-space:nowrap}
 .c-modal-add .num{font-family:var(--font-mono)}
 .c-modal-add:disabled{background:var(--surface-2);color:var(--faint);cursor:not-allowed}
 
@@ -406,7 +472,8 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
   cursor:pointer;font-family:inherit;color:inherit}
 .c-thumb-more{position:absolute;inset-block-end:5px;inset-inline-end:5px;background:rgba(15,18,20,.6);
   color:#fff;font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;backdrop-filter:blur(4px)}
-.c-item .c-from{font-size:11px;color:var(--muted);font-weight:400}
+/* a word, so it is set in the reading face rather than the price's tabular mono */
+.c-item .c-from{font-family:var(--font-ar);font-size:11.5px;color:var(--muted);font-weight:400}
 .c-add-in{position:relative}
 .c-add-in .num{font-size:16px;font-weight:700}
 
@@ -427,7 +494,86 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
    for tablets would be a redesign, not a touch fix. */
 html[data-input="touch"] .c-nav button,
 html[data-input="touch"] .c-opt,
+/* the house card's phone / Instagram / hours chips — tappable, so they meet the floor
+   too; the plain <span> facts next to them are text and stay the size they read at */
+html[data-input="touch"] a.c-fact,
 html[data-input="touch"] .car-sw{min-height:var(--tap)}
 html[data-input="touch"] .c-add,
 html[data-input="touch"] .c-modal-x{min-width:var(--tap);min-height:var(--tap)}
 html[data-input="touch"] .c-qty button{min-width:var(--tap);min-height:var(--tap)}
+
+/* ---- focus ----
+   Only inputs had a ring; every button fell back to the UA outline, which all but
+   vanishes against the darker menu papers. One ring, in the venue's own accent. */
+.phone :is(button,a,[tabindex]):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* The cart bar slides up on the first add and then sits still, so adds two and three
+   landed with no motion anywhere. The count bumps — keyed on the number in MenuPage,
+   so it replays on every change. */
+@keyframes c-count-pop{0%{transform:scale(1)}38%{transform:scale(1.32)}100%{transform:scale(1)}}
+.c-cartbar .count{animation:c-count-pop .32s cubic-bezier(.34,1.56,.64,1)}
+
+/* ---- reduced motion ----
+   A menu that rises, pulses and slides is a nice welcome and a problem for anyone who
+   asked their phone to stop moving things. Entrances land instantly; loops stop. */
+@media (prefers-reduced-motion:reduce){
+  .c-item{animation:none;opacity:1;transform:none}
+  .c-modal-card{animation:none}
+  .c-pulse{animation:none}
+  .c-cartbar .count{animation:none}
+  .c-cartbar{transition:none}
+}
+
+/* A loyalty strip that only reports progress: no pointer, no hover lift. */
+.loy-strip.is-static{cursor:default}
+.loy-strip.is-static .loy-go{display:none}
+
+/* The cart bar's icon is a drawing now, so it needs centring rather than emoji baseline. */
+.c-cartbar .ico svg{display:block}
+
+/* ---------------------------------------------------------------- combos
+   A combo is an ordinary card that says so: a small accent tag over the name, the parts on
+   one line under it, and — when the bundle is cheaper — the parts' price struck through with
+   a "Save" pill. With no photo of its own the frame shows its parts' photos as a mosaic
+   (ComboArt), which fills the 82px list thumbnail and the gallery's wide frame alike.
+   Palette tokens only, so every theme dresses it; themes that restyle .c-item keep their
+   own border, which is why nothing here depends on the card's edge. */
+.c-item.is-combo{border-color:color-mix(in srgb,var(--accent) 38%,var(--line))}
+.c-combo-tag{display:inline-block;margin-bottom:5px;padding:2px 8px;border-radius:999px;
+  font-family:var(--font-sans,inherit);font-size:10.5px;font-weight:700;letter-spacing:.06em;line-height:1.5;
+  color:var(--accent-text,var(--accent));background:color-mix(in srgb,var(--accent) 15%,transparent)}
+.c-combo-parts{margin-top:4px;font-size:12.5px;font-weight:500;line-height:1.4;
+  color:color-mix(in srgb,var(--text) 78%,transparent);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.c-save{display:inline-flex;align-items:baseline;gap:4px;white-space:nowrap}
+.c-save .money{font-size:1em}
+
+.c-combo-art{position:absolute;inset:0;display:grid;gap:2px;background:var(--surface)}
+.c-combo-art.n1{grid-template-columns:1fr}
+.c-combo-art.n2{grid-template-columns:1fr 1fr}
+.c-combo-art.n3{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+.c-combo-art.n3 .c-combo-tile:first-child{grid-row:span 2}
+.c-combo-tile{position:relative;overflow:hidden;min-width:0;min-height:0}
+.c-combo-tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.c-combo-tile.is-empty{background:linear-gradient(160deg,
+  color-mix(in srgb,var(--accent) 12%,var(--surface-2,var(--surface))),
+  color-mix(in srgb,var(--accent) 4%,var(--surface-2,var(--surface))))}
+.c-combo-tile .glyph{position:absolute;inset:0;display:grid;place-items:center;
+  font-family:var(--font-display);font-weight:600;font-size:20px;line-height:1;
+  color:color-mix(in srgb,var(--accent-text,var(--text)) 42%,transparent)}
+[data-menu-layout="gallery"] .c-combo-tile .glyph{font-size:40px}
+
+/* the detail sheet: the mosaic as its hero, then the parts as a short list */
+.c-slider-combo{background:var(--surface-2,var(--surface))}
+.c-slider-combo .c-combo-tile .glyph{font-size:44px}
+.c-combo-list{margin-top:18px}
+.c-combo-list h3{font-family:var(--font-display);font-size:15.5px;font-weight:600;margin-bottom:8px}
+.c-combo-row{display:flex;align-items:center;gap:10px;padding:6px 0}
+.c-combo-row + .c-combo-row{border-top:1px solid var(--line)}
+.c-combo-dot{position:relative;flex:0 0 38px;width:38px;height:38px;border-radius:10px;overflow:hidden;background:var(--surface-2,var(--surface))}
+.c-combo-dot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.c-combo-dot.is-empty{background:color-mix(in srgb,var(--accent) 10%,var(--surface-2,var(--surface)))}
+.c-combo-dot .glyph{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--font-display);font-weight:600;font-size:16px;
+  color:color-mix(in srgb,var(--accent-text,var(--text)) 50%,transparent)}
+.c-combo-row-name{flex:1;min-width:0;font-size:14px;font-weight:500;overflow-wrap:anywhere}
+.c-combo-row-n{font-family:var(--font-mono);font-size:13px;color:var(--muted)}

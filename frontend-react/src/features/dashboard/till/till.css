@@ -1,0 +1,188 @@
+/* ============================ THE TILL ============================
+   A receipt, not a form. Words at the start, figures at the end, one hairline between
+   lines, and at the top of every screen the one number that matters — or the line you
+   write it on, at the same size. Everything else is quiet so that number is not.
+
+   The header control keeps .order-status-toggle (settings.css): green is selling, and a shut
+   till is drawn flat and grey rather than red, because a café closing for the night is not
+   an alarm. */
+
+.order-status-toggle.shut{border-color:var(--line-2);background:var(--surface)}
+.order-status-toggle.shut .status-dot{background:var(--muted);box-shadow:none}
+.order-status-toggle.shut .ost-label{color:var(--muted)}
+
+/* ---- the sheet ---- */
+.till-sheet{
+  max-width:400px;padding:0;display:flex;flex-direction:column;
+  /* The writing line's ink. --keyline is right under bold, where it IS ink; under pro it
+     resolves to zinc-200 and the one rule the count is written on would fade to nothing,
+     so it is mixed from ink there instead. */
+  --till-rule:var(--keyline);
+}
+[data-skin="pro"] .till-sheet{--till-rule:color-mix(in srgb,var(--ink) 55%,transparent)}
+
+.till-hd{
+  display:flex;align-items:center;gap:10px;
+  padding-block:14px 12px;padding-inline:20px 14px;
+  border-block-end:var(--bw-hair) solid var(--line);
+}
+.till-hd h3{flex:1;margin:0;font-size:16.5px;font-weight:var(--fw-display)}
+.till-x{
+  flex:0 0 auto;inline-size:var(--tap);block-size:var(--tap);
+  border:0;border-radius:8px;background:transparent;color:var(--muted);
+  font-size:14px;line-height:1;cursor:pointer;
+}
+.till-x:hover{background:var(--surface-2);color:var(--ink)}
+.till-x:focus-visible{outline:none;box-shadow:var(--focus-shadow)}
+
+.till-body{padding:18px 20px 20px;display:flex;flex-direction:column;gap:18px}
+
+/* ---- the one number ---- */
+.till-hero{display:flex;flex-direction:column;gap:4px;margin:0}
+.till-hero > span:first-child{font-size:13.5px;font-weight:600;color:var(--muted)}
+.till-hero-fig{
+  margin:0;font-family:var(--font-mono);font-variant-numeric:tabular-nums;
+  font-size:38px;font-weight:800;line-height:1.15;letter-spacing:-.01em;
+  color:var(--ink);
+}
+.till-hero-fig .money{gap:.22em}
+/* The rial mark is a unit, not the figure: smaller and lighter than the number it marks,
+   in the hero only — at 38px the full-weight symbol out-shouts the amount. */
+.till-hero-fig .money__symbol,.till-hero-in .money__symbol{inline-size:1em;block-size:.5em;opacity:.5}
+/* "short" / "over" — the word for the gap, in the reading face beside the figure. */
+.till-hero-fig em,.till-past-row em{font-family:var(--font-ar);font-style:normal;font-weight:700}
+.till-hero-fig em{font-size:.55em;letter-spacing:0}
+.till-hero.short .till-hero-fig{color:var(--bad)}
+.till-hero.over .till-hero-fig{color:var(--amber)}
+.till-hero.exact .till-hero-fig{color:var(--accent-text,var(--accent))}
+.till-hero.short .till-hero-fig,.till-hero.over .till-hero-fig{font-size:32px}
+.till-hero.exact .till-hero-fig{font-family:var(--font-ar);font-size:28px;letter-spacing:0}
+.till-hero-who{margin:2px 0 0;font-size:12.5px;color:var(--muted)}
+
+/* The line the count is written on. Not a box: the figure a person types sits in the
+   same face and size as the figure the till shows them, because they are the same kind
+   of thing, and the rule under it is the one place the accent goes before the button. */
+.till-hero-in{
+  display:flex;align-items:center;gap:.22em;direction:ltr;
+  padding:4px 0 6px;border-block-end:2px solid var(--till-rule);
+  transition:border-color .12s;
+}
+.till-hero-in:focus-within{border-color:var(--lime,var(--accent))}
+.till-hero-in input{
+  flex:1;min-inline-size:0;inline-size:100%;
+  border:0;padding:0;background:transparent;color:var(--ink);
+  font:inherit;font-family:var(--font-mono);font-variant-numeric:tabular-nums;
+  font-size:38px;font-weight:800;line-height:1.15;letter-spacing:-.01em;
+}
+.till-hero-in input::placeholder{color:var(--faint);font-weight:500;opacity:.6}
+.till-hero-in input:focus{outline:none}
+html[data-input="touch"] .till-hero-in{min-block-size:var(--tap-lg)}
+
+/* ---- the lines under it ---- */
+.till-ledger{display:flex;flex-direction:column;margin:0}
+.till-ledger > div{
+  display:flex;align-items:baseline;justify-content:space-between;gap:14px;
+  padding:9px 0;border-block-end:var(--bw-hair) solid var(--line);
+}
+.till-ledger > div:last-child{border-block-end:0}
+/* A thicker rule between what the number is made of and what merely happened. */
+.till-ledger > div.till-cut{border-block-end-color:var(--till-rule)}
+.till-ledger dt{margin:0;font-size:13.5px;color:var(--muted)}
+.till-ledger dd{
+  margin:0;font-family:var(--font-mono);font-variant-numeric:tabular-nums;
+  font-size:15px;font-weight:700;color:var(--ink);
+}
+.till-ledger dd.exact{color:var(--accent-text,var(--accent))}
+.till-ledger dd.short{color:var(--bad)}
+.till-ledger dd.over{color:var(--amber)}
+
+/* The last few nights: a date, who, and the word for the gap. */
+.till-past{display:flex;flex-direction:column;gap:2px;margin:0}
+.till-past > span{font-size:12.5px;font-weight:600;color:var(--muted);padding-block-end:4px}
+.till-past-row{
+  display:flex;align-items:baseline;gap:10px;
+  padding:8px 0;border-block-end:var(--bw-hair) solid var(--line);font-size:13px;
+}
+.till-past-row:last-child{border-block-end:0}
+.till-past-row time{font-weight:600;color:var(--ink);white-space:nowrap}
+.till-past-row > span{flex:1;min-inline-size:0;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.till-past-row b{display:flex;align-items:center;gap:.3em;font-size:13px;white-space:nowrap}
+.till-past-row b .money__symbol{opacity:.55}
+.till-past-row b.exact{color:var(--accent-text,var(--accent))}
+.till-past-row b.short{color:var(--bad)}
+.till-past-row b.over{color:var(--amber)}
+.till-past p{margin:0;font-size:12.5px;color:var(--muted)}
+
+/* ---- cash in or out ----
+   A quiet two-way switch (the boldness is spent on the amount, not here), the amount on the same
+   writing line the count uses, and the reason under it — because a drawer short by five is a
+   mistake and short by five "for milk" is a receipt. */
+.till-seg{display:flex;gap:4px;padding:4px;background:var(--surface-2);border-radius:12px}
+.till-seg button{
+  flex:1;min-block-size:var(--tap-sm);border:0;border-radius:9px;background:transparent;
+  font-family:var(--font-ar);font-size:14px;font-weight:700;color:var(--muted);cursor:pointer;
+  transition:background .12s,color .12s;
+}
+.till-seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.till-seg button:focus-visible{outline:none;box-shadow:var(--focus-shadow)}
+
+.till-reason{display:flex;flex-direction:column;gap:6px;margin:0}
+.till-reason > span{font-size:13.5px;font-weight:600;color:var(--muted)}
+.till-reason input{
+  inline-size:100%;border:0;border-block-end:2px solid var(--till-rule);background:transparent;
+  padding:6px 0;color:var(--ink);font-family:var(--font-ar);font-size:16px;
+  transition:border-color .12s;
+}
+.till-reason input::placeholder{color:var(--faint);opacity:.7}
+.till-reason input:focus{outline:none;border-color:var(--lime,var(--accent))}
+html[data-input="touch"] .till-reason input{min-block-size:var(--tap)}
+
+/* One recorded movement: the reason, what it moved, and a way to undo a fat-fingered amount. */
+.till-move-row{
+  display:flex;align-items:baseline;gap:10px;
+  padding:8px 0;border-block-end:var(--bw-hair) solid var(--line);font-size:13px;
+}
+.till-move-row:last-child{border-block-end:0}
+.till-move-note{flex:1;min-inline-size:0;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.till-move-row b{
+  display:flex;align-items:center;gap:.3em;white-space:nowrap;
+  font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-weight:700;
+}
+.till-move-row b .money__symbol{opacity:.55}
+.till-move-row b.short{color:var(--bad)}
+.till-move-row b.exact{color:var(--accent-text,var(--accent))}
+.till-move-x{
+  flex:0 0 auto;border:0;background:transparent;color:var(--faint);
+  font-size:12px;line-height:1;cursor:pointer;padding:4px;border-radius:6px;
+}
+.till-move-x:hover{background:var(--surface-2);color:var(--bad)}
+.till-move-x:focus-visible{outline:none;box-shadow:var(--focus-shadow)}
+.till-move-x:disabled{opacity:.5;cursor:default}
+
+/* ---- the way out ---- */
+.till-actions{display:flex;flex-direction:column;gap:8px}
+.till-actions .btn{width:100%;justify-content:center}
+/* Closing happens once a day and pausing happens all day, so they are not two identical
+   buttons stacked. This is the quieter of the pair. */
+.till-out{
+  align-self:center;min-block-size:var(--tap-sm);
+  border:0;background:transparent;color:var(--muted);
+  font-family:var(--font-ar);font-size:13px;font-weight:600;cursor:pointer;
+  text-decoration:underline;text-underline-offset:3px;
+}
+.till-out:hover{color:var(--ink)}
+.till-out:focus-visible{outline:none;box-shadow:var(--focus-shadow);border-radius:4px}
+.till-out:disabled{opacity:.5;cursor:default}
+.till-problem{margin:0;font-size:12.5px;line-height:1.5;color:var(--bad)}
+.till-note{margin:0;font-size:13.5px;line-height:1.55;color:var(--muted)}
+
+/* The answer lands once. */
+@media (prefers-reduced-motion:no-preference){
+  .till-hero.is-answer{animation:till-land .32s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes till-land{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+}
+
+@media (max-width:520px){
+  .till-sheet{max-width:100%}
+  .till-hero-fig,.till-hero-in input{font-size:34px}
+}

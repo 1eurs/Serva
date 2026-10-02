@@ -120,12 +120,25 @@ public class AnalyticsService {
                 .filter(e -> e.getKey() != OrderStatus.DECLINED && e.getKey() != OrderStatus.CANCELLED)
                 .mapToLong(Map.Entry::getValue).sum();
 
-        BigDecimal revenue = orderRepository.sumTotalByStatus(
-                restaurantId, branchScope, OrderStatus.COMPLETED, from, to);
+        // Revenue = money actually collected (completed AND paid), so the headline reconciles
+        // with the cash-vs-card split. Orders completed but left unpaid don't count as takings.
+        BigDecimal revenue = orderRepository.sumCollectedRevenue(
+                restaurantId, branchScope, from, to);
         long completed = counts.getOrDefault(OrderStatus.COMPLETED, 0L);
         BigDecimal aov = completed > 0
                 ? revenue.divide(BigDecimal.valueOf(completed), MONEY_SCALE, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
+
+        // Completed orders that were handed over without payment recorded — the money the
+        // collected-revenue headline deliberately leaves out, surfaced so it isn't silently lost.
+        Object[] unc = orderRepository.uncollectedInWindow(restaurantId, branchScope, from, to).get(0);
+        long uncollectedOrders = ((Number) unc[0]).longValue();
+        BigDecimal uncollectedAmount = (BigDecimal) unc[1];
+
+        // Collected takings that came from the cart's "goes well with" upsell — how much the
+        // suggestions actually earned, so a shop can judge whether the placement is paying off.
+        BigDecimal suggestionRevenue = orderItemRepository.sumSuggestionRevenue(
+                restaurantId, branchScope, from, to);
 
         return new AnalyticsSummaryResponse(
                 from, to, total,
@@ -138,6 +151,9 @@ public class AnalyticsService {
                 counts.getOrDefault(OrderStatus.CANCELLED, 0L),
                 revenue,
                 aov,
+                uncollectedOrders,
+                uncollectedAmount,
+                suggestionRevenue,
                 bestSellingScoped(restaurantId, branchScope, from, to, DEFAULT_BEST_SELLING_LIMIT),
                 busiestHours(restaurantId, branchScope, from, to));
     }

@@ -87,6 +87,13 @@ public class MenuItem extends BaseEntity {
     @OrderBy("displayOrder ASC, id ASC")
     private List<MenuItemOptionGroup> optionGroups = new ArrayList<>();
 
+    /**
+     * The items this combo bundles, as comma-separated ids (repeated for "2 x"). Null when the
+     * item is not a combo. Kept as text rather than a table: it is only ever read whole.
+     */
+    @Column(name = "combo_item_ids")
+    private String comboItemIds;
+
     public Long getRestaurantId() {
         return restaurantId;
     }
@@ -260,5 +267,28 @@ public class MenuItem extends BaseEntity {
 
     public void setOptionGroups(List<MenuItemOptionGroup> optionGroups) {
         this.optionGroups = optionGroups;
+    }
+
+    /** Component item ids in the owner's order, repeats included; empty when not a combo. */
+    public List<Long> getComboItemIds() {
+        if (comboItemIds == null || comboItemIds.isBlank()) return List.of();
+        List<Long> out = new ArrayList<>();
+        for (String part : comboItemIds.split(",")) {
+            try {
+                out.add(Long.parseLong(part.trim()));
+            } catch (NumberFormatException ignored) {
+                // a hand-edited row; skip the junk rather than break the menu
+            }
+        }
+        return out;
+    }
+
+    public void setComboItemIds(List<Long> ids) {
+        this.comboItemIds = ids == null || ids.isEmpty() ? null
+                : String.join(",", ids.stream().map(String::valueOf).toList());
+    }
+
+    public boolean isCombo() {
+        return !getComboItemIds().isEmpty();
     }
 }

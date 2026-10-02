@@ -57,6 +57,10 @@ public class OrderItem {
     @Column(name = "selected_options_json", columnDefinition = "text")
     private String selectedOptionsJson;
 
+    /** True when the customer added this line from the cart's "goes well with your order" upsell. */
+    @Column(name = "from_suggestion", nullable = false)
+    private boolean fromSuggestion = false;
+
     public Long getId() {
         return id;
     }
@@ -79,6 +83,14 @@ public class OrderItem {
 
     public void setMenuItemId(Long menuItemId) {
         this.menuItemId = menuItemId;
+    }
+
+    public boolean isFromSuggestion() {
+        return fromSuggestion;
+    }
+
+    public void setFromSuggestion(boolean fromSuggestion) {
+        this.fromSuggestion = fromSuggestion;
     }
 
     public String getNameEnSnapshot() {

@@ -41,8 +41,13 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
 .dtop .spacer{flex:1}
 .status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ready);box-shadow:0 0 0 3px color-mix(in srgb,var(--ready) 18%,transparent)}
 .order-toggle.resume .status-dot{background:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 18%,transparent)}
-.dnew{border:0;background:var(--accent);color:var(--accent-ink);border-radius:11px;padding:9px 15px;font-family:var(--font-ar);font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap}
+/* New order + the till, as one right-side cluster: a tighter gap binds the pair, then .dtop's
+   own gap sets them off from the sound and account controls. Both share a height so the solid
+   primary and the outlined status chip sit on one line. */
+.dtop-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.dnew{border:0;background:var(--accent);color:var(--accent-ink);border-radius:11px;padding:0 15px;min-block-size:38px;display:inline-flex;align-items:center;font-family:var(--font-ar);font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap}
 .dnew:hover{filter:brightness(1.05)}
+.dtop-actions .order-status-toggle{min-block-size:38px}
 .select{background:var(--surface);border:1px solid var(--line-2);color:var(--text);border-radius:11px;padding:9px 12px;font-family:var(--font-ar);font-size:13px;cursor:pointer}
 .select:focus-visible{outline:none;border-color:var(--accent);box-shadow:var(--focus-shadow)}
 .who{position:relative;padding-inline-start:6px}
@@ -107,6 +112,17 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
 .ordno{display:inline-flex;align-items:center;justify-content:center;min-width:2.3em;
   font-family:var(--font-mono);font-weight:700;font-size:20px;line-height:1;
   padding:5px 10px;border-radius:var(--r-sm);background:var(--surface-2);border:1px solid var(--line-2)}
+/* The buzzer number, beside the ticket number it is NOT. Built to the ticket number's own
+   measurements — same height, same digits, same chip — so the pair reads as one line and
+   neither looks like an afterthought. A solid violet fill does the telling apart: across a
+   kitchen the only question is which of the two numbers is the one you press, and an
+   outline at that distance is not an answer. Nothing else on a card is this colour. */
+.pagerno{display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:0 0 auto;
+  min-width:2.3em;font-family:var(--font-mono);font-weight:700;font-size:20px;line-height:1;
+  padding:5px 10px;border-radius:var(--r-sm);
+  background:var(--pager);color:var(--pager-ink);border:1px solid var(--pager)}
+/* A mark beside the digits, not a rival to them. */
+.pagerno svg{flex:0 0 auto;width:.72em;height:.72em}
 .elapsed{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
 .elapsed.warn{color:var(--pending)}.elapsed.late{color:var(--bad)}
 .oprint{flex:0 0 auto;width:26px;height:26px;border-radius:8px;border:1px solid var(--line-2);background:transparent;color:var(--muted);font-size:13px;cursor:pointer;display:grid;place-items:center;transition:.15s}
@@ -124,6 +140,9 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
 /* loyalty reward to give on this order — flagged for the floor */
 .oreward{display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:var(--surface-2);border:1px solid var(--accent);border-radius:10px;padding:8px 10px;font-size:12px;color:var(--text);margin-bottom:11px}
 .oreward b{color:var(--accent-text);font-weight:800}
+/* The coupon row's mark is a line drawing, so the label centres on it rather than sitting
+   on an emoji's baseline. */
+.ocoupon b{display:inline-flex;align-items:center;gap:5px}
 
 /* ============================== Loyalty tab ============================== */
 .loy-page>section+section{margin-top:22px}
@@ -326,6 +345,9 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
   .inv-note{font-size:10px;color:#333;padding-inline-start:16px}
   .inv-hr{border-top:1px dashed #000;margin:6px 0}
   .inv-total{font-weight:800;font-size:14px}
+  /* The buzzer number, boxed like the total: on a counter slip it is the second thing
+     anyone looks for after the order number. */
+  .inv-pager{font-weight:800;font-size:13.5px;border:1px dashed #000;padding:2px 6px;margin:3px 0}
   /* Counter slips: the kitchen and the counter must read NOT PAID at a glance. */
   .inv-unpaid{font-weight:900;letter-spacing:.02em}
   .inv-thanks{text-align:center;font-weight:600;margin-top:2px}
@@ -366,6 +388,7 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
 .receipt-capture-sheet .inv-note{font-size:10px;color:#333;padding-inline-start:16px}
 .receipt-capture-sheet .inv-hr{border-top:1px dashed #000;margin:6px 0}
 .receipt-capture-sheet .inv-total{font-weight:800;font-size:14px}
+.receipt-capture-sheet .inv-pager{font-weight:800;font-size:13.5px;border:1px dashed #000;padding:2px 6px;margin:3px 0}
 .receipt-capture-sheet .inv-thanks{text-align:center;font-weight:600;margin-top:2px}
 
 /* Receipt customization pieces (logo / footer) — shared by capture and preview scopes. */
@@ -440,6 +463,7 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
 .receipt-preview-sheet .inv-note{font-size:10px;color:#333;padding-inline-start:16px}
 .receipt-preview-sheet .inv-hr{border-top:1px dashed #000;margin:6px 0}
 .receipt-preview-sheet .inv-total{font-weight:800;font-size:14px}
+.receipt-preview-sheet .inv-pager{font-weight:800;font-size:13.5px;border:1px dashed #000;padding:2px 6px;margin:3px 0}
 .receipt-preview-sheet .inv-thanks{text-align:center;font-weight:600;margin-top:2px}
 
 /* ---- menu manager ---- */
@@ -475,39 +499,53 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
 .payment-method.cash{background:var(--tint-warn)}.payment-method.card{background:var(--tint-ok)}
 .payment-method.split{background:var(--surface-2)}
 
-/* Splitting a bill: one row per person, each with their own amount and their own way of
-   paying. The remaining line is the whole point of the screen — it is what stops the counter
-   closing a bill that is only three-quarters collected — so it sits directly above the button
-   it gates, and the button stays dead until it reads zero. */
-.split-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:2px 0 12px}
-.split-label{font-size:12.5px;font-weight:700;color:var(--muted)}
-.split-chips{display:flex;gap:6px;flex-wrap:wrap}
-.split-chip{min-width:max(36px,var(--tap-sm));height:max(36px,var(--tap-sm));padding:0 6px;border:1px solid var(--line-2);border-radius:8px;background:var(--surface);color:var(--text);font-family:var(--font-ar);font-weight:800;font-size:14px;cursor:pointer}
-.split-chip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--keyline)}
-.split-chip.more{font-size:16px;color:var(--muted)}
-.split-chip:disabled{opacity:.35;cursor:not-allowed}
-.split-each{display:flex;align-items:center;gap:6px;margin-bottom:10px;font-size:13px;color:var(--muted)}
-.split-rows{display:flex;flex-direction:column;gap:max(8px,var(--tap-gap));max-height:44vh;overflow-y:auto;padding:2px}
-/* Cash and card sit next to each other and a mis-tap here books the wrong method, so both
-   ride the posture floor rather than a fixed px size, and keep a full gutter between them. */
-.split-row{display:grid;grid-template-columns:20px minmax(0,1fr) max(46px,var(--tap)) max(46px,var(--tap));align-items:center;gap:max(8px,var(--tap-gap))}
-.split-no{font-size:12.5px;font-weight:700;color:var(--faint);text-align:center}
-/* font-size rides --fs-field: under 16px iOS Safari force-zooms on focus and never zooms back. */
-.split-amt{width:100%;height:max(44px,var(--tap));padding:0 10px;border:1px solid var(--line-2);border-radius:8px;background:var(--surface);color:var(--text);font-family:var(--font-ar);font-weight:800;font-size:var(--fs-field)}
-.split-amt:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.split-row.done .split-amt{opacity:.75;border-style:dashed}
-.split-pay{height:max(44px,var(--tap));border:1px solid var(--line-2);border-radius:8px;background:var(--surface);font-size:18px;line-height:1;cursor:pointer;transition:background .1s,border-color .1s}
-.split-pay.on{font-weight:800}
-.split-pay.cash.on{background:var(--tint-warn);border-color:var(--edge-warn)}
-.split-pay.card.on{background:var(--tint-ok);border-color:var(--edge-ok)}
-.split-pay:disabled{opacity:.5;cursor:not-allowed}
-.split-left{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line-2);font-weight:800;font-size:15px}
-.split-left.ok{color:var(--accent-text)}
-.split-left.over{color:var(--bad)}
+/* Splitting a bill between cash and card: a grid. Every thing on the table is a row and the
+   row says how it was paid — nothing else. Rows start on cash so the counter only flips the
+   exceptions; the top pill sets every row at once and lights up only when they all agree,
+   so it doubles as the answer to "is this bill mixed?". The two totals at the bottom are the
+   tenders that will be recorded, so the eye lands on them last, above the button. */
+.split-all{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:2px 0 8px}
+.split-all-lb{font-size:13px;font-weight:700;color:var(--muted)}
+.split-grid{display:flex;flex-direction:column;max-height:46vh;overflow-y:auto;overscroll-behavior:contain;margin:0 -4px;padding:0 4px}
+/* Hairlines, not boxes: a bordered card per row is the thing this replaced. The name gets
+   the room, the price keeps quiet beside it, the pill sits flush on the end. */
+.split-line{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:12px;
+  min-height:max(48px,var(--tap));padding:3px 0;border-bottom:1px solid var(--line)}
+.split-line:last-child{border-bottom:0}
+/* Wraps to a second line rather than truncating: "Karak with saffron, no sugar" cut to "Karak
+   with saffron, no s…" is exactly the part that tells two karaks apart. */
+.split-line-nm{min-width:0;font-size:14px;font-weight:600;color:var(--text);line-height:1.25;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.split-line-pr{font-size:12.5px;color:var(--muted)}
+/* One pill, two halves. The lit half wears the method's tint — cash amber, card green — the
+   same pair the payment buttons already use, so the grid needs no legend. */
+.split-pill{display:inline-grid;grid-template-columns:1fr 1fr;gap:2px;padding:2px;
+  border:1px solid var(--line-2);border-radius:999px;background:var(--surface)}
+.split-pill button{min-width:max(54px,var(--tap-sm));height:max(34px,var(--tap-sm));padding:0 10px;
+  border:0;border-radius:999px;background:transparent;color:var(--muted);
+  font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;transition:background .1s,color .1s,box-shadow .1s}
+.split-pill button.on{color:var(--text)}
+.split-pill button.on.cash{background:var(--tint-warn);box-shadow:inset 0 0 0 1px var(--edge-warn)}
+.split-pill button.on.card{background:var(--tint-ok);box-shadow:inset 0 0 0 1px var(--edge-ok)}
+.split-pill button:disabled{cursor:not-allowed;opacity:.6}
+.split-pill button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.split-pill.lg button{min-width:max(68px,var(--tap));height:max(40px,var(--tap));font-size:13.5px}
+/* The tenders. Big because they are the point, and they are what the customer is told. */
+.split-sum{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line-2)}
+.split-sum-cell{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border-radius:10px}
+.split-sum-cell.cash{background:var(--tint-warn)}
+.split-sum-cell.card{background:var(--tint-ok)}
+.split-sum-cell.none{background:transparent;color:var(--faint)}
+.split-sum-k{font-size:12.5px;font-weight:700;color:var(--muted)}
+.split-sum-cell.none .split-sum-k{color:var(--faint)}
+.split-sum-v{font-size:18px;font-weight:800}
 .split-settle{width:100%;margin-top:12px}
-/* Locked for most of the split's life — the shares only add up at the very end — so it reads
-   as inert rather than as a washed-out primary anyone might still try to press. */
-.dash .payment-method-modal .split-settle:disabled{opacity:1;background:var(--surface-2);color:var(--faint);border-color:var(--line-2);box-shadow:none;transform:none;cursor:not-allowed}
+.dash .payment-method-modal .split-settle:disabled,.dash .pad-split-sheet .split-settle:disabled{opacity:1;background:var(--surface-2);color:var(--faint);border-color:var(--line-2);box-shadow:none;transform:none;cursor:not-allowed}
+@media (max-width:400px){
+  .split-line{grid-template-columns:minmax(0,1fr) auto;row-gap:2px}
+  .split-line-pr{grid-column:1;font-size:12px}
+  .split-line .split-pill{grid-column:2;grid-row:1 / span 2}
+}
 .payment-method:hover{transform:translate(-2px,-2px);box-shadow:var(--hard)}.payment-method:active{transform:translate(2px,2px);box-shadow:var(--hard-press)}.payment-method:disabled{opacity:.5;cursor:wait;transform:none}
 .payment-cancel{width:100%;margin-top:12px}
 .modal-card.item-modal .modal-actions{position:sticky;bottom:0;margin:18px -24px -24px;padding:14px 24px;
@@ -632,7 +670,15 @@ html[dir="rtl"] .beta-tag{left:auto;right:50%;transform:translateX(50%);
 .profile-fields+.profile-settings{margin-top:16px}
 .profile-setting{display:flex;align-items:center;justify-content:space-between;gap:18px;min-height:68px;border: var(--bw-hair) solid var(--line-2);border-radius:7px;background:var(--paper);padding:11px 12px}
 .profile-setting>div{min-width:0}.profile-setting b{display:block;color:var(--ink);font-size:12.5px;font-weight:900}.profile-setting div>span{display:block;max-width:58ch;margin-top:3px;color:var(--muted);font-size:10.5px;line-height:1.4}
-.profile-payment-setting,.profile-printer-setting,.profile-counter-setting{grid-column:1 / -1}
+.profile-payment-setting,.profile-printer-setting,.profile-counter-setting,.profile-pad-setting{grid-column:1 / -1}
+/* Single-select rows (e.g. cart-suggestion placement): a radio dot, accent when chosen. */
+.profile-choice{grid-column:1 / -1;cursor:pointer;text-align:start;font:inherit;
+  transition:border-color .15s,background-color .15s}
+.profile-choice:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line-2))}
+.profile-choice.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,var(--paper))}
+.profile-choice-dot{flex:0 0 auto;width:18px;height:18px;border-radius:50%;border:2px solid var(--line-2);position:relative}
+.profile-choice.on .profile-choice-dot{border-color:var(--accent)}
+.profile-choice.on .profile-choice-dot::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--accent)}
 .printer-station-actions{display:flex;align-items:center;gap:10px;flex:0 0 auto}
 .print-server-status{display:block;margin-top:5px;font-size:10.5px;font-weight:800}
 .print-server-status.ok{color:var(--ready,#15803d)}
@@ -671,7 +717,7 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
   .look-motif-row{grid-template-columns:repeat(auto-fit,minmax(58px,1fr))}
   .look-phone{min-height:500px;border-radius:26px}
   .profile-hero{padding:14px}.profile-logo{width:72px;height:72px;flex-basis:72px}.profile-title h3{font-size:22px}
-  .profile-actions .btn{flex:1}.profile-section{padding:14px}.profile-settings{grid-template-columns:1fr}.profile-payment-setting{grid-column:auto}
+  .profile-actions .btn{flex:1}.profile-section{padding:14px}.profile-settings{grid-template-columns:1fr}.profile-payment-setting,.profile-pad-setting{grid-column:auto}
   .profile-aside{display:flex}.branch-row{align-items:stretch;flex-direction:column}.branch-row .btn{width:100%}
 }
 
@@ -698,6 +744,28 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 .imghint{font-size:11px;color:var(--faint);line-height:1.3}
 .checkrow{display:flex;align-items:center;gap:9px;font-size:14px;color:var(--text);cursor:pointer;margin-top:4px}
 .checkrow.sm{font-size:12.5px;margin-top:0}
+
+/* combo editor: the parts picked so far, a picker for the next, and what the bundle saves */
+.mitem-combo{font-family:var(--font-ar);font-weight:700;font-size:10.5px;letter-spacing:.02em;padding:2px 7px;border-radius:999px;white-space:nowrap;
+  color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.comboedit{display:flex;flex-direction:column;gap:10px;margin-bottom:14px;padding:12px;border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line-2));
+  border-radius:12px;background:color-mix(in srgb,var(--accent) 5%,var(--bg-2))}
+.comboedit-parts{display:flex;flex-direction:column;gap:6px}
+.comboedit-part{display:flex;align-items:center;gap:10px;min-width:0}
+.comboedit-thumb{flex:0 0 34px;width:34px;height:34px;border-radius:9px;background:var(--surface) center/cover no-repeat;
+  display:grid;place-items:center;font-weight:700;color:var(--faint);border:1px solid var(--line-2)}
+.comboedit-name{flex:1;min-width:0;font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.comboedit-qty{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--line-2);border-radius:9px;background:var(--surface);padding:2px}
+.comboedit-qty button{width:28px;height:28px;border:0;border-radius:7px;background:transparent;color:var(--text);cursor:pointer;font-size:14px;line-height:1}
+.comboedit-qty button:hover:not(:disabled){background:var(--bg-2)}
+.comboedit-qty button:disabled{opacity:.35;cursor:default}
+.comboedit-qty .num{min-width:18px;text-align:center;font-size:13px;font-weight:700}
+.comboedit-pick{width:100%;background:var(--surface);border:1px dashed var(--line-2);border-radius:10px;padding:9px 11px;color:var(--text);
+  font-family:inherit;font-size:13.5px;cursor:pointer}
+.comboedit-note{font-size:12px;color:var(--faint)}
+.comboedit-sum{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;font-size:12.5px;color:var(--muted)}
+.comboedit-save{color:var(--accent);font-weight:600}
+.comboedit-warn{flex-basis:100%;color:var(--warn,#d97706);font-size:12px;line-height:1.4}
 
 /* option groups editor (size, milk type, extras) */
 .optedit{margin-top:14px;border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:10px}
@@ -995,7 +1063,7 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 
 /* heavy display type on the chrome headings */
 .dash .dtop h2,.dash .col-head h3,.dash .mcat-hd h3,.dash .profile-title h3,
-.dash .look-controls-head h4,.dash .modal-card h3,.dash .ordno,.dash .tnum,
+.dash .look-controls-head h4,.dash .modal-card h3,.dash .ordno,.dash .pagerno,.dash .tnum,
 .dash .acct-name,.dash .rail .logo{font-family:var(--bold);font-weight:var(--fw-display);letter-spacing:-.01em}
 .dash .col-head h3{text-transform:uppercase;letter-spacing:.02em}
 
@@ -1029,6 +1097,9 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 .dash .ocard:hover{transform:translate(-2px,-2px);box-shadow:var(--hard-lg);border-color:var(--keyline)}
 /* ticket number: the one thing on a busy board that must read at a glance */
 .dash .ordno{background:var(--lime);color:var(--fill-ink);border:var(--bw) solid var(--keyline);border-radius:6px;box-shadow:var(--hard-sm)}
+/* Bold skin: the same treatment the ticket number gets — ink keyline, hard shadow — in the
+   other colour, so the two chips are siblings rather than a chip and a label. */
+.dash .pagerno{background:var(--pager);color:var(--pager-ink);border:var(--bw) solid var(--keyline);border-radius:6px;box-shadow:var(--hard-sm)}
 .dash .col-head .cnt{border:var(--bw) solid var(--keyline);border-radius:6px;color:var(--ink);box-shadow:none;font-weight:800}
 .dash .col-empty{border:2px dashed var(--line-2);border-radius:7px}
 .dash .where .tg{border: var(--bw-hair) solid var(--keyline);border-radius:6px}
@@ -1067,6 +1138,10 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 .dash .chip{border: var(--bw-hair) solid var(--keyline);border-radius:6px}
 .dash .seg{border:var(--bw) solid var(--keyline);border-radius:6px;background:var(--bg-2)}
 .dash .seg button.on{background:var(--lime);color:var(--fill-ink);border-radius:4px}
+/* The "Unpaid" filter is a payment axis, not a lifecycle one — amber marks it as money still
+   owed, so it reads apart from the green status tabs, and the count sits beside them. */
+.dash .seg button.paytab.on{background:var(--pending);color:var(--fill-ink)}
+.dash .unpaid-note{color:var(--pending);font-weight:700;font-size:12.5px;white-space:nowrap}
 .dash .drawer-hd .x{border:var(--bw) solid var(--keyline);border-radius:6px}
 .dash .who .av{border:var(--bw) solid var(--keyline);border-radius:8px;background:var(--lime);color:var(--fill-ink);font-family:var(--bold)}
 .dash .acct-menu{border:var(--bw) solid var(--keyline);border-radius:9px;box-shadow:var(--hard-lg)}
@@ -1153,10 +1228,11 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 /* ---- segmented control: shadcn's tabs — white card on a muted track ---- */
 [data-skin="pro"] .dash .seg{background:var(--surface-2);border-color:transparent}
 [data-skin="pro"] .dash .seg button.on{background:var(--bg-2);color:var(--ink);box-shadow:var(--hard-sm)}
+[data-skin="pro"] .dash .seg button.paytab.on{background:var(--pending);color:var(--fill-ink)}
 
 /* ---- the ticket number stays a dark chip: it is the one thing on a busy
    board that has to win, and value contrast is how this skin does emphasis ---- */
-[data-skin="pro"] .dash .ordno{border-color:transparent}
+[data-skin="pro"] .dash .ordno,[data-skin="pro"] .dash .pagerno{border-color:transparent}
 [data-skin="pro"] .dash .who .av{border-color:transparent}
 [data-skin="pro"] .dash .qa-type{border-color:transparent}
 

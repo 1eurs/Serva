@@ -7,18 +7,20 @@ import { useSkin, type Skin } from '../../lib/skin';
 import { MenuLookManager } from './MenuManager';
 import { CafeSection, BranchPrinterSection, ReceiptSection, PlanSection } from './RestaurantProfile';
 import LoyaltySetup from './LoyaltySetup';
+import CouponsPane from './CouponsPane';
+import AiAccessPane from './AiAccessPane';
 import QrPane from './QrPane';
 import { SettingsShell, PaneSection, Specimen } from './SettingsShell';
 import { FONT_STACKS, parseCustomTheme } from '../customer/menuThemes';
 import type { Restaurant } from '../../lib/types';
 import './settings.css';
 
-export type SettingsSection = 'cafe' | 'branch' | 'look' | 'qr' | 'receipt' | 'loyalty' | 'appearance' | 'plan';
+export type SettingsSection = 'cafe' | 'branch' | 'look' | 'qr' | 'receipt' | 'coupons' | 'loyalty' | 'ai' | 'appearance' | 'plan';
 
 const DICT: Dict = {
   ar: {
     sec_cafe: 'المقهى', sec_branch: 'الفرع والطابعة', sec_look: 'شكل القائمة', sec_receipt: 'الفاتورة',
-    sec_qr: 'رمز QR', sec_loyalty: 'الولاء', sec_appearance: 'المظهر', sec_plan: 'الباقة',
+    sec_qr: 'رمز QR', sec_coupons: 'أكواد الخصم', sec_loyalty: 'الولاء', sec_ai: 'مساعد ذكي', sec_appearance: 'المظهر', sec_plan: 'الباقة',
     aprTitle: 'مظهر لوحة التحكم', aprSub: 'اختر الطابع الذي يناسبك — يظهر على هذا الجهاز فقط.',
     aprBold: 'جريء', aprBoldSub: 'الأخضر والحدود السميكة والظلال الصلبة — الطابع الأصلي.',
     aprPro: 'احترافي', aprProSub: 'رمادي هادئ وحدود شعرة وزوايا ناعمة — والأخضر يبقى، لكن للأزرار والمهم فقط.',
@@ -31,7 +33,7 @@ const DICT: Dict = {
   },
   en: {
     sec_cafe: 'Café', sec_branch: 'Branch & printer', sec_look: 'Menu look', sec_receipt: 'Receipt',
-    sec_qr: 'QR code', sec_loyalty: 'Loyalty', sec_appearance: 'Appearance', sec_plan: 'Plan',
+    sec_qr: 'QR code', sec_coupons: 'Coupons', sec_loyalty: 'Loyalty', sec_ai: 'Connect an AI', sec_appearance: 'Appearance', sec_plan: 'Plan',
     aprTitle: 'Dashboard appearance', aprSub: 'Pick the look that suits you — applies to this device only.',
     aprBold: 'Bold', aprBoldSub: 'Green, thick keylines and hard offset shadows — the original look.',
     aprPro: 'Professional', aprProSub: 'Quiet greys, hairline borders and soft corners — the green stays, but only on buttons and what matters.',
@@ -147,7 +149,9 @@ export default function SettingsPage({
     { key: 'look', label: t('sec_look'), show: can(user, 'MENU') },
     { key: 'qr', label: t('sec_qr'), show: can(user, 'QR_TABLES') },
     { key: 'receipt', label: t('sec_receipt'), show: can(user, 'PROFILE') },
+    { key: 'coupons', label: t('sec_coupons'), show: can(user, 'PROFILE') },
     { key: 'loyalty', label: t('sec_loyalty'), show: can(user, 'PROFILE') },
+    { key: 'ai', label: t('sec_ai'), show: !!user?.owner },
     { key: 'appearance', label: t('sec_appearance'), show: true },
     { key: 'plan', label: t('sec_plan'), show: can(user, 'PROFILE') },
   ] as { key: SettingsSection; label: string; show: boolean }[]).filter((i) => i.show),
@@ -178,7 +182,9 @@ export default function SettingsPage({
         {active === 'look' && <LookPane branchId={branchId} />}
         {active === 'qr' && <QrPane branchId={branchId} />}
         {active === 'receipt' && <ReceiptSection branchId={branchId} />}
+        {active === 'coupons' && <CouponsPane />}
         {active === 'loyalty' && <LoyaltySetup />}
+        {active === 'ai' && <AiAccessPane />}
         {active === 'appearance' && <AppearancePane />}
         {active === 'plan' && <PlanSection />}
       </div>

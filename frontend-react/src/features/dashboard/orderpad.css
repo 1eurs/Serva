@@ -65,8 +65,60 @@ input.pad-field{background:var(--bg-2);border:1px solid var(--line);color:var(--
 @media (hover:hover){.pad-qty button:hover{background:var(--surface-2)}}
 .pad-qty b{font-family:var(--font-mono);min-width:16px;text-align:center}
 
-.pad-cust{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+/* Name, phone and pager — each one a switch on the Café pane, so the row has to read right
+   with any of the eight combinations. One column by default; only name AND phone together
+   earn a pair of half-width boxes, and the pager always takes a line of its own. */
+.pad-cust{display:grid;grid-template-columns:1fr;gap:7px}
+.pad-cust.pair{grid-template-columns:1fr 1fr}
 .pad-cust input{background:var(--bg-2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:9px 11px;font-family:var(--font-ar);font-size:var(--fs-field);min-width:0;min-height:var(--tap)}
+/* The buzzer number is the thing the kitchen calls the customer by, so it wears the violet
+   it wears on the board rather than reading as a third grey box. */
+.pad-cust .pad-pager{grid-column:1/-1;display:flex;align-items:center;gap:8px;
+  background:var(--bg-2);border:1px solid var(--violet);border-radius:10px;
+  padding-inline:11px;min-height:var(--tap);color:var(--violet)}
+.pad-cust .pad-pager>span{flex:0 0 auto;display:inline-flex;font-size:16px}
+.pad-cust .pad-pager input{flex:1;border:0;background:transparent;padding-inline:0;min-height:auto;
+  font-family:var(--font-mono);font-weight:700;letter-spacing:.04em}
+.pad-cust .pad-pager input:focus{outline:none}
+.pad-cust .pad-pager:focus-within{box-shadow:var(--focus-shadow)}
+/* ---- coupon ----
+   A code typed on the bill, so it sits directly above the figures it changes rather than down
+   with the payment buttons: the counter types it and watches the total drop. Once recognised
+   the input is replaced by the coupon's own name — the code has done its job, and what the
+   person at the till now needs to read back to the customer is "Staff meal", not "STAFF-7K2Q". */
+.pad-coupon{display:flex;flex-direction:column;gap:5px}
+.pad-coupon-ask{display:flex;align-items:center;gap:6px}
+.pad-coupon-lb{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.pad-coupon-ask input{flex:1;min-width:0;background:var(--bg-2);border:1px solid var(--line);color:var(--text);
+  border-radius:10px;padding:8px 11px;min-height:var(--tap);
+  font-family:var(--font-mono);font-size:var(--fs-field);font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.pad-coupon-ask input::placeholder{font-family:var(--font-ar);letter-spacing:0;text-transform:none;font-weight:400}
+.pad-coupon-go{flex:0 0 auto;min-height:var(--tap);border:1px solid var(--line);background:var(--surface-2);color:var(--text);
+  border-radius:10px;padding:8px 14px;font-family:var(--font-ar);font-size:13px;font-weight:700;cursor:pointer}
+.pad-coupon-go:disabled{opacity:.45;cursor:default}
+@media (hover:hover){.pad-coupon-go:not(:disabled):hover{border-color:var(--accent);color:var(--accent-text)}}
+/* Applied: a torn ticket stub, so nobody has to re-read the totals to notice one is on. */
+.pad-coupon-on{display:flex;align-items:center;gap:8px;min-height:var(--tap);padding:6px 10px;
+  border:1px solid var(--accent);border-radius:10px;background:var(--surface-2);color:var(--accent-text)}
+.pad-coupon-tag{display:inline-flex;align-items:center;line-height:1}
+.pad-coupon-nm{flex:1;min-width:0;font-family:var(--font-ar);font-size:13px;font-weight:800;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pad-coupon-code{font-family:var(--font-mono);font-size:11.5px;letter-spacing:.06em;color:var(--muted)}
+.pad-coupon-x{flex:0 0 auto;min-width:var(--tap-sm);min-height:var(--tap-sm);display:grid;place-items:center;
+  border:0;background:transparent;color:var(--muted);font-size:13px;cursor:pointer;border-radius:8px}
+@media (hover:hover){.pad-coupon-x:hover{background:var(--surface);color:var(--text)}}
+/* A code that covers nothing in this basket. The send buttons are already dead; this says why.
+   Wears the pad's own warning colours (see .pad-item-sold) rather than bare amber, which at
+   this size on the cart surface is a colour you can see but not read. */
+.pad-coupon-warn{padding:6px 9px;border-radius:8px;font-size:11.5px;line-height:1.45;
+  color:#B45309;background:var(--tint-warn);border:1px solid var(--edge-warn)}
+.pad-coupon-go:focus-visible,.pad-coupon-x:focus-visible{outline:2.5px solid var(--keyline);outline-offset:2px}
+/* The discount line, and the badge on each line the coupon reaches. */
+.pad-coupon-off span{display:inline-flex;align-items:center;gap:5px;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pad-line-cpn{font-family:var(--bold);font-weight:800;font-size:10px;letter-spacing:.02em;
+  padding:2px 6px;border-radius:999px;color:var(--accent-ink);background:var(--accent)}
+
 .pad-totals{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--line);padding-top:10px;font-size:13px;color:var(--muted)}
 .pad-totals>div{display:flex;justify-content:space-between}
 .pad-totals b{font-family:var(--font-mono);color:var(--text)}
@@ -80,7 +132,11 @@ input.pad-field{background:var(--bg-2);border:1px solid var(--line);color:var(--
 .pad-pay-opt.none{color:var(--muted)}
 .pad-pay-opt.on{border-color:var(--accent);background:var(--surface-2);color:var(--accent-text)}
 .pad-pay-opt.none.on{border-color:var(--line-2);background:var(--surface);color:var(--text)}
-.pad-actions{display:flex;gap:var(--tap-gap)}
+/* Clear · Split · Send. Three buttons is one more than this row was built for, so it wraps
+   rather than squeezing: below the send button's own floor it takes a line of its own and
+   keeps its full label, instead of breaking "Send to kitchen" across two lines. */
+.pad-actions{display:flex;gap:var(--tap-gap);flex-wrap:wrap}
+.pad-actions:not(.pad-counter) .pad-place{flex:1 1 180px}
 .pad-clear{flex:0 0 auto;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:11px;padding:12px 14px;font-family:var(--font-ar);font-weight:700;cursor:pointer;min-height:var(--tap)}
 /* "Send to kitchen" is the biggest commit in the app — the primary-action floor. */
 .pad-place{flex:1;border:0;background:var(--accent);color:var(--accent-ink);border-radius:11px;padding:13px;font-family:var(--font-ar);font-size:14px;font-weight:800;cursor:pointer;min-height:var(--tap-lg)}
@@ -93,6 +149,15 @@ input.pad-field{background:var(--bg-2);border:1px solid var(--line);color:var(--
 .pad-counter .pad-place.card{background:var(--tint-ok,#d6efe3);color:var(--ink,var(--text))}
 .pad-counter .pad-place.paid-one{flex:1 1 60%}
 .pad-counter .pad-place.unpaid{flex:1 1 100%;background:transparent;border:1px solid var(--line-2);color:var(--text);min-height:var(--tap)}
+/* Split takes the full row above "not paid": it is the one send that opens a screen first,
+   so it should not sit in the pair of one-tap buttons pretending to be one of them. */
+.pad-counter .pad-place.split{flex:1 1 100%;background:var(--surface-2);color:var(--text);border:1px solid var(--line-2)}
+/* Outside counter mode the row is Clear · Split · Send — Split borrows the quiet Clear
+   treatment so the primary send keeps the weight it has today. */
+.pad-split-btn{color:var(--text);white-space:nowrap}
+.pad-split-btn:disabled{opacity:.45;cursor:not-allowed}
+/* The divider rows want the sheet's whole width; the body's own gap would double theirs. */
+.pad-split-sheet .pad-sheet-bd{gap:0}
 
 /* ---- option sheet ---- */
 /* Padded for the notch and the home indicator, like the shared .modal-bg. */

@@ -1,0 +1,125 @@
+/* ============================================================================
+   Coupons — the owner's codes, and the card they hand their team.
+
+   The pane's furniture is the shared Settings kit (.stg-*, .profile-fields,
+   .field); everything here is the part Settings does not already own: the list
+   of codes, the per-item percent rows, and the ticket in the aside.
+   ========================================================================== */
+
+/* ---- the list of codes ---- */
+.cpn-none{display:flex;flex-direction:column;gap:3px;padding:15px;border:1.5px dashed var(--line-2);
+  border-radius:8px;background:var(--paper);color:var(--muted);font-size:12px}
+.cpn-none b{color:var(--text);font-size:13px}
+
+.cpn-list{display:flex;flex-direction:column;gap:7px}
+/* One row per coupon, and the row IS the button: the whole point of this screen is
+   opening one, so there is nothing else on the row to aim at. */
+.cpn-row{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:11px;
+  min-height:var(--tap);padding:9px 12px;text-align:start;cursor:pointer;
+  border:var(--bw) solid var(--keyline);border-radius:8px;background:var(--bg-2);color:var(--text)}
+.cpn-row.on{border-color:var(--accent);background:var(--surface-2);box-shadow:var(--hard-xs)}
+.cpn-row.off{opacity:.6}
+@media (hover:hover){.cpn-row:not(.on):hover{background:var(--surface-2)}}
+.cpn-row-code{font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:.06em}
+.cpn-row-label{font-family:var(--bold);font-size:13px;font-weight:800;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cpn-row-items{color:var(--muted);font-size:11px}
+.cpn-row-state{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;
+  padding:3px 8px;border-radius:999px;background:var(--surface);color:var(--muted)}
+.cpn-row-state.on{background:var(--accent);color:var(--accent-ink)}
+
+/* ---- code field ---- */
+.cpn-code-row{display:flex;gap:7px}
+.cpn-code-row .btn{flex:0 0 auto;white-space:nowrap}
+input.cpn-code{flex:1;min-width:0;font-family:var(--font-mono);font-size:15px;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase}
+.cpn-hint{display:block;margin-top:5px;color:var(--muted);font-size:11px;line-height:1.45}
+
+/* ---- on / off ----
+   The switch itself is the shared .profile-setting row + .switch pill from dashboard.css;
+   all this pane adds is the full-width span, as the other panes' rows do. */
+.cpn-status{grid-column:1 / -1}
+
+/* ---- covered items and their percents ---- */
+.cpn-covered{display:flex;flex-direction:column;gap:7px}
+.cpn-cov{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:8px 10px;
+  border:var(--bw) solid var(--keyline);border-radius:8px;background:var(--bg-2)}
+.cpn-cov-nm{flex:1 1 130px;min-width:0;font-family:var(--bold);font-size:12.5px;font-weight:800;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cpn-quick{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+/* Free leads and wears the accent: "this one is on us" is the thing these codes are for,
+   and it is also the one that must never be a mis-tap away from 10%. */
+.cpn-pc{min-height:var(--tap);padding:5px 10px;cursor:pointer;border:1px solid var(--line-2);
+  border-radius:999px;background:var(--surface);color:var(--muted);
+  font-family:var(--font-mono);font-size:11.5px;font-weight:700}
+.cpn-pc.free{font-family:var(--bold);letter-spacing:.02em}
+.cpn-pc.on{border-color:var(--accent);background:var(--surface-2);color:var(--accent-text)}
+.cpn-pc.free.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+@media (hover:hover){.cpn-pc:not(.on):hover{border-color:var(--keyline);color:var(--text)}}
+/* The typed percent. It sits in a row of percent pills, so without a unit on it "100" is just
+   a number in a box — the % is drawn beside the field rather than inside the value, which keeps
+   the number selectable and the input a plain number field. */
+.cpn-pc-field{display:inline-flex;align-items:center;gap:3px;flex:0 0 auto;color:var(--muted)}
+.cpn-pc-field>span{font-family:var(--font-mono);font-size:11.5px}
+input.cpn-pc-num{width:52px;min-height:var(--tap);padding:5px 6px;text-align:center;
+  font-family:var(--font-mono);font-size:12px}
+.cpn-cov-x{flex:0 0 auto;min-width:var(--tap);min-height:var(--tap);display:grid;place-items:center;
+  border:0;background:transparent;color:var(--muted);font-size:13px;cursor:pointer;border-radius:8px}
+@media (hover:hover){.cpn-cov-x:hover{background:var(--surface);color:var(--bad)}}
+
+/* ---- adding an item ---- */
+.cpn-add-list{margin-top:7px;max-height:230px;overflow:auto;display:flex;flex-direction:column;gap:4px;
+  border:var(--bw) solid var(--keyline);border-radius:8px;background:var(--bg-2);padding:6px}
+/* Tapping an item adds it at 100% — the commonest coupon on earth is one free thing,
+   and the percents are right there to change it to anything else. */
+.cpn-add-row{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:9px;
+  min-height:var(--tap);padding:6px 9px;text-align:start;cursor:pointer;
+  border:0;border-radius:6px;background:transparent;color:var(--text)}
+@media (hover:hover){.cpn-add-row:hover{background:var(--surface-2)}}
+.cpn-add-row .nm{font-size:12.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cpn-add-row .pr{font-family:var(--font-mono);font-size:11.5px;color:var(--muted)}
+.cpn-add-row .add{font-size:14px;color:var(--accent-text);line-height:1}
+.cpn-no-match{margin:0;padding:9px;text-align:center;color:var(--muted);font-size:11.5px}
+
+.cpn-danger{display:flex;justify-content:flex-end;margin-top:15px;
+  padding-top:13px;border-top:1.5px dashed var(--line-2)}
+
+/* Keyboard focus. settings.css rings .btn / .switch / .seg inside a pane; these controls are
+   this pane's own, so they carry the same ink ring rather than falling back to whatever the
+   browser draws on a bordered surface. */
+.cpn-row:focus-visible,.cpn-pc:focus-visible,.cpn-add-row:focus-visible,
+.cpn-cov-x:focus-visible{outline:2.5px solid var(--keyline);outline-offset:2px}
+
+/* ---- the ticket in the aside ----
+   What the owner screenshots into the staff group. A torn stub rather than another card
+   on the page: it has to look like the thing it is, so nobody mistakes the code on it
+   for one more setting. The rip is the same mask the receipt tape uses. */
+/* One paper metaphor, not two. This card already tears across the middle, which is what a
+   coupon does — so it does not also wear the receipt tape's torn hem (.stg-tape): two kinds of
+   rip on one 200px card read as a texture rather than as an object, and the Receipt pane next
+   door is where a torn edge means something. A plain stub, so the perforation is the gesture. */
+.cpn-ticket{padding:14px;background:#fff;color:#15181C;border-radius:7px;box-shadow:var(--hard-xs)}
+.cpn-ticket-top{display:flex;align-items:center;justify-content:space-between;gap:9px}
+.cpn-ticket-mark{display:inline-flex;align-items:center;line-height:1}
+.cpn-ticket-state{font-family:var(--font-mono);font-size:8.5px;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;padding:3px 7px;border-radius:999px;background:#EEEFF1;color:#5B6066}
+.cpn-ticket-state.on{background:#15181C;color:#fff}
+/* The code is read off a phone screen across a counter, so it is the biggest thing on the card. */
+.cpn-ticket-code{margin-top:9px;font-family:var(--font-mono);font-size:23px;font-weight:700;
+  letter-spacing:.08em;line-height:1.1;overflow-wrap:anywhere}
+.cpn-ticket-label{margin-top:3px;font-family:var(--bold);font-size:13px;font-weight:900;color:#15181C}
+.cpn-ticket-rip{margin:12px -14px 10px;border-top:1.5px dashed #C9CCD1}
+.cpn-ticket-items{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px}
+.cpn-ticket-items li{display:flex;align-items:baseline;justify-content:space-between;gap:9px;font-size:11.5px}
+.cpn-ticket-items .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#15181C}
+.cpn-ticket-items .pc{flex:0 0 auto;font-family:var(--font-mono);font-size:11px;font-weight:700;color:#5B6066}
+.cpn-ticket-items .pc.free{padding:2px 7px;border-radius:999px;background:#15181C;color:#fff;font-family:var(--bold)}
+.cpn-ticket-empty{color:#5B6066;font-size:11px;line-height:1.45}
+
+/* 639px, the pocket ceiling — theme.css keeps four sanctioned breakpoints and this is the
+   one this row reflows at. A code, a name, a count and a state is one column too many for an
+   apron-pocket width, so the count drops to a second line under the name. */
+@media (max-width:639px){
+  .cpn-row{grid-template-columns:auto 1fr auto;row-gap:4px}
+  .cpn-row-items{grid-column:2/-1}
+}

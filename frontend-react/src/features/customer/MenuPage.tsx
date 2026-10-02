@@ -17,29 +17,28 @@ import { parseMenuInfo, houseFacts } from './menuInfo';
 import { usePresence } from './usePresence';
 import { CustomerFrame } from './CustomerFrame';
 import { ItemDetailModal } from './ItemDetailModal';
+import { ComboArt, comboParts, partsLabel, separateTotal } from './combo';
 import { loyaltyCardStyle } from './StampCard';
+import { FACT_ICONS, IconTimer, IconGift, IconTicket, IconCart, type FactIconKey } from './icons';
 import './loyalty.css';
 
 const DICT: Dict = {
   ar: { table: 'طاولة', viewCart: 'عرض السلة', items: 'أصناف', cur: 'ر.ع', min: 'د', from: 'يبدأ من',
-        soldout: 'غير متوفر', left: 'بقي {n}', unavailable: 'القائمة غير متاحة حالياً', retry: 'إعادة المحاولة', car: 'طلب من السيارة', added: 'أُضيف ✓', menuOnly: 'القائمة',
-        ordersPaused: 'الطلبات متوقفة مؤقتاً', ordersPausedSub: 'يمكنك تصفح القائمة، لكن هذا الفرع لا يستقبل طلبات جديدة حالياً.',
+        soldout: 'غير متوفر', left: 'بقي {n}', loading: 'جارٍ تحميل القائمة…', unavailable: 'القائمة غير متاحة حالياً', retry: 'إعادة المحاولة', car: 'طلب من السيارة', added: 'أُضيف ✓', menuOnly: 'القائمة',
+        ordersPaused: 'المقهى مغلق حالياً', ordersPausedSub: 'يمكنك تصفح القائمة، والطلب عندما يفتح الفرع.',
         browseHint: 'امسح رمز طاولتك أو رمز خدمة السيارة لإرسال طلب.',
         welcome: 'أهلاً بعودتك', usual: 'طلبك المعتاد', addUsual: '＋ أضف', lastOrderLbl: 'طلبك السابق', reorderLast: '↻ أضِفه للسلة', lastAdded: 'أُضيف طلبك السابق إلى السلة ✓',
         loyStamps: 'أختام', loyReady: 'مكافأتك جاهزة! 🎉', loyReadySub: 'استبدل مكافأتك المجانية عند الدفع', loyMinTag: 'الحد الأدنى',
-        loyPickAny: 'اختر أي صنف:', loyRewardBadge: 'مكافأة الولاء', loyFreeBadge: 'مجاني بمكافأتك' },
+        loyPickAny: 'اختر أي صنف:', qtyMinus: 'إنقاص الكمية', qtyPlus: 'زيادة الكمية', loyRewardBadge: 'مكافأة الولاء', loyFreeBadge: 'مجاني بمكافأتك',
+        combo: 'كومبو', save: 'وفّر' },
   en: { table: 'Table', viewCart: 'View cart', items: 'items', cur: 'OMR', min: 'min', from: 'from',
-        soldout: 'Sold out', left: '{n} left', unavailable: 'Menu is unavailable right now', retry: 'Try again', car: 'Car order', added: 'Added ✓', menuOnly: 'Menu',
-        ordersPaused: 'Orders are paused', ordersPausedSub: 'You can browse the menu, but this branch is not accepting new orders right now.',
+        soldout: 'Sold out', left: '{n} left', loading: 'Loading the menu…', unavailable: 'Menu is unavailable right now', retry: 'Try again', car: 'Car order', added: 'Added ✓', menuOnly: 'Menu',
+        ordersPaused: 'The café is closed', ordersPausedSub: 'You can browse the menu and order once this branch opens.',
         browseHint: 'Scan your table’s QR or the car-service QR to place an order.',
         welcome: 'Welcome back', usual: 'Your usual', addUsual: '＋ Add', lastOrderLbl: 'Your last order', reorderLast: '↻ Add to cart', lastAdded: 'Your last order is in the cart ✓',
         loyStamps: 'stamps', loyReady: 'Your reward is ready! 🎉', loyReadySub: 'Redeem your free reward at checkout', loyMinTag: 'min order',
-        loyPickAny: 'Pick any:', loyRewardBadge: 'Loyalty reward', loyFreeBadge: 'Free with your reward' },
-};
-
-const fallbackThumb = (it: PublicItem) => {
-  const hue = (it.id * 47) % 360;
-  return { backgroundImage: `linear-gradient(155deg, hsl(${hue} 42% 34%) -30%, #15171C 70%)` };
+        loyPickAny: 'Pick any:', qtyMinus: 'Decrease quantity', qtyPlus: 'Increase quantity', loyRewardBadge: 'Loyalty reward', loyFreeBadge: 'Free with your reward',
+        combo: 'Combo', save: 'Save' },
 };
 
 export default function MenuPage() {
@@ -77,7 +76,10 @@ export default function MenuPage() {
 
   const cartKey = cartKeyOf(slug, bId, token, orderType);
   const cart = useCart(cartKey);
-  const { add, bump } = useCartStore();
+  // Select the two actions, not the whole store: an unselected useCartStore() subscribes the
+  // menu to every cart in localStorage, so another table's cart re-rendered this one.
+  const add = useCartStore((s) => s.add);
+  const bump = useCartStore((s) => s.bump);
   const toast = useToast();
   const [openItem, setOpenItem] = useState<PublicItem | null>(null);
   const fctx = { restaurantSlug: slug, branchId: bId, qrTableToken: token };
@@ -125,6 +127,17 @@ export default function MenuPage() {
   // Loyalty reward eligibility: badge the items a full stamp card can claim free.
   const loyRewardIds = (returning?.loyalty?.enabled ? returning.loyalty.rewardItemIds : null) ?? [];
   const loyReady = (returning?.loyalty?.availableRewards ?? 0) > 0;
+  // When the reward is redeemable against (nearly) the whole menu, badging each item says
+  // nothing — it is the remainingToday rule again: a badge on every item is a badge on none.
+  // The strip above the categories already says it once, which is where it belongs.
+  const loyRewardIsAnything = useMemo(() => {
+    if (loyRewardIds.length === 0) return false;
+    const sellableIds = [...itemsById.values()].filter(sellable).map((i) => i.id);
+    if (sellableIds.length === 0) return false;
+    const covered = sellableIds.filter((id) => loyRewardIds.includes(id)).length;
+    return covered / sellableIds.length >= 0.8;
+  }, [loyRewardIds, itemsById]);
+
   const loyRewardNames = useMemo(
     () => loyRewardIds.map((id) => itemsById.get(id)).filter((it): it is PublicItem => !!it)
       .slice(0, 3).map((it) => pick(it, 'name', lang)),
@@ -167,6 +180,7 @@ export default function MenuPage() {
   };
 
   const count = cart.reduce((s, l) => s + l.qty, 0);
+  const cartbarShown = count > 0 && orderable;
   const subtotal = cart.reduce((s, l) => {
     const it = itemsById.get(l.id);
     return s + (it ? lineUnitPrice(it, l.selectedOptions) : 0) * l.qty;
@@ -200,7 +214,13 @@ export default function MenuPage() {
 
   const gotoCat = (id: number) => document.getElementById('cat-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-  if (isLoading) return <Frame><div className="center"><div className="spinner" /></div></Frame>;
+  if (isLoading) return (
+    <Frame>
+      <div className="center" role="status">
+        <div className="spinner" /><span className="sr-only">{t('loading')}</span>
+      </div>
+    </Frame>
+  );
   if (isError || !data) {
     const msg = error instanceof ApiError ? error.message : t('unavailable');
     return (
@@ -233,14 +253,6 @@ export default function MenuPage() {
           </div>
           <LangToggle />
         </div>
-        <div className="c-meta">
-          {data.table
-            ? <span className="c-table">🪑 {t('table')} <span className="num">{data.table.tableNumber}</span></span>
-            : orderType === 'CAR'
-              ? <span className="c-table">🚗 {t('car')}</span>
-              : <span className="c-table">📋 {t('menuOnly')}</span>}
-          {data.branch && <span>{nameOf(data.branch, lang)}</span>}
-        </div>
       </header>
 
       {!acceptingOrders
@@ -271,13 +283,13 @@ export default function MenuPage() {
             {houseNote && <p className="c-house-note">{houseNote}</p>}
             {facts.length > 0 && (
               <div className="c-house-facts">
-                {facts.map((f) => (f.href
-                  ? <a className="c-fact" key={f.key} href={f.href} target="_blank" rel="noreferrer">
-                      <span aria-hidden="true">{f.icon}</span>{f.ltr ? <Ltr>{f.text}</Ltr> : <bdi>{f.text}</bdi>}
-                    </a>
-                  : <span className="c-fact" key={f.key}>
-                      <span aria-hidden="true">{f.icon}</span>{f.ltr ? <Ltr>{f.text}</Ltr> : <bdi>{f.text}</bdi>}
-                    </span>))}
+                {facts.map((f) => {
+                  const Icon = FACT_ICONS[f.key as FactIconKey];
+                  const inner = <>{Icon ? <Icon /> : null}{f.ltr ? <Ltr>{f.text}</Ltr> : <bdi>{f.text}</bdi>}</>;
+                  return f.href
+                    ? <a className="c-fact" key={f.key} href={f.href} target="_blank" rel="noreferrer">{inner}</a>
+                    : <span className="c-fact" key={f.key}>{inner}</span>;
+                })}
               </div>
             )}
           </section>
@@ -289,9 +301,12 @@ export default function MenuPage() {
           return (
             <Link to="/loyalty" state={{ from: pathname }}
               className={'loy-strip on-menu' + (ready ? ' ready' : '')} style={loyaltyCardStyle(loy.cardColor)}>
-              <span className="loy-spark">{ready ? '★' : '🎟️'}</span>
+              <span className="loy-spark"><IconTicket size={18} /></span>
               <div className="loy-strip-main">
-                <b>{ready ? t('loyReady') : <><span className="num">{loy.stamps}</span> / <span className="num">{loy.stampsRequired}</span> {t('loyStamps')}</>}</b>
+                {/* The pair is one machine-format value and has to be isolated: a slash
+                    between two numeric runs resolves RTL, so 3 / 4 read as 4 / 3 on the
+                    Arabic menu — the count looked like it had overshot the card. */}
+                <b>{ready ? t('loyReady') : <><Ltr>{loy.stamps} / {loy.stampsRequired}</Ltr> {t('loyStamps')}</>}</b>
                 <span>{ready
                   ? (loyRewardNames.length ? `${t('loyPickAny')} ${loyRewardNames.join(' · ')}` : t('loyReadySub'))
                   : <>{loy.rewardLabel}{loy.minOrderAmount ? <> · {t('loyMinTag')} <Money value={loy.minOrderAmount} /></> : null}</>}</span>
@@ -346,11 +361,24 @@ export default function MenuPage() {
               // priority; everything below the fold lazy-loads as the customer scrolls.
               const eager = ci === 0 && idx < 4;
               const open = () => setOpenItem(it);
+              // A combo shows what is in it, and — when the bundle is cheaper than its parts —
+              // the parts' price struck through and what the customer saves.
+              const parts = comboParts(it, itemsById);
+              const combo = parts.length > 0;
+              const unit = it.salePrice ?? it.price;
+              const apart = combo ? separateTotal(parts) : 0;
+              const saves = combo && apart - unit >= 0.001;
+              // The rise is a welcome, not a queue: the stagger stops after the first handful.
+              // Uncapped, item 25 of a long category sat at opacity 0 for a second and a half —
+              // a customer scrolling fast scrolled into nothing.
               return (
-                <article className={'c-item' + (sellable(it) ? '' : ' out')} style={{ animationDelay: `${idx * 60}ms` }} key={it.id}>
-                  <button className="c-thumb" type="button" onClick={open}
-                    style={it.imageUrl ? undefined : fallbackThumb(it)} aria-label={pick(it, 'name', lang)}>
-                    {it.imageUrl
+                <article className={'c-item' + (sellable(it) ? '' : ' out') + (combo ? ' is-combo' : '')}
+                  style={{ animationDelay: `${Math.min(idx, 6) * 60}ms` }} key={it.id}>
+                  <button className={'c-thumb' + (it.imageUrl || combo ? '' : ' is-empty')} type="button" onClick={open}
+                    aria-label={pick(it, 'name', lang)}>
+                    {!it.imageUrl && combo
+                      ? <ComboArt parts={parts} lang={lang} eager={eager} />
+                      : it.imageUrl
                       ? <img src={it.imageUrl} alt="" decoding="async" loading={eager ? 'eager' : 'lazy'}
                           width={82} height={82}
                           {...({ fetchpriority: eager ? 'high' : 'low' } as object)} />
@@ -365,24 +393,34 @@ export default function MenuPage() {
                   )}
                   <div className="c-body">
                     <button className="c-body-btn" type="button" onClick={open}>
+                      {combo && <span className="c-combo-tag">{t('combo')}</span>}
                       <h3>{pick(it, 'name', lang)}</h3>
                       {lang === 'ar' && it.nameEn && <div className="sub">{it.nameEn}</div>}
+                      {combo && <div className="c-combo-parts">{partsLabel(parts, lang)}</div>}
                       {pick(it, 'description', lang) && <p>{pick(it, 'description', lang)}</p>}
                     </button>
                     <div className="c-foot">
                       <div>
                         <div className="c-price">
-                          {it.salePrice != null && (
-                            <Money value={it.price} className="c-was num" />
-                          )}
-                          <Money value={it.salePrice ?? it.price} className={'num' + (it.salePrice != null ? ' c-sale' : '')} />
-                          {it.salePrice != null && <span className="c-off"><Ltr>−{discountPercent(it.price, it.salePrice)}%</Ltr></span>}
-                          {hasOptions && <span className="c-from"> · {t('from')}</span>}
+                          {/* the qualifier leads the number in both languages: "from 1.600",
+                              "يبدأ من ١٫٦٠٠" — trailing it read as "1.600 from" in English */}
+                          {hasOptions && <span className="c-from">{t('from')}</span>}
+                          {saves ? <>
+                            <Money value={apart} className="c-was num" />
+                            <Money value={unit} className="num c-sale" />
+                            <span className="c-off c-save">{t('save')} <Money value={apart - unit} className="num" /></span>
+                          </> : <>
+                            {it.salePrice != null && (
+                              <Money value={it.price} className="c-was num" />
+                            )}
+                            <Money value={unit} className={'num' + (it.salePrice != null ? ' c-sale' : '')} />
+                            {it.salePrice != null && <span className="c-off"><Ltr>−{discountPercent(it.price, it.salePrice)}%</Ltr></span>}
+                          </>}
                         </div>
-                        {it.preparationTimeMinutes ? <div className="c-prep">⏱ <span className="num">{it.preparationTimeMinutes}</span> {t('min')}</div> : null}
-                        {loyRewardIds.includes(it.id) && (
+                        {it.preparationTimeMinutes ? <div className="c-prep"><IconTimer size={13} /><span className="num">{it.preparationTimeMinutes}</span> {t('min')}</div> : null}
+                        {loyRewardIds.includes(it.id) && !loyRewardIsAnything && (
                           <div className={'loy-item-badge' + (loyReady ? ' ready' : '')}>
-                            🎁 {loyReady ? t('loyFreeBadge') : t('loyRewardBadge')}
+                            <IconGift size={13} /> {loyReady ? t('loyFreeBadge') : t('loyRewardBadge')}
                           </div>
                         )}
                       </div>
@@ -396,9 +434,13 @@ export default function MenuPage() {
                             </button>
                           : noOptLine
                             ? <div className="c-qty">
-                                <button onClick={() => addItem(it.id)}>+</button>
+                                {/* Same order as the modal's stepper — the two used to run
+                                    opposite ways, so the button that added on the card
+                                    removed in the picker. Minus first mirrors correctly
+                                    in both directions. */}
+                                <button aria-label={t('qtyMinus')} onClick={() => bump(cartKey, String(it.id), -1)}>−</button>
                                 <span className="n num">{noOptLine.qty}</span>
-                                <button onClick={() => bump(cartKey, String(it.id), -1)}>−</button>
+                                <button aria-label={t('qtyPlus')} onClick={() => addItem(it.id)}>+</button>
                               </div>
                             : <button className="c-add" onClick={() => addItem(it.id)} aria-label="add">+</button>}
                     </div>
@@ -411,12 +453,21 @@ export default function MenuPage() {
         <div className="c-bottom-spacer" />
       </main>
 
-      <div className={'c-cartbar' + (count > 0 && orderable ? ' show' : '')} onClick={() => nav('/cart')}>
-        <div className="ico">🛒<span className="count">{count}</span></div>
-        <div className="lbl"><b>{t('viewCart')}</b><span>{count} {t('items')}</span></div>
+      {/* The menu's primary action, so it is a real button: tabbable, Enter/Space, focus ring.
+          Off-screen (empty cart) it is disabled, which takes it out of the tab order too —
+          a keyboard customer never tabs into a bar they cannot see. */}
+      <button
+        type="button"
+        className={'c-cartbar' + (cartbarShown ? ' show' : '')}
+        disabled={!cartbarShown}
+        aria-hidden={!cartbarShown}
+        onClick={() => nav('/cart')}
+      >
+        <span className="ico" aria-hidden="true"><IconCart size={18} /><span className="count" key={count}>{count}</span></span>
+        <span className="lbl"><b>{t('viewCart')}</b><span>{count} {t('items')}</span></span>
         <Money value={subtotal} className="total num" />
-        <div className="go">‹</div>
-      </div>
+        <span className="go" aria-hidden="true">‹</span>
+      </button>
 
       {openItem && (
         <ItemDetailModal
@@ -425,6 +476,7 @@ export default function MenuPage() {
           branchId={bId}
           qrTableToken={token}
           orderable={orderable}
+          itemsById={itemsById}
           onClose={() => setOpenItem(null)}
           onAdd={(qty, options) => addFromModal(openItem, qty, options)}
         />

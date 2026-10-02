@@ -30,5 +30,7 @@ public record UpdateMenuItemRequest(
         @Positive Integer preparationTimeMinutes,
         Integer displayOrder,
         /** Option groups. When present, replaces all groups (pass an empty list to clear). */
-        List<CreateMenuItemRequest.OptionGroupInput> optionGroups
+        List<CreateMenuItemRequest.OptionGroupInput> optionGroups,
+        /** Combo contents. When present, replaces them (empty list = no longer a combo). Null = untouched. */
+        List<Long> comboItemIds
         ) {}

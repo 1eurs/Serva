@@ -14,9 +14,13 @@ import com.cafeqr.analytics.Entitlements;
 import com.cafeqr.common.util.Names;
 import com.cafeqr.plans.domain.Feature;
 import com.cafeqr.restaurants.RestaurantService;
+import com.cafeqr.till.domain.TillSession;
+import com.cafeqr.till.repository.TillSessionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 
 @Service
@@ -29,15 +33,23 @@ public class BranchService {
     private final RestaurantService restaurantService;
     private final AccessGuard accessGuard;
     private final Entitlements entitlements;
+    /**
+     * The repository rather than TillService, deliberately: "can this shop sell right now" is
+     * asked on the hot path of every order, needs one boolean, and routing it through the till
+     * service would make the two modules depend on each other in both directions.
+     */
+    private final TillSessionRepository tillSessions;
 
     public BranchService(BranchRepository branchRepository,
                          RestaurantService restaurantService,
                          AccessGuard accessGuard,
-                         Entitlements entitlements) {
+                         Entitlements entitlements,
+                         TillSessionRepository tillSessions) {
         this.branchRepository = branchRepository;
         this.restaurantService = restaurantService;
         this.accessGuard = accessGuard;
         this.entitlements = entitlements;
+        this.tillSessions = tillSessions;
     }
 
     @Transactional
@@ -60,8 +72,21 @@ public class BranchService {
         branch.setPhone(request.phone());
         branch.setOpeningHours(request.openingHours());
         branch.setActive(true);
-        branch.setAcceptingOrders(true);
-        return BranchResponse.from(branchRepository.save(branch));
+        Branch saved = branchRepository.save(branch);
+
+        // A new shop opens selling, with an uncounted drawer — the same deal V67 gave every
+        // branch that existed before the till did. Making a café count a float before its first
+        // QR order would put a hidden step in the middle of onboarding, and a shop that cannot
+        // sell on its opening day because nobody found a screen is worse than a session whose
+        // opening figure is honestly zero. The first close is the first real count.
+        TillSession firstSession = new TillSession();
+        firstSession.setRestaurantId(restaurantId);
+        firstSession.setBranchId(saved.getId());
+        firstSession.setOpenedAt(Instant.now());
+        firstSession.setOpeningFloat(BigDecimal.ZERO);
+        tillSessions.save(firstSession);
+
+        return BranchResponse.from(saved);
     }
 
     /**
@@ -131,14 +156,6 @@ public class BranchService {
         return BranchResponse.from(branch);
     }
 
-    @Transactional
-    public BranchResponse setAcceptingOrders(Long branchId, boolean acceptingOrders) {
-        Branch branch = getEntity(branchId);
-        accessGuard.requireBranchAccess(branch.getRestaurantId(), branch.getId());
-        branch.setAcceptingOrders(acceptingOrders);
-        return BranchResponse.from(branch);
-    }
-
     // ---- helpers shared with other modules ----
 
     @Transactional(readOnly = true)
@@ -163,10 +180,45 @@ public class BranchService {
         }
     }
 
+    /**
+     * The customer's question: can I order from this shop, right now.
+     *
+     * <p>One thing can say no, and it is the drawer. Why the café is not selling is the café's
+     * business, and a phone at a table can do nothing with the difference — so this says less
+     * than {@link #requireTillOpen} does, and carries its own error code for that reason.
+     */
     public void requireAcceptingOrders(Branch branch) {
-        if (!branch.isAcceptingOrders()) {
+        if (!isTillOpen(branch)) {
             throw new BadRequestException(ErrorCode.BRANCH_NOT_ACCEPTING_ORDERS,
                     "This branch is not accepting orders right now");
         }
+    }
+
+    /**
+     * The counter's question, which is the same drawer said plainly: there is nowhere for the
+     * money to go and nothing that would ever be counted against it.
+     *
+     * <p>Its own error code, unlike the customer's: the person reading this one is standing at
+     * the till and can open it.
+     */
+    public void requireTillOpen(Branch branch) {
+        if (!isTillOpen(branch)) {
+            throw new BadRequestException(ErrorCode.TILL_CLOSED,
+                    "The till is closed. Open it to start taking orders.");
+        }
+    }
+
+    /**
+     * The same answer {@link #requireAcceptingOrders} gives, as a boolean rather than a throw —
+     * for the customer's menu, which has to know before it draws an Add button rather than
+     * after the basket is full.
+     */
+    @Transactional(readOnly = true)
+    public boolean canOrderNow(Branch branch) {
+        return branch.isActive() && isTillOpen(branch);
+    }
+
+    private boolean isTillOpen(Branch branch) {
+        return tillSessions.existsByBranchIdAndClosedAtIsNull(branch.getId());
     }
 }

@@ -51,16 +51,25 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     long countByRestaurantIdAndCustomerPhoneAndStatusNotIn(
             Long restaurantId, String customerPhone, Collection<OrderStatus> excludedStatuses);
 
+    /**
+     * Dashboard order history. {@code unpaid=true} narrows to orders that owe money — not yet
+     * PAID and not cancelled/declined — so staff can pull up everything awaiting collection
+     * (chiefly completed orders that were handed over without a payment recorded).
+     */
     @Query("""
             SELECT o FROM Order o
             WHERE (:restaurantId IS NULL OR o.restaurantId = :restaurantId)
               AND (:branchId IS NULL OR o.branchId = :branchId)
               AND (:status IS NULL OR o.status = :status)
+              AND (:unpaid = FALSE OR (o.paymentStatus <> com.cafeqr.orders.domain.PaymentStatus.PAID
+                   AND o.status NOT IN (com.cafeqr.orders.domain.OrderStatus.CANCELLED,
+                                        com.cafeqr.orders.domain.OrderStatus.DECLINED)))
             ORDER BY o.createdAt DESC
             """)
     Page<Order> search(@Param("restaurantId") Long restaurantId,
                        @Param("branchId") Long branchId,
                        @Param("status") OrderStatus status,
+                       @Param("unpaid") boolean unpaid,
                        Pageable pageable);
 
     @EntityGraph(attributePaths = "items")
@@ -99,18 +108,42 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                                  @Param("from") Instant from,
                                  @Param("to") Instant to);
 
+    /**
+     * Money actually collected in the window: summed total of orders that were both COMPLETED
+     * and marked PAID. Excludes completed-but-unpaid orders (handed over without a payment
+     * recorded) so the revenue headline reflects takings and reconciles with the cash-vs-card
+     * split, rather than counting the value of every completed order.
+     */
     @Query("""
             SELECT COALESCE(SUM(o.total), 0) FROM Order o
             WHERE (:restaurantId IS NULL OR o.restaurantId = :restaurantId)
               AND (:branchId IS NULL OR o.branchId = :branchId)
-              AND o.status = :status
+              AND o.status = com.cafeqr.orders.domain.OrderStatus.COMPLETED
+              AND o.paymentStatus = com.cafeqr.orders.domain.PaymentStatus.PAID
               AND o.createdAt >= :from AND o.createdAt < :to
             """)
-    java.math.BigDecimal sumTotalByStatus(@Param("restaurantId") Long restaurantId,
-                                          @Param("branchId") Long branchId,
-                                          @Param("status") OrderStatus status,
-                                          @Param("from") Instant from,
-                                          @Param("to") Instant to);
+    java.math.BigDecimal sumCollectedRevenue(@Param("restaurantId") Long restaurantId,
+                                             @Param("branchId") Long branchId,
+                                             @Param("from") Instant from,
+                                             @Param("to") Instant to);
+
+    /**
+     * The other side of {@link #sumCollectedRevenue}: orders that were completed (handed over)
+     * but never marked paid — money that should have been collected and wasn't. Row: {@code
+     * [count, total]}.
+     */
+    @Query("""
+            SELECT COUNT(o), COALESCE(SUM(o.total), 0) FROM Order o
+            WHERE (:restaurantId IS NULL OR o.restaurantId = :restaurantId)
+              AND (:branchId IS NULL OR o.branchId = :branchId)
+              AND o.status = com.cafeqr.orders.domain.OrderStatus.COMPLETED
+              AND o.paymentStatus <> com.cafeqr.orders.domain.PaymentStatus.PAID
+              AND o.createdAt >= :from AND o.createdAt < :to
+            """)
+    List<Object[]> uncollectedInWindow(@Param("restaurantId") Long restaurantId,
+                                       @Param("branchId") Long branchId,
+                                       @Param("from") Instant from,
+                                       @Param("to") Instant to);
 
     @Query(value = """
             SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'Asia/Muscat') AS hour, COUNT(*) AS cnt
@@ -128,14 +161,16 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                                 @Param("to") Instant to);
 
     /**
-     * Per-day order count (non-cancelled/declined) and completed revenue, bucketed by
-     * the cafés' timezone. Rows: {@code [day(LocalDate), orders, revenue(BigDecimal)]}.
-     * The service fills missing days with zeros so the trend series is continuous.
+     * Per-day order count (non-cancelled/declined) and collected revenue (completed AND paid),
+     * bucketed by the cafés' timezone. Rows: {@code [day(LocalDate), orders, revenue(BigDecimal)]}.
+     * The service fills missing days with zeros so the trend series is continuous. Revenue
+     * matches the summary headline and the cash-vs-card split.
      */
     @Query(value = """
             SELECT (created_at AT TIME ZONE 'Asia/Muscat')::date                     AS day,
                    COUNT(*) FILTER (WHERE status NOT IN ('DECLINED','CANCELLED'))    AS orders,
-                   COALESCE(SUM(total) FILTER (WHERE status = 'COMPLETED'), 0)       AS revenue
+                   COALESCE(SUM(total) FILTER (
+                       WHERE status = 'COMPLETED' AND payment_status = 'PAID'), 0)   AS revenue
             FROM orders
             WHERE (:restaurantId IS NULL OR restaurant_id = :restaurantId)
               AND (:branchId IS NULL OR branch_id = :branchId)
@@ -149,10 +184,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                                   @Param("to") Instant to);
 
     /**
-     * Orders + completed revenue bucketed by part of the day (café timezone). Rows:
+     * Orders + collected revenue bucketed by part of the day (café timezone). Rows:
      * {@code [daypart(String), orders, revenue(BigDecimal)]} — one per non-empty bucket; the
      * service fills the rest. Same semantics as {@link #dailyBreakdown}: orders exclude
-     * declined/cancelled, revenue counts completed only.
+     * declined/cancelled, revenue counts completed AND paid only.
      */
     @Query(value = """
             SELECT CASE
@@ -163,9 +198,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                        ELSE 'LATE'
                    END                                                            AS daypart,
                    COUNT(*) FILTER (WHERE status NOT IN ('DECLINED','CANCELLED'))  AS orders,
-                   COALESCE(SUM(total) FILTER (WHERE status = 'COMPLETED'), 0)     AS revenue
+                   COALESCE(SUM(total) FILTER (
+                       WHERE status = 'COMPLETED' AND payment_status = 'PAID'), 0) AS revenue
             FROM (
-                SELECT status, total,
+                SELECT status, payment_status, total,
                        EXTRACT(HOUR FROM created_at AT TIME ZONE 'Asia/Muscat') AS h
                 FROM orders
                 WHERE (:restaurantId IS NULL OR restaurant_id = :restaurantId)
@@ -280,4 +316,22 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             GROUP BY restaurant_id
             """, nativeQuery = true)
     List<Object[]> aovPerRestaurant(@Param("from") Instant from, @Param("to") Instant to);
+
+    // -------- the till --------
+
+    /**
+     * How many orders one till session rang up. Declined and cancelled orders are excluded:
+     * they took no money, and a session's count sitting beside its cash figures should mean
+     * "what we sold", not "what was typed".
+     */
+    @Query("""
+            SELECT COUNT(o) FROM Order o
+            WHERE o.branchId = :branchId
+              AND o.createdAt >= :from AND o.createdAt < :to
+              AND o.status NOT IN :excluded
+            """)
+    long countInWindow(@Param("branchId") Long branchId,
+                       @Param("from") Instant from,
+                       @Param("to") Instant to,
+                       @Param("excluded") Collection<OrderStatus> excluded);
 }

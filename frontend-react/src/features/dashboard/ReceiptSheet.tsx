@@ -24,14 +24,15 @@ import type { OrderResponse, PaymentMethod, Restaurant } from '../../lib/types';
    uses logical start/end alignment, so nothing else has to know. */
 const LABELS: Record<ReceiptLanguage, {
   invoice: string; invoiceRetro: string; order: string; date: string; type: string; customer: string;
-  table: string; car: string; subtotal: string; vat: string; total: string; payment: string;
+  table: string; car: string; pager: string;
+  subtotal: string; discount: string; vat: string; total: string; payment: string;
   notPaid: string; thanks: string; vatNo: string; crNo: string; pay: Record<PaymentMethod, string>;
 }> = {
   bilingual: {
     invoice: 'فاتورة / Invoice', invoiceRetro: '*** فاتورة / INVOICE ***',
     order: 'رقم الطلب / Order', date: 'التاريخ / Date', type: 'النوع / Type', customer: 'العميل / Customer',
-    table: 'طاولة / Table', car: 'سيارة / Car',
-    subtotal: 'المجموع / Subtotal', vat: 'الضريبة / VAT', total: 'الإجمالي / Total', payment: 'الدفع / Payment',
+    table: 'طاولة / Table', car: 'سيارة / Car', pager: 'جهاز النداء / Pager',
+    subtotal: 'المجموع / Subtotal', discount: 'خصم / Discount', vat: 'الضريبة / VAT', total: 'الإجمالي / Total', payment: 'الدفع / Payment',
     notPaid: 'غير مدفوع / NOT PAID', thanks: 'شكراً لزيارتكم / Thank you',
     vatNo: 'الرقم الضريبي / VAT No', crNo: 'السجل التجاري / CR No',
     pay: { CASH: 'نقداً / Cash', CARD: 'بطاقة / Card', ONLINE: 'إلكتروني / Online', OTHER: 'أخرى / Other',
@@ -40,8 +41,8 @@ const LABELS: Record<ReceiptLanguage, {
   en: {
     invoice: 'Invoice', invoiceRetro: '*** INVOICE ***',
     order: 'Order', date: 'Date', type: 'Type', customer: 'Customer',
-    table: 'Table', car: 'Car',
-    subtotal: 'Subtotal', vat: 'VAT', total: 'Total', payment: 'Payment',
+    table: 'Table', car: 'Car', pager: 'Pager',
+    subtotal: 'Subtotal', discount: 'Discount', vat: 'VAT', total: 'Total', payment: 'Payment',
     notPaid: 'NOT PAID', thanks: 'Thank you',
     vatNo: 'VAT No', crNo: 'CR No',
     pay: { CASH: 'Cash', CARD: 'Card', ONLINE: 'Online', OTHER: 'Other', SPLIT: 'Split' },
@@ -121,7 +122,8 @@ export default function ReceiptSheet({ order, restaurant: r, tableNumber, settin
   const showVat = !!r?.vatEnabled || order.vatAmount > 0;
   const paid = order.paymentStatus === 'PAID' && !!order.paymentMethod;
   const noteLines = order.items.reduce((sum, item) => sum + (item.note ? 1 : 0), 0);
-  const receiptHeightMm = Math.min(600, Math.max(130, 92 + order.items.length * 11 + noteLines * 6));
+  const receiptHeightMm = Math.min(600, Math.max(130, 92 + order.items.length * 11 + noteLines * 6
+    + (order.pagerNumber ? 6 : 0)));
 
   return (
     <div className={`invoice-sheet rcpt-${s.style}${en ? ' rcpt-en' : ''}`} dir={en ? 'ltr' : 'rtl'}>
@@ -147,6 +149,12 @@ export default function ReceiptSheet({ order, restaurant: r, tableNumber, settin
       )}
       <div className="inv-row"><span>{L.date}</span><span className="amt"><Ltr>{receiptDateTime(order.createdAt)}</Ltr></span></div>
       <div className="inv-row"><span>{L.type}</span><span>{typeLine}</span></div>
+      {/* Counter cafés start the kitchen from this slip, so the buzzer number has to be on
+          the paper too — a number that only ever appears on the board is one the person
+          holding the tray cannot read. Bigger than the rows around it, like the total. */}
+      {order.pagerNumber && (
+        <div className="inv-row inv-pager"><span>{L.pager}</span><span className="amt num"><Ltr>{order.pagerNumber}</Ltr></span></div>
+      )}
       {order.customerName && <div className="inv-row"><span>{L.customer}</span><span>{order.customerName}</span></div>}
       <Divider style={s.style} />
       {order.items.map((i, n) => (
@@ -161,6 +169,14 @@ export default function ReceiptSheet({ order, restaurant: r, tableNumber, settin
       ))}
       <Divider style={s.style} />
       <div className="inv-row"><span>{L.subtotal}</span><Money value={order.subtotal} className="amt" /></div>
+      {/* A coupon named on the slip. The lines above are the café's prices and the total below
+          is what was actually taken, so without this row the paper does not add up — and a
+          discount a customer cannot see explained is one they come back to ask about. The
+          coupon's own name is printed when there is one ("Staff meal"), not just "Discount". */}
+      {order.couponDiscount != null && order.couponDiscount > 0 && (
+        <div className="inv-row"><span>{order.couponLabel || L.discount}</span>
+          <Money value={-order.couponDiscount} className="amt" /></div>
+      )}
       {showVat && (
         <div className="inv-row"><span>{L.vat}{r?.vatRate ? ` ${r.vatRate}%` : ''}</span><Money value={order.vatAmount} className="amt" /></div>
       )}

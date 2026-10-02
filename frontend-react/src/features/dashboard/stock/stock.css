@@ -522,11 +522,12 @@ html[data-posture="counter"] .stk-qty b { font-size: 31px; }
   padding: 10px 12px; border-radius: 8px;
   background: var(--surface-2);
 }
-/* The choice's name and its "adds" link on one line; what it stands in for on the next. */
-.stk-opt-row { display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; align-items: center; }
+/* The choice's name, what it stands in for, what that comes to, and only then "also takes…" —
+   after the swap, so it reads as an extra rather than the place to type the amount. */
 .stk-opt-name { font-size: 13px; }
-.stk-opt-row > .stk-link { padding-block: 0; min-block-size: 0; }
-.stk-opt-swap { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.stk-opt > .stk-link { padding-block: 0; min-block-size: 0; }
+.stk-opt > .stk-hint { margin: 0; }
+.stk-opt-swap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .stk-opt-word { font-size: 12px; color: var(--muted); }
 .stk-opt-swap .stk-select { flex: 1 1 6rem; min-inline-size: 6rem; }
 .stk-opt .stk-line { padding-inline-start: 12px; }

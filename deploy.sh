@@ -69,6 +69,9 @@ build() {
   # Spring Boot stamps the version into the filename; the image expects one name.
   cp -f target/cafeqr-backend-*.jar target/app.jar
 
+  step "Building hosted MCP"
+  (cd mcp && npm ci --silent && npm run build)
+
   FP="$(fingerprint)"
   GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
   DIRTY=""
@@ -93,6 +96,12 @@ ship() {
             "$ROOT/deploy/$compose" "$ROOT/deploy/nginx.staging.conf" \
             "$ROOT/deploy/nginx.security-headers.conf" \
             "$host:$dir/deploy/"
+  # The MCP's build context: prebuilt dist + lockfile + its Dockerfile. Built into an image
+  # on the host, exactly like the backend jar.
+  ssh "$host" "mkdir -p $dir/deploy/mcp"
+  rsync -az --delete "$ROOT/mcp/dist/" "$host:$dir/deploy/mcp/dist/"
+  rsync -az "$ROOT/mcp/package.json" "$ROOT/mcp/package-lock.json" "$ROOT/mcp/Dockerfile" \
+            "$host:$dir/deploy/mcp/"
 }
 
 # Waits for a specific status code, not merely "something answered".
@@ -196,11 +205,18 @@ case "$TARGET" in
     ssh "$STAGING_HOST" "test -f $STAGING_DIR/deploy/.env.staging" \
       || die "$STAGING_HOST:$STAGING_DIR/deploy/.env.staging is missing — run deploy/bootstrap-staging.sh first"
 
-    step "Building image and restarting on the Pi"
+    step "Building images and restarting on the Pi"
     ssh "$STAGING_HOST" "cd $STAGING_DIR/deploy && \
       docker build -q -f Dockerfile.thin -t serva-staging-backend:latest . >/dev/null && \
+      docker build -q -t serva-staging-mcp:latest mcp >/dev/null && \
       docker compose --env-file .env.staging -p serva-staging -f docker-compose.staging.yml \
-        up -d --remove-orphans"
+        up -d --remove-orphans && \
+      docker compose --env-file .env.staging -p serva-staging -f docker-compose.staging.yml \
+        up -d --force-recreate web >/dev/null"
+    # nginx reads its config as a bind-mounted FILE, and rsync replaces that file with a new
+    # inode; a web container that wasn't recreated keeps serving the old inode, so a routing
+    # change (a new location, say) silently doesn't land. Recreating web re-binds the current
+    # file. It costs ~1s and only touches nginx — the backend/mcp above are already up.
 
     wait_healthy "$STAGING_HOST" "http://localhost:8090/api/dashboard/features" 401 "staging" || {
       ssh "$STAGING_HOST" "cd $STAGING_DIR/deploy && docker compose --env-file .env.staging -p serva-staging logs --tail=60 backend" >&2
@@ -264,12 +280,20 @@ case "$TARGET" in
     rsync -az --delete "$ROOT/src/" "$PROD_HOST:$PROD_DIR/src/"
     rsync -az "$ROOT/pom.xml" "$ROOT/docker-compose.yml" "$PROD_HOST:$PROD_DIR/"
 
+    # The hosted MCP: prebuilt dist + lockfile + its Dockerfile, built into a thin image on the
+    # VPS like the backend jar. The compose service and the host nginx /mcp route do the rest.
+    ssh "$PROD_HOST" "mkdir -p $PROD_DIR/deploy/mcp"
+    rsync -az --delete "$ROOT/mcp/dist/" "$PROD_HOST:$PROD_DIR/deploy/mcp/dist/"
+    rsync -az "$ROOT/mcp/package.json" "$ROOT/mcp/package-lock.json" "$ROOT/mcp/Dockerfile" \
+              "$PROD_HOST:$PROD_DIR/deploy/mcp/"
+
     ssh "$PROD_HOST" "grep -q '^POSTGRES_PASSWORD=' $PROD_DIR/.env" \
       || die "remote .env has no POSTGRES_PASSWORD"
 
-    step "Building image and restarting on the VPS"
+    step "Building images and restarting on the VPS"
     ssh "$PROD_HOST" "cd $PROD_DIR/deploy && \
       docker build -q -f Dockerfile.thin -t cafeqr-backend:deploy . >/dev/null && \
+      docker build -q -t cafeqr-mcp:deploy mcp >/dev/null && \
       cd $PROD_DIR && docker compose up -d"
 
     wait_healthy "$PROD_HOST" "http://localhost:8080/actuator/health" 200 "production" || {

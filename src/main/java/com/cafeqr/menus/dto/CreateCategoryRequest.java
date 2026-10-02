@@ -1,5 +1,6 @@
 package com.cafeqr.menus.dto;
 
+import com.cafeqr.menus.domain.CourseType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -13,5 +14,7 @@ public record CreateCategoryRequest(
         @Size(max = 500) String descriptionEn,
         @Size(max = 500) String descriptionAr,
         Integer displayOrder,
-        Boolean active
+        Boolean active,
+        /** DRINK / FOOD / DESSERT — powers smarter cart suggestions; optional. */
+        CourseType courseType
 ) {}

@@ -3,6 +3,8 @@ package com.cafeqr.stock;
 import com.cafeqr.common.exception.BadRequestException;
 import com.cafeqr.common.exception.ErrorCode;
 import com.cafeqr.common.util.TimeZones;
+import com.cafeqr.menus.domain.MenuItem;
+import com.cafeqr.menus.repository.MenuItemRepository;
 import com.cafeqr.orders.domain.Order;
 import com.cafeqr.orders.domain.OrderItem;
 import com.cafeqr.restaurants.domain.Restaurant;
@@ -61,6 +63,10 @@ import java.util.stream.Collectors;
  * <p>The daily tally is counted for every accepted line, capped or not. A cap set at two in the
  * afternoon then honestly includes the morning.
  *
+ * <p>A combo sells its parts. Ordering "Latte + Croissant" counts one croissant against the
+ * croissant's daily cap and draws the croissant's recipe, on top of whatever the combo itself
+ * is set to take; the parts are read from the combo as it stands now.
+ *
  * <p>Every method joins the caller's transaction. The order service owns the transaction and the
  * order; this class only ever touches shelf rows, draws and tallies inside it.
  */
@@ -74,6 +80,7 @@ public class StockDrawService {
     private final OrderItemDrawRepository draws;
     private final MenuItemDailyTallyRepository tallies;
     private final ObjectMapper objectMapper;
+    private final MenuItemRepository menuItems;
 
     public StockDrawService(MenuItemStockRepository caps,
                             RecipeLineRepository recipes,
@@ -81,7 +88,8 @@ public class StockDrawService {
                             StockItemRepository stockItems,
                             OrderItemDrawRepository draws,
                             MenuItemDailyTallyRepository tallies,
-                            ObjectMapper objectMapper) {
+                            ObjectMapper objectMapper,
+                            MenuItemRepository menuItems) {
         this.caps = caps;
         this.recipes = recipes;
         this.optionRecipes = optionRecipes;
@@ -89,6 +97,7 @@ public class StockDrawService {
         this.draws = draws;
         this.tallies = tallies;
         this.objectMapper = objectMapper;
+        this.menuItems = menuItems;
     }
 
     /** What the menu says about one item. Absent from the map means: nothing to say. */
@@ -133,10 +142,15 @@ public class StockDrawService {
     public void requireAvailable(Restaurant restaurant, Long branchId, List<OrderItem> lines) {
         Map<Long, Integer> wanted = new LinkedHashMap<>();
         Map<Long, String> names = new HashMap<>();
+        Map<Long, List<MenuItem>> combos = combosAmong(lines);
         for (OrderItem line : lines) {
             if (line.getMenuItemId() == null) continue;
             wanted.merge(line.getMenuItemId(), line.getQuantity(), Integer::sum);
             names.putIfAbsent(line.getMenuItemId(), line.getNameEnSnapshot());
+            for (MenuItem part : combos.getOrDefault(line.getMenuItemId(), List.of())) {
+                wanted.merge(part.getId(), line.getQuantity(), Integer::sum);
+                names.putIfAbsent(part.getId(), part.getNameEn());
+            }
         }
         if (wanted.isEmpty()) return;
         Snapshot s = snapshot(restaurant, branchId, wanted.keySet());
@@ -155,7 +169,11 @@ public class StockDrawService {
         Map<Long, String> firstAsker = new HashMap<>();
         for (OrderItem line : lines) {
             if (line.getMenuItemId() == null) continue;
-            for (Need n : needs(s, line.getMenuItemId(), chosen(line))) {
+            List<Need> lineNeeds = new ArrayList<>(needs(s, line.getMenuItemId(), chosen(line)));
+            for (MenuItem part : combos.getOrDefault(line.getMenuItemId(), List.of())) {
+                lineNeeds.addAll(needs(s, part.getId(), List.of()));
+            }
+            for (Need n : lineNeeds) {
                 BigDecimal per = s.inTinUnits(n);
                 if (per == null) continue;
                 need.merge(n.stockItemId(), per.multiply(BigDecimal.valueOf(line.getQuantity())), BigDecimal::add);
@@ -188,8 +206,10 @@ public class StockDrawService {
         if (order.getStockDrawnAt() != null) return;
         Instant now = Instant.now();
         LocalDate day = LocalDate.ofInstant(now, TimeZones.CAFES);
+        Map<Long, List<MenuItem>> combos = combosAmong(order.getItems());
         Set<Long> ids = order.getItems().stream().map(OrderItem::getMenuItemId)
-                .filter(Objects::nonNull).collect(Collectors.toSet());
+                .filter(Objects::nonNull).collect(Collectors.toCollection(HashSet::new));
+        combos.values().forEach(parts -> parts.forEach(p -> ids.add(p.getId())));
         Map<Long, List<RecipeLine>> base = ids.isEmpty() ? Map.of()
                 : recipes.findByBranchIdAndMenuItemIdIn(order.getBranchId(), ids).stream()
                         .collect(Collectors.groupingBy(RecipeLine::getMenuItemId));
@@ -202,8 +222,12 @@ public class StockDrawService {
             if (line.getMenuItemId() == null) continue;
             tallies.add(line.getMenuItemId(), order.getBranchId(), day, line.getQuantity());
 
-            List<Need> needs = apply(base.getOrDefault(line.getMenuItemId(), List.of()),
-                    options.getOrDefault(line.getMenuItemId(), List.of()), chosen(line));
+            List<Need> needs = new ArrayList<>(apply(base.getOrDefault(line.getMenuItemId(), List.of()),
+                    options.getOrDefault(line.getMenuItemId(), List.of()), chosen(line)));
+            for (MenuItem part : combos.getOrDefault(line.getMenuItemId(), List.of())) {
+                tallies.add(part.getId(), order.getBranchId(), day, line.getQuantity());
+                needs.addAll(apply(base.getOrDefault(part.getId(), List.of()), List.of(), List.of()));
+            }
             for (Need n : needs) {
                 StockItem tin = stockItems.findByIdForUpdate(n.stockItemId()).orElse(null);
                 if (tin == null) continue;   // the tin was thrown away since the recipe was written
@@ -240,9 +264,13 @@ public class StockDrawService {
 
         Set<Long> lineIds = order.getItems().stream().map(OrderItem::getId)
                 .filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<Long, List<MenuItem>> combos = combosAmong(order.getItems());
         for (OrderItem line : order.getItems()) {
             if (line.getMenuItemId() != null) {
                 tallies.subtract(line.getMenuItemId(), order.getBranchId(), day, line.getQuantity());
+                for (MenuItem part : combos.getOrDefault(line.getMenuItemId(), List.of())) {
+                    tallies.subtract(part.getId(), order.getBranchId(), day, line.getQuantity());
+                }
             }
         }
         if (!lineIds.isEmpty()) {
@@ -302,6 +330,28 @@ public class StockDrawService {
     }
 
     // ---- internals ----
+
+    /**
+     * The combos among these lines, each with its parts — one entry per unit, so "2 × Croissant"
+     * is the croissant twice. A part deleted since is simply not there.
+     */
+    private Map<Long, List<MenuItem>> combosAmong(Collection<OrderItem> lines) {
+        Set<Long> ids = lines.stream().map(OrderItem::getMenuItemId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        if (ids.isEmpty()) return Map.of();
+        Map<Long, List<Long>> partIds = new HashMap<>();
+        for (MenuItem item : menuItems.findAllById(ids)) {
+            if (item.isCombo()) partIds.put(item.getId(), item.getComboItemIds());
+        }
+        if (partIds.isEmpty()) return Map.of();
+        Set<Long> all = partIds.values().stream().flatMap(List::stream).collect(Collectors.toSet());
+        Map<Long, MenuItem> parts = menuItems.findAllById(all).stream()
+                .collect(Collectors.toMap(MenuItem::getId, Function.identity()));
+        Map<Long, List<MenuItem>> out = new HashMap<>();
+        partIds.forEach((combo, pids) -> out.put(combo,
+                pids.stream().map(parts::get).filter(Objects::nonNull).toList()));
+        return out;
+    }
 
     /** One read of everything a verdict needs: caps, recipes, option rules, tins, today's tallies. */
     private Snapshot snapshot(Restaurant restaurant, Long branchId, Collection<Long> menuItemIds) {

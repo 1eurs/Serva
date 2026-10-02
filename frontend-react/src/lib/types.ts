@@ -56,9 +56,14 @@ export interface PublicRestaurant {
   themeCustomJson?: string | null;
   /** House card shown above the categories in every layout (see menuInfo.ts); optional. */
   menuInfoJson?: string | null;
+  /** Where the cart shows its "goes well with your order" upsell; defaults to under the items. */
+  suggestionsPlacement?: SuggestionsPlacement | null;
 }
+
+export type SuggestionsPlacement = 'UNDER_ITEMS' | 'BEFORE_CHECKOUT' | 'POPUP';
 export interface PublicBranch {
   id: number; name: string; nameEn?: string | null; nameAr?: string | null; address?: string | null; phone?: string | null;
+  /** Whether an order placed right now would be taken — the café's till, open or shut. */
   openingHours?: string | null; acceptingOrders: boolean;
 }
 export interface PublicTable { id: number; tableNumber: string; qrCodeToken: string; }
@@ -79,6 +84,8 @@ export interface PublicItem {
   /** How many can still go out today, when the owner has capped it. Null/absent = no cap. */
   remainingToday?: number | null;
   preparationTimeMinutes?: number | null; displayOrder: number; optionGroups?: PublicOptionGroup[];
+  /** Items this combo bundles, repeats included ("2 × Croissant" = the id twice). Empty = plain item. */
+  comboItemIds?: number[] | null;
 }
 
 /** Can a customer order this right now? The café's own switch, and then the shelf's say. */
@@ -108,9 +115,12 @@ export interface OrderTracking {
 // full dashboard order (live board / detail) — mirrors OrderResponse.java
 export interface OrderResponse {
   id: number; orderNumber: string; dailyNumber: number; trackingToken: string; restaurantId: number; branchId: number; tableId?: number | null;
-  customerName?: string | null; customerPhone?: string | null; carPlate?: string | null; carColor?: string | null; orderType: OrderType; status: OrderStatus; paymentStatus: PaymentStatus;
+  customerName?: string | null; customerPhone?: string | null; pagerNumber?: string | null;
+  carPlate?: string | null; carColor?: string | null; orderType: OrderType; status: OrderStatus; paymentStatus: PaymentStatus;
   subtotal: number; vatAmount: number; total: number; prepTimeMinutes?: number | null; declineReason?: string | null;
   customerNote?: string | null; internalNote?: string | null; loyaltyRewardLabel?: string | null; loyaltyRewardDiscount?: number | null;
+  /** The coupon spent at the counter and what it took off — total already reflects it. */
+  couponCode?: string | null; couponLabel?: string | null; couponDiscount?: number | null;
   paymentMethod?: PaymentMethod | null; items: OrderItem[];
   createdAt: string; acceptedAt?: string | null; declinedAt?: string | null; preparingAt?: string | null;
   readyAt?: string | null; completedAt?: string | null; cancelledAt?: string | null;
@@ -119,7 +129,52 @@ export interface OrderResponse {
 export interface BranchResponse {
   id: number; restaurantId: number; name: string; nameEn?: string | null; nameAr?: string | null;
   address?: string | null; phone?: string | null;
-  openingHours?: string | null; active: boolean; acceptingOrders: boolean; printerEnabled: boolean; counterMode: boolean; createdAt?: string;
+  openingHours?: string | null; active: boolean;
+  printerEnabled: boolean; counterMode: boolean; createdAt?: string;
+}
+
+/* ---- the till: one counted drawer per branch (mirrors TillDtos) ---- */
+
+/** One stretch of the drawer being open. The closed half stays null while it runs. */
+export interface TillSession {
+  id: number; branchId: number;
+  openedAt: string; openedBy?: string | null; openingFloat: number;
+  closedAt?: string | null; closedBy?: string | null;
+  countedCash?: number | null; expectedCash?: number | null;
+  /** Counted minus expected: negative is short, positive is over. */
+  variance?: number | null;
+  cashSales?: number | null; cardSales?: number | null;
+  /** Cash taken out of / added to the drawer this session, frozen at close. */
+  paidOut?: number | null; paidIn?: number | null;
+  orderCount?: number | null;
+}
+
+/** One movement of cash in or out of the open drawer, with the reason on it. */
+export interface TillMovement {
+  id: number;
+  direction: 'OUT' | 'IN';
+  amount: number;
+  note: string;
+  by?: string | null;
+  at: string;
+}
+
+export interface TillState {
+  branchId: number;
+  /** The whole of "can this shop sell right now" — there is no second switch. */
+  open: boolean;
+  session?: TillSession | null;
+  /** The money figures are null for anyone without the Payments permission. */
+  cashTaken?: number | null;
+  cardTaken?: number | null;
+  /** Starting cash plus cash sales, less paid out, plus paid in: what should be in the drawer now. */
+  expectedCash?: number | null;
+  /** Cash taken out of / added to the drawer so far this session. */
+  paidOut?: number | null;
+  paidIn?: number | null;
+  /** The session's movements, newest first — empty without the Payments permission. */
+  movements?: TillMovement[];
+  orderCount: number;
 }
 export interface TableResponse {
   id: number; restaurantId: number; branchId: number; tableNumber: string; qrCodeToken: string;
@@ -133,9 +188,11 @@ export interface OrderSummaryResponse {
 export interface PageResponse<T> { content: T[]; page: number; size: number; totalElements: number; totalPages: number; last: boolean; }
 
 /* ---- menu management ---- */
+export type CourseType = 'DRINK' | 'FOOD' | 'DESSERT';
 export interface CategoryResponse {
   id: number; restaurantId: number; branchId?: number | null; nameEn: string; nameAr: string;
   descriptionEn?: string | null; descriptionAr?: string | null; displayOrder: number; active: boolean;
+  courseType?: CourseType | null;
 }
 export interface MenuItemOptionRow { id?: number; nameEn: string; nameAr: string; priceDelta: number; displayOrder: number; }
 export interface MenuItemOptionGroupRow {
@@ -151,12 +208,16 @@ export interface MenuItemResponse {
   discountStartsAt?: string | null; discountEndsAt?: string | null;
   images?: string[] | null; available: boolean; preparationTimeMinutes?: number | null; displayOrder: number;
   optionGroups?: MenuItemOptionGroupRow[] | null;
+  /** Items this combo bundles, repeats included. Empty = plain item. */
+  comboItemIds?: number[] | null;
 }
 
 export interface SelectedOption { optionGroupId: number; optionId: number; }
 export interface CreateOrderItem {
   menuItemId: number; quantity: number; note?: string | null;
   selectedOptions?: SelectedOption[] | null;
+  /** True when this line was added from the cart's suggestion upsell (revenue attribution). */
+  fromSuggestion?: boolean;
 }
 export interface CreateOrderPayload {
   restaurantSlug: string; branchId: number; tableToken?: string | null; orderType: OrderType;
@@ -167,10 +228,16 @@ export interface CreateOrderPayload {
 export interface CreateStaffOrderPayload {
   branchId: number; orderType: OrderType; tableId?: number | null;
   customerName?: string | null; customerPhone?: string | null;
+  /** The numbered buzzer handed over the counter, when the café hands them out. */
+  pagerNumber?: string | null;
   carPlate?: string | null; carColor?: string | null; customerNote?: string | null;
+  /** A discount code typed at the counter; the server re-works what it takes off. */
+  couponCode?: string | null;
   items: CreateOrderItem[];
   /** Counter flow: paid while ordering — recorded in the same request as the order. */
-  paid?: boolean; paymentMethod?: PaymentMethod | null;
+  paid?: boolean | null; paymentMethod?: PaymentMethod | null;
+  /** The bill divided at the counter. Present means paid, so it replaces the two above. */
+  tenders?: PaymentTender[] | null;
 }
 
 /* ---- returning customer (public) ---- */
@@ -184,6 +251,15 @@ export interface ReturningCustomer {
 }
 
 /* ---- loyalty (stamp card) ---- */
+/* ---- coupons ---- */
+// A café's discount code and the items it covers — mirrors CouponResponse.java.
+// The discount belongs to the ITEM, not the order: each row carries its own percent
+// off, and 100 means that item is handed over free.
+export interface CouponItemRow { menuItemId: number; percentOff: number; }
+export interface Coupon {
+  id: number; code: string; label: string; active: boolean; items: CouponItemRow[];
+}
+
 // Café configuration (dashboard) — mirrors LoyaltyProgramResponse.java.
 export interface LoyaltyProgram {
   enabled: boolean; stampsRequired: number; rewardLabel: string;
@@ -287,6 +363,10 @@ export interface Restaurant {
   paymentMethodSelectionEnabled: boolean;
   /** Hide a menu item from customers when the shelf row backing it reads zero. */
   hideWhenOutOfStock?: boolean;
+  /** What the counter's order pad asks for. Name/phone default on, pager off. */
+  padAskName?: boolean; padAskPhone?: boolean; padAskPager?: boolean;
+  /** Where the customer cart shows its "goes well with your order" upsell. */
+  suggestionsPlacement?: SuggestionsPlacement;
   active: boolean; plan?: Plan; createdAt?: string;
 }
 export type BillingCycle = 'ONE_TIME' | 'MONTHLY' | 'YEARLY';
@@ -380,12 +460,7 @@ export interface QrActivity {
   todayByKey: Record<string, QrDayStat>;    // keyed by table id (string) / "car"
 }
 
-/* ---- branch management (admin drawer) ---- */
-export interface BranchResponse {
-  id: number; restaurantId: number; name: string; nameEn?: string | null; nameAr?: string | null;
-  address?: string | null; phone?: string | null;
-  openingHours?: string | null; active: boolean; acceptingOrders: boolean; printerEnabled: boolean; counterMode: boolean; createdAt?: string;
-}
+/* ---- branch management (admin drawer) — BranchResponse is declared once, above ---- */
 
 
 

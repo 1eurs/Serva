@@ -10,12 +10,12 @@ import { useReceiptPrinter } from './receiptPrinter';
 
 const DICT: Dict = {
   ar: { cur: 'ر.ع', all: 'الكل', table: 'طاولة', car: 'خدمة السيارة', carPlate: 'لوحة السيارة', thNo: 'الطلب', thTime: 'الوقت', thType: 'النوع', thStatus: 'الحالة', thPay: 'الدفع', thTotal: 'الإجمالي',
-        prev: 'السابق', next: 'التالي', page: 'صفحة', none: 'لا طلبات', markPaid: 'تحديد كمدفوع', paid: 'مدفوع', unpaid: 'غير مدفوع', items: 'الأصناف', timeline: 'التسلسل الزمني',
+        prev: 'السابق', next: 'التالي', page: 'صفحة', none: 'لا طلبات', markPaid: 'تحديد كمدفوع', paid: 'مدفوع', unpaid: 'غير مدفوع', awaiting: 'بانتظار الدفع', noneUnpaid: 'لا طلبات غير مدفوعة', items: 'الأصناف', timeline: 'التسلسل الزمني',
         customer: 'العميل', note: 'ملاحظة العميل', carColor: 'لون السيارة', subtotal: 'المجموع', vat: 'الضريبة', total: 'الإجمالي', close: 'إغلاق', detail: 'تفاصيل الطلب', printInv: 'طباعة الفاتورة', savePdf: 'حفظ الفاتورة PDF',
         st_PENDING: 'جديد', st_ACCEPTED: 'قيد التنفيذ', st_PREPARING: 'تحضير', st_READY: 'جاهز', st_COMPLETED: 'مكتمل', st_DECLINED: 'مرفوض', st_CANCELLED: 'ملغى',
         ts_createdAt: 'أُنشئ', ts_acceptedAt: 'قُبل', ts_preparingAt: 'بدأ التحضير', ts_readyAt: 'جاهز', ts_completedAt: 'اكتمل', ts_declinedAt: 'رُفض', ts_cancelledAt: 'أُلغي' },
   en: { cur: 'OMR', all: 'All', table: 'Table', car: 'Outdoor car', carPlate: 'Car plate', thNo: 'Order', thTime: 'Time', thType: 'Type', thStatus: 'Status', thPay: 'Payment', thTotal: 'Total',
-        prev: 'Prev', next: 'Next', page: 'Page', none: 'No orders', markPaid: 'Mark paid', paid: 'Paid', unpaid: 'Unpaid', items: 'Items', timeline: 'Timeline',
+        prev: 'Prev', next: 'Next', page: 'Page', none: 'No orders', markPaid: 'Mark paid', paid: 'Paid', unpaid: 'Unpaid', awaiting: 'awaiting payment', noneUnpaid: 'Nothing unpaid — all collected', items: 'Items', timeline: 'Timeline',
         customer: 'Customer', note: 'Customer note', carColor: 'Car color', subtotal: 'Subtotal', vat: 'VAT', total: 'Total', close: 'Close', detail: 'Order detail', printInv: 'Print invoice', savePdf: 'Save invoice as PDF',
         st_PENDING: 'New', st_ACCEPTED: 'In progress', st_PREPARING: 'Preparing', st_READY: 'Ready', st_COMPLETED: 'Completed', st_DECLINED: 'Declined', st_CANCELLED: 'Cancelled',
         ts_createdAt: 'Created', ts_acceptedAt: 'Accepted', ts_preparingAt: 'Preparing', ts_readyAt: 'Ready', ts_completedAt: 'Completed', ts_declinedAt: 'Declined', ts_cancelledAt: 'Cancelled' },
@@ -37,16 +37,21 @@ const orderTypeLabel = (o: { orderType: string; carPlate?: string | null }, t: (
 
 export default function OrdersPage({ branchId }: { branchId?: number }) {
   const t = useT(DICT);
-  const [status, setStatus] = useState<OrderStatus | ''>('');
+  // The list filters on one axis at a time: a lifecycle status, or 'UNPAID' (a payment axis
+  // that cuts across statuses — everything still owing money).
+  const [filter, setFilter] = useState<OrderStatus | '' | 'UNPAID'>('');
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
+  const pick = (f: OrderStatus | '' | 'UNPAID') => { setFilter(f); setPage(0); };
 
+  const unpaid = filter === 'UNPAID';
   const qs = new URLSearchParams({ page: String(page), size: '20', sort: 'createdAt,desc' });
   if (branchId) qs.set('branchId', String(branchId));
-  if (status) qs.set('status', status);
+  if (unpaid) qs.set('unpaid', 'true');
+  else if (filter) qs.set('status', filter);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['orders-history', branchId, status, page],
+    queryKey: ['orders-history', branchId, filter, page],
     queryFn: () => api.get<PageResponse<OrderSummaryResponse>>(`/api/dashboard/orders?${qs.toString()}`),
   });
   const rows = data?.content ?? [];
@@ -55,13 +60,17 @@ export default function OrdersPage({ branchId }: { branchId?: number }) {
     <div className="tables-wrap">
       <div className="toolbar">
         <div className="seg">
-          <button className={status === '' ? 'on' : ''} onClick={() => { setStatus(''); setPage(0); }}>{t('all')}</button>
-          {STATUSES.map((s) => <button key={s} className={status === s ? 'on' : ''} onClick={() => { setStatus(s); setPage(0); }}>{t('st_' + s)}</button>)}
+          <button className={filter === '' ? 'on' : ''} onClick={() => pick('')}>{t('all')}</button>
+          {STATUSES.map((s) => <button key={s} className={filter === s ? 'on' : ''} onClick={() => pick(s)}>{t('st_' + s)}</button>)}
+          <button className={'paytab' + (unpaid ? ' on' : '')} onClick={() => pick('UNPAID')}>{t('unpaid')}</button>
         </div>
+        {unpaid && !isLoading && (data?.totalElements ?? 0) > 0 && (
+          <span className="unpaid-note"><span className="num">{data?.totalElements}</span> {t('awaiting')}</span>
+        )}
       </div>
 
       {isLoading ? <div className="center"><div className="spinner" /></div>
-        : rows.length === 0 ? <div className="empty"><div className="big">🧾</div><h3>{t('none')}</h3></div>
+        : rows.length === 0 ? <div className="empty"><div className="big">{unpaid ? '✅' : '🧾'}</div><h3>{unpaid ? t('noneUnpaid') : t('none')}</h3></div>
         : (
           <>
             <table className="tbl orders-tbl">
@@ -84,7 +93,7 @@ export default function OrdersPage({ branchId }: { branchId?: number }) {
             </table>
             <div className="pager">
               <button className="btn sm ghost" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>‹ {t('prev')}</button>
-              <span className="num">{t('page')} {(data?.page ?? 0) + 1} / {data?.totalPages ?? 1}</span>
+              <span className="num">{t('page')} <Ltr>{(data?.page ?? 0) + 1} / {data?.totalPages ?? 1}</Ltr></span>
               <button className="btn sm ghost" disabled={data?.last} onClick={() => setPage((p) => p + 1)}>{t('next')} ›</button>
             </div>
           </>

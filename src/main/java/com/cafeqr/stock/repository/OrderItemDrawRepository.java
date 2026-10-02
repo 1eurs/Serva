@@ -41,4 +41,19 @@ public interface OrderItemDrawRepository extends JpaRepository<OrderItemDraw, Lo
             group by d.stockItemId
             """)
     List<Object[]> wantedByTinSince(@Param("branchId") Long branchId, @Param("since") Instant since);
+
+    /**
+     * Same as {@link #wantedByTinSince}, but bounded at both ends — what one day drew from each
+     * tin, for the daily report. Half-open [{@code from}, {@code to}) so days never double-count.
+     */
+    @Query("""
+            select d.stockItemId, coalesce(sum(d.wanted), 0)
+            from OrderItemDraw d, OrderItem oi, Order o
+            where d.orderItemId = oi.id and oi.order = o
+              and o.branchId = :branchId and o.stockDrawnAt >= :from and o.stockDrawnAt < :to
+              and d.stockItemId is not null
+            group by d.stockItemId
+            """)
+    List<Object[]> wantedByTinBetween(@Param("branchId") Long branchId,
+                                      @Param("from") Instant from, @Param("to") Instant to);
 }

@@ -17,6 +17,10 @@ public record AnalyticsSummaryResponse(
         long cancelledOrders,
         BigDecimal totalRevenue,
         BigDecimal averageOrderValue,
+        long uncollectedOrders,
+        BigDecimal uncollectedAmount,
+        /** Collected revenue from items customers added via the cart's "goes well with" upsell. */
+        BigDecimal suggestionRevenue,
         List<BestSellingItem> bestSellingItems,
         List<HourlyCount> busiestHours
 ) {}

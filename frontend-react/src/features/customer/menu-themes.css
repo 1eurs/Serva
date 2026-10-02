@@ -218,12 +218,12 @@
   box-shadow:0 0 0 5px rgba(255,255,255,.06),0 14px 28px -14px rgba(200,16,46,.76);
 }
 .cust-bg[data-menu-theme="omanmatch"] .c-table{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18)}
-.cust-bg[data-menu-theme="omanmatch"] .c-scroll{padding:12px 10px 0;scroll-padding-top:92px}
+.cust-bg[data-menu-theme="omanmatch"] .c-scroll{padding:12px 10px 0;scroll-padding-top:0}
 .cust-bg[data-menu-theme="omanmatch"] .c-nav{box-shadow:0 18px 28px -24px rgba(0,0,0,.85)}
 .cust-bg[data-menu-theme="omanmatch"] .c-nav button{border-radius:12px;text-transform:uppercase;box-shadow:inset 0 -2px 0 rgba(255,255,255,.06)}
 .cust-bg[data-menu-theme="omanmatch"] .c-nav button.on{box-shadow:0 10px 22px -14px rgba(200,16,46,.74)}
 .cust-bg[data-menu-theme="omanmatch"] .c-cat{
-  position:relative;margin:20px 0 38px;padding:56px 10px 14px;border-radius:26px;scroll-margin-top:92px;
+  position:relative;margin:20px 0 38px;padding:56px 10px 14px;border-radius:26px;scroll-margin-top:24px;
   background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.035));
   border:1px solid rgba(255,255,255,.12);box-shadow:0 22px 42px -34px rgba(0,0,0,.82),inset 0 1px 0 rgba(255,255,255,.08);
 }
@@ -292,9 +292,9 @@
 }
 .cust-bg[data-menu-theme="madridnight"] .c-nav button{border-radius:10px;text-transform:uppercase;letter-spacing:.03em}
 .cust-bg[data-menu-theme="madridnight"] .c-nav button.on{box-shadow:0 10px 22px -14px rgba(242,210,122,.62)}
-.cust-bg[data-menu-theme="madridnight"] .c-scroll{padding:12px 10px 0;scroll-padding-top:90px}
+.cust-bg[data-menu-theme="madridnight"] .c-scroll{padding:12px 10px 0;scroll-padding-top:0}
 .cust-bg[data-menu-theme="madridnight"] .c-cat{
-  position:relative;margin:20px 0 38px;padding:54px 10px 14px;border-radius:24px;scroll-margin-top:90px;
+  position:relative;margin:20px 0 38px;padding:54px 10px 14px;border-radius:24px;scroll-margin-top:24px;
   background:linear-gradient(145deg,rgba(255,255,255,.08),rgba(91,75,196,.09));
   border:1px solid rgba(248,250,252,.13);box-shadow:0 22px 42px -34px rgba(0,0,0,.84),inset 0 1px 0 rgba(255,255,255,.08);
 }
@@ -365,11 +365,11 @@
   box-shadow:0 0 0 5px rgba(240,199,102,.16),0 14px 28px -14px rgba(59,32,23,.42);
 }
 .cust-bg[data-menu-theme="omannational"] .c-table{background:rgba(255,255,255,.58);border-color:rgba(200,16,46,.18)}
-.cust-bg[data-menu-theme="omannational"] .c-scroll{padding:10px 10px 0;scroll-padding-top:90px}
+.cust-bg[data-menu-theme="omannational"] .c-scroll{padding:10px 10px 0;scroll-padding-top:0}
 .cust-bg[data-menu-theme="omannational"] .c-nav button{border-radius:14px;background:rgba(255,255,255,.48)}
 .cust-bg[data-menu-theme="omannational"] .c-nav button.on{box-shadow:0 10px 22px -14px rgba(200,16,46,.55)}
 .cust-bg[data-menu-theme="omannational"] .c-cat{
-  position:relative;margin:20px 0 40px;padding:56px 10px 14px;border-radius:30px;scroll-margin-top:90px;
+  position:relative;margin:20px 0 40px;padding:56px 10px 14px;border-radius:30px;scroll-margin-top:24px;
   background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,.34));
   border:1px solid rgba(59,32,23,.10);box-shadow:0 18px 42px -34px rgba(59,32,23,.42),inset 0 0 0 1px rgba(255,255,255,.42);
 }
@@ -459,7 +459,7 @@
 .cust-bg[data-menu-theme="mothersday"] .c-table{
   border-color:rgba(184,78,93,.25);background:rgba(255,248,239,.72);box-shadow:0 10px 24px -20px rgba(61,36,25,.34);
 }
-.cust-bg[data-menu-theme="mothersday"] .c-scroll{padding:10px 10px 0;scroll-padding-top:90px}
+.cust-bg[data-menu-theme="mothersday"] .c-scroll{padding:10px 10px 0;scroll-padding-top:0}
 .cust-bg[data-menu-theme="mothersday"] .c-nav button{
   border-radius:14px;background:rgba(255,248,239,.62);border-color:rgba(61,36,25,.12);
 }
@@ -467,7 +467,7 @@
 .cust-bg[data-menu-theme="mothersday"] .c-cat{
   position:relative;margin:18px 0 36px;padding:54px 10px 14px;border-radius:30px;
   background:linear-gradient(180deg,rgba(255,248,239,.62),rgba(255,248,239,.34));
-  border:1px solid rgba(61,36,25,.10);scroll-margin-top:86px;
+  border:1px solid rgba(61,36,25,.10);scroll-margin-top:12px;
   box-shadow:0 18px 42px -34px rgba(61,36,25,.42),inset 0 0 0 1px rgba(255,255,255,.42);
 }
 .cust-bg[data-menu-theme="mothersday"] .c-cat:first-of-type{margin-top:24px}
@@ -689,11 +689,11 @@ html[dir="rtl"] .cust-bg[data-card-badge="ribbon"] .c-item::after{transform:rota
 }
 .cust-bg[data-menu-skin="omannational"] .c-mark.has-logo{background:#FFFFFF}
 .cust-bg[data-menu-skin="omannational"] .c-table{background:rgba(255,255,255,.6);border-color:rgba(200,16,46,.2)}
-.cust-bg[data-menu-skin="omannational"] .c-scroll{scroll-padding-top:92px}
+.cust-bg[data-menu-skin="omannational"] .c-scroll{scroll-padding-top:0}
 
 /* category card: the national emblem (white khanjar + swords) on a red roundel */
 .cust-bg[data-menu-skin="omannational"] .c-cat{
-  position:relative;margin:18px 0 34px;padding:22px 12px 10px;border-radius:24px;scroll-margin-top:92px;
+  position:relative;margin:18px 0 34px;padding:22px 12px 10px;border-radius:24px;scroll-margin-top:24px;
   background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,.32));
   border:1px solid rgba(126,16,35,.13);box-shadow:0 18px 40px -32px rgba(58,26,18,.5),inset 0 0 0 1px rgba(255,255,255,.5);
 }

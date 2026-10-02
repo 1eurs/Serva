@@ -12,6 +12,7 @@ import com.cafeqr.menus.dto.PublicMenuResponse.PublicRestaurant;
 import com.cafeqr.menus.dto.PublicMenuResponse.PublicTable;
 import com.cafeqr.menus.repository.MenuCategoryRepository;
 import com.cafeqr.menus.repository.MenuItemRepository;
+import com.cafeqr.orders.repository.OrderItemRepository;
 import com.cafeqr.restaurants.RestaurantService;
 import com.cafeqr.restaurants.domain.Restaurant;
 import com.cafeqr.stock.StockDrawService;
@@ -22,6 +23,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -30,8 +33,14 @@ import java.util.stream.Collectors;
 @Service
 public class PublicMenuService {
 
+    /** How far back co-order history is mined for cart suggestions. */
+    private static final int SUGGESTION_WINDOW_DAYS = 90;
+    /** Most suggestions the cart will ever ask for; keeps the row short and the query cheap. */
+    private static final int SUGGESTION_LIMIT = 4;
+
     private final MenuCategoryRepository categoryRepository;
     private final MenuItemRepository itemRepository;
+    private final OrderItemRepository orderItemRepository;
     private final RestaurantService restaurantService;
     private final BranchService branchService;
     private final TableService tableService;
@@ -39,16 +48,38 @@ public class PublicMenuService {
 
     public PublicMenuService(MenuCategoryRepository categoryRepository,
                              MenuItemRepository itemRepository,
+                             OrderItemRepository orderItemRepository,
                              RestaurantService restaurantService,
                              BranchService branchService,
                              TableService tableService,
                              StockDrawService stockDrawService) {
         this.categoryRepository = categoryRepository;
         this.itemRepository = itemRepository;
+        this.orderItemRepository = orderItemRepository;
         this.restaurantService = restaurantService;
         this.branchService = branchService;
         this.tableService = tableService;
         this.stockDrawService = stockDrawService;
+    }
+
+    /**
+     * Item ids most often ordered alongside what's already in the cart, ranked by co-orders across
+     * the whole restaurant's recent history. The customer's app renders these from the menu it has
+     * already loaded, so we hand back only ids — the seeds themselves are never suggested back.
+     */
+    @Transactional(readOnly = true)
+    public List<Long> suggestionsForCart(String slug, List<Long> cartItemIds) {
+        if (cartItemIds == null || cartItemIds.isEmpty()) return List.of();
+        List<Long> seeds = cartItemIds.stream().filter(java.util.Objects::nonNull).distinct().toList();
+        if (seeds.isEmpty()) return List.of();
+        Restaurant restaurant = restaurantService.getActiveBySlug(slug);
+        Instant now = Instant.now();
+        Instant from = now.minus(SUGGESTION_WINDOW_DAYS, ChronoUnit.DAYS);
+        List<Object[]> rows = orderItemRepository.suggestionsForItems(
+                restaurant.getId(), seeds, from, now, SUGGESTION_LIMIT);
+        List<Long> out = new ArrayList<>(rows.size());
+        for (Object[] r : rows) out.add(((Number) r[0]).longValue());
+        return out;
     }
 
     @Transactional(readOnly = true)
@@ -97,13 +128,15 @@ public class PublicMenuService {
                 : stockDrawService.availability(restaurant, branch.getId(),
                         items.stream().map(MenuItem::getId).toList());
 
+        Map<Long, MenuItem> byId = items.stream().collect(Collectors.toMap(MenuItem::getId, i -> i));
+
         List<PublicCategory> publicCategories = categories.stream()
                 .map(category -> {
                     List<PublicItem> publicItems = itemsByCategory
                             .getOrDefault(category.getId(), List.of())
                             .stream()
                             .map(item -> {
-                                ItemAvailability a = shelf.get(item.getId());
+                                ItemAvailability a = comboVerdict(item, byId, shelf);
                                 return a == null ? PublicItem.from(item, now)
                                         : PublicItem.from(item, now, a.soldOut(), a.remainingToday());
                             })
@@ -114,8 +147,36 @@ public class PublicMenuService {
 
         return new PublicMenuResponse(
                 PublicRestaurant.from(restaurant),
-                PublicBranch.from(branch),
+                PublicBranch.from(branch, branch != null && branchService.canOrderNow(branch)),
                 PublicTable.from(table),
                 publicCategories);
+    }
+
+    /**
+     * A combo is only as sellable as its parts: out when any part is switched off, missing from
+     * this branch's menu, or sold out on the shelf; and it can go out only as many times today as
+     * its scarcest part (counting "2 × Croissant" twice). A plain item keeps its own verdict.
+     */
+    private static ItemAvailability comboVerdict(MenuItem item, Map<Long, MenuItem> byId,
+                                                 Map<Long, ItemAvailability> shelf) {
+        ItemAvailability own = shelf.get(item.getId());
+        List<Long> parts = item.getComboItemIds();
+        if (parts.isEmpty()) return own;
+        boolean out = own != null && own.soldOut();
+        Integer remaining = own == null ? null : own.remainingToday();
+        Map<Long, Integer> perCombo = new java.util.HashMap<>();
+        parts.forEach(p -> perCombo.merge(p, 1, Integer::sum));
+        for (Map.Entry<Long, Integer> e : perCombo.entrySet()) {
+            MenuItem part = byId.get(e.getKey());
+            ItemAvailability a = shelf.get(e.getKey());
+            if (part == null || !part.isAvailable() || (a != null && a.soldOut())) out = true;
+            if (a != null && a.remainingToday() != null) {
+                int fits = a.remainingToday() / e.getValue();
+                remaining = remaining == null ? fits : Math.min(remaining, fits);
+            }
+        }
+        if (remaining != null && remaining == 0) out = true;
+        if (!out && remaining == null && own == null) return null;
+        return new ItemAvailability(out, remaining);
     }
 }

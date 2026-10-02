@@ -8,6 +8,10 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "seed": "node scripts/seed.mjs",
+    "loadtest": "node scripts/load-test.mjs",
+    "loadtest:quick": "QUICK=1 node scripts/load-test.mjs",
+    "loadtest:staging": "API_BASE=https://staging.serva.om node scripts/load-test.mjs",
+    "seed:staging": "API_BASE=https://staging.serva.om node scripts/seed.mjs",
     "check:bidi": "node scripts/check-bidi.mjs",
     "mock:printer": "node scripts/mock-cleanter.mjs"
   },

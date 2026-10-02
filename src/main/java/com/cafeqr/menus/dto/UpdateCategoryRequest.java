@@ -1,5 +1,6 @@
 package com.cafeqr.menus.dto;
 
+import com.cafeqr.menus.domain.CourseType;
 import jakarta.validation.constraints.Size;
 
 public record UpdateCategoryRequest(
@@ -8,5 +9,7 @@ public record UpdateCategoryRequest(
         @Size(max = 500) String descriptionEn,
         @Size(max = 500) String descriptionAr,
         Integer displayOrder,
-        Boolean active
+        Boolean active,
+        /** DRINK / FOOD / DESSERT; null leaves the existing tag unchanged. */
+        CourseType courseType
 ) {}

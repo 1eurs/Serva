@@ -1,5 +1,6 @@
 package com.cafeqr.menus.dto;
 
+import com.cafeqr.menus.domain.CourseType;
 import com.cafeqr.menus.domain.MenuCategory;
 
 import java.time.Instant;
@@ -14,6 +15,7 @@ public record CategoryResponse(
         String descriptionAr,
         int displayOrder,
         boolean active,
+        CourseType courseType,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -21,6 +23,6 @@ public record CategoryResponse(
         return new CategoryResponse(
                 c.getId(), c.getRestaurantId(), c.getBranchId(), c.getNameEn(), c.getNameAr(),
                 c.getDescriptionEn(), c.getDescriptionAr(), c.getDisplayOrder(), c.isActive(),
-                c.getCreatedAt(), c.getUpdatedAt());
+                c.getCourseType(), c.getCreatedAt(), c.getUpdatedAt());
     }
 }

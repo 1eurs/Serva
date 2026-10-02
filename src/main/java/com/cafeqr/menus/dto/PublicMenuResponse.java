@@ -35,13 +35,15 @@ public record PublicMenuResponse(
             BigDecimal vatRate,
             String theme,
             String themeCustomJson,
-            String menuInfoJson
+            String menuInfoJson,
+            String suggestionsPlacement
     ) {
         public static PublicRestaurant from(Restaurant r) {
             return new PublicRestaurant(r.getId(), r.getName(), r.getNameEn(), r.getNameAr(),
                     r.getSlug(), r.getLogoUrl(),
                     r.getPhone(), r.getInstagramUrl(), r.getCurrency(), r.isVatEnabled(), r.getVatRate(),
-                    r.getTheme(), r.getThemeCustomJson(), r.getMenuInfoJson());
+                    r.getTheme(), r.getThemeCustomJson(), r.getMenuInfoJson(),
+                    r.getSuggestionsPlacement().name());
         }
     }
 
@@ -55,13 +57,20 @@ public record PublicMenuResponse(
             String openingHours,
             boolean acceptingOrders
     ) {
-        public static PublicBranch from(Branch b) {
+        /**
+         * @param acceptingOrders whether an order placed right now would be taken — the pause
+         *                        AND the till, answered by {@code BranchService.canOrderNow}.
+         *                        Passed in rather than read off the branch: half the answer
+         *                        lives in a table this record cannot see, and a menu that draws
+         *                        Add buttons over a closed till is a basket that fails at the end.
+         */
+        public static PublicBranch from(Branch b, boolean acceptingOrders) {
             if (b == null) {
                 return null;
             }
             return new PublicBranch(b.getId(), b.getName(), b.getNameEn(), b.getNameAr(),
                     b.getAddress(), b.getPhone(),
-                    b.getOpeningHours(), b.isAcceptingOrders());
+                    b.getOpeningHours(), acceptingOrders);
         }
     }
 
@@ -112,7 +121,10 @@ public record PublicMenuResponse(
             Integer remainingToday,
             Integer preparationTimeMinutes,
             int displayOrder,
-            List<PublicOptionGroup> optionGroups
+            List<PublicOptionGroup> optionGroups,
+            /** Items this combo bundles, repeats included; empty for a plain item. The customer
+             *  menu draws them from the items it already has. */
+            List<Long> comboItemIds
     ) {
         public static PublicItem from(MenuItem i, Instant now) {
             return from(i, now, false, null);
@@ -124,7 +136,8 @@ public record PublicMenuResponse(
                     i.getDescriptionEn(), i.getDescriptionAr(), i.getPrice(), salePrice, i.getImageUrl(),
                     i.getImages().stream().map(MenuItemImage::getUrl).toList(),
                     i.isAvailable(), soldOut, remainingToday, i.getPreparationTimeMinutes(), i.getDisplayOrder(),
-                    i.getOptionGroups().stream().map(PublicOptionGroup::from).toList());
+                    i.getOptionGroups().stream().map(PublicOptionGroup::from).toList(),
+                    i.getComboItemIds());
         }
     }
 

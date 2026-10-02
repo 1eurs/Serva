@@ -63,6 +63,28 @@ public class Restaurant extends BaseEntity implements BilingualNamed {
     @Column(name = "hide_when_out_of_stock", nullable = false)
     private boolean hideWhenOutOfStock = false;
 
+    /**
+     * What the counter's order pad asks for when staff take an order by hand.
+     *
+     * <p>Name and phone exist for the stamp card — the phone is how a stamp finds its card —
+     * so a café with no loyalty programme types into two boxes nothing ever reads. The pager
+     * is the numbered buzzer handed over the counter. All three are the café's call; the
+     * defaults preserve the pad as it was, plus a pager nobody asked for yet.
+     */
+    @Column(name = "pad_ask_name", nullable = false)
+    private boolean padAskName = true;
+
+    @Column(name = "pad_ask_phone", nullable = false)
+    private boolean padAskPhone = true;
+
+    @Column(name = "pad_ask_pager", nullable = false)
+    private boolean padAskPager = false;
+
+    /** Where the customer cart shows its "goes well with your order" upsell. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "suggestions_placement", nullable = false, length = 20)
+    private SuggestionsPlacement suggestionsPlacement = SuggestionsPlacement.UNDER_ITEMS;
+
     @Column(name = "menu_theme", nullable = false, length = 40)
     private String theme = "onyx";
 
@@ -222,6 +244,38 @@ public class Restaurant extends BaseEntity implements BilingualNamed {
 
     public void setHideWhenOutOfStock(boolean hideWhenOutOfStock) {
         this.hideWhenOutOfStock = hideWhenOutOfStock;
+    }
+
+    public boolean isPadAskName() {
+        return padAskName;
+    }
+
+    public void setPadAskName(boolean padAskName) {
+        this.padAskName = padAskName;
+    }
+
+    public boolean isPadAskPhone() {
+        return padAskPhone;
+    }
+
+    public void setPadAskPhone(boolean padAskPhone) {
+        this.padAskPhone = padAskPhone;
+    }
+
+    public boolean isPadAskPager() {
+        return padAskPager;
+    }
+
+    public void setPadAskPager(boolean padAskPager) {
+        this.padAskPager = padAskPager;
+    }
+
+    public SuggestionsPlacement getSuggestionsPlacement() {
+        return suggestionsPlacement;
+    }
+
+    public void setSuggestionsPlacement(SuggestionsPlacement suggestionsPlacement) {
+        this.suggestionsPlacement = suggestionsPlacement;
     }
 
     public String getTheme() {

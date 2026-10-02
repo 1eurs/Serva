@@ -40,7 +40,9 @@ public record CreateOrderRequest(
             @Positive int quantity,
             @Size(max = 300) String note,
             /** Option choices for this line; null/empty for items without options. */
-            List<SelectedOption> selectedOptions
+            List<SelectedOption> selectedOptions,
+            /** True when the customer added this line from the cart's suggestion upsell. */
+            Boolean fromSuggestion
     ) {}
 
     public record SelectedOption(

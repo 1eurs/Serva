@@ -2,9 +2,10 @@ import { useMemo, useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
-import type { PublicMenu, PublicItem, OrderTracking, CreateOrderPayload, OrderType, LoyaltySummary } from '../../lib/types';
+import type { PublicMenu, PublicItem, OrderTracking, CreateOrderPayload, OrderType, LoyaltySummary, Lang } from '../../lib/types';
+import { sellable } from '../../lib/types';
 import { omr, estimateVat, round3, syncPhoneInput, isValidPhone } from '../../lib/format';
-import { useI18n, useT, pick, type Dict } from '../../lib/i18n';
+import { useI18n, useT, pick, Ltr, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { useCartStore, useCart, lineUnitPrice } from '../../lib/cart';
 import { CAR_COLORS, carColorOf } from '../../lib/carColors';
@@ -13,13 +14,14 @@ import { track } from '../../lib/analytics';
 import { useVenue, cartKeyOf, menuPathOf, menuUrlOf } from './venue';
 import { usePresence } from './usePresence';
 import { CustomerFrame } from './CustomerFrame';
+import { ItemDetailModal } from './ItemDetailModal';
 import { loyaltyCardStyle } from './StampCard';
 import './loyalty.css';
 
 const DICT: Dict = {
   ar: { title: 'سلّتك', cur: 'ر.ع', empty: 'سلّتك فارغة', emptySub: 'أضف ما يطيب لك من القائمة.', back: 'العودة للقائمة',
         soldOutNow: 'نفد صنف في سلتك للتو. راجع القائمة وحاول مرة أخرى.',
-        ordersPaused: 'الطلبات متوقفة مؤقتاً', ordersPausedSub: 'هذا الفرع لا يستقبل طلبات جديدة حالياً. يمكنك العودة لتصفح القائمة.', closedStamp: 'مغلق',
+        ordersPaused: 'المقهى مغلق حالياً', ordersPausedSub: 'هذا الفرع لا يستقبل طلبات الآن. يمكنك العودة لتصفح القائمة.', closedStamp: 'مغلق',
         carPlate: 'رقم لوحة السيارة العُمانية', carPlatePh: 'مثال: 1234 أ ب',
         carPlateHint: 'اختياري — اكتب الأرقام ثم الرمز', plateNum: 'الأرقام', plateCode: 'الرمز', carColor: 'لون السيارة',
         name: 'الاسم (اختياري)', nameReq: 'الاسم', nameRequired: 'الاسم مطلوب لطلبات السيارة',
@@ -28,13 +30,14 @@ const DICT: Dict = {
         note: 'ملاحظة على الطلب', notePh: 'مثال: بدون سكر…', itemNote: 'ملاحظة على الصنف…',
         subtotal: 'المجموع الفرعي', vat: 'ضريبة القيمة المضافة', total: 'الإجمالي',
         finalNote: 'يُحتسب الإجمالي النهائي من المقهى عند تأكيد الطلب.', place: 'إرسال الطلب', placing: 'جارٍ الإرسال…',
-        loyStamps: 'أختام', redeemTitle: 'استخدم مكافأتك', redeemSub: 'صنف واحد مجاناً',
+        loyStamps: 'أختام', qtyMinus: 'إنقاص الكمية', qtyPlus: 'زيادة الكمية', redeemTitle: 'استخدم مكافأتك', redeemSub: 'صنف واحد مجاناً',
         chooseFree: 'اختر صنفك المجاني', freeTag: 'مجاني 🎁',
         rewardReady: 'لديك مكافأة مجانية!', addOneOf: 'أضف أحد هذه الأصناف لاستخدامها:',
-        loyDiscount: 'مكافأة الولاء', myRewards: 'مكافآتي' },
+        loyDiscount: 'مكافأة الولاء', myRewards: 'مكافآتي',
+        suggTitle: 'أضِف لمسة أخيرة', suggAdd: 'أضف', added: 'أُضيف', from: 'يبدأ من', close: 'إغلاق' },
   en: { title: 'Your cart', cur: 'OMR', empty: 'Your cart is empty', emptySub: 'Add something you love from the menu.', back: 'Back to menu',
         soldOutNow: 'Something in your cart just sold out. Check the menu and try again.',
-        ordersPaused: 'Orders are paused', ordersPausedSub: 'This branch is not accepting new orders right now. You can return to browse the menu.', closedStamp: 'Closed',
+        ordersPaused: 'The café is closed', ordersPausedSub: 'This branch is not taking orders right now. You can return to browse the menu.', closedStamp: 'Closed',
         carPlate: 'Oman car plate', carPlatePh: 'e.g. 1234 AB',
         carPlateHint: 'Optional — numbers, then the letter code', plateNum: 'Numbers', plateCode: 'Code', carColor: 'Car color',
         name: 'Name (optional)', nameReq: 'Name', nameRequired: 'Name is required for car orders',
@@ -43,11 +46,28 @@ const DICT: Dict = {
         note: 'Order note', notePh: 'e.g. no sugar…', itemNote: 'Note for this item…',
         subtotal: 'Subtotal', vat: 'VAT', total: 'Total',
         finalNote: 'Final total is confirmed by the cafe when your order is accepted.', place: 'Place order', placing: 'Sending…',
-        loyStamps: 'stamps', redeemTitle: 'Use your reward', redeemSub: 'one item free',
+        loyStamps: 'stamps', qtyMinus: 'Decrease quantity', qtyPlus: 'Increase quantity', redeemTitle: 'Use your reward', redeemSub: 'one item free',
         chooseFree: 'Choose your free item', freeTag: 'FREE 🎁',
         rewardReady: 'You have a free reward!', addOneOf: 'Add one of these to use it:',
-        loyDiscount: 'Loyalty reward', myRewards: 'My rewards' },
+        loyDiscount: 'Loyalty reward', myRewards: 'My rewards',
+        suggTitle: 'Finish it off', suggAdd: 'Add', added: 'Added', from: 'from', close: 'Close' },
 };
+
+// A suggestion card's photo. No photo, or one that fails to load, falls back to the same
+// monogram tile the menu uses — a broken-image icon in the upsell reads worse than none.
+function SuggPhoto({ item, lang }: { item: PublicItem; lang: Lang }) {
+  const [broken, setBroken] = useState(false);
+  const show = !!item.imageUrl && !broken;
+  return (
+    <span className={'c-sugg-img' + (show ? '' : ' is-empty')} aria-hidden="true">
+      {show
+        ? <img src={item.imageUrl!} alt="" loading="lazy" decoding="async" width={112} height={112}
+            onError={() => setBroken(true)} />
+        : <span className="glyph">{pick(item, 'name', lang).charAt(0)}</span>}
+      <span className="c-sugg-plus">＋</span>
+    </span>
+  );
+}
 
 const thumb = (it: PublicItem) => it.imageUrl
   ? { backgroundImage: `url('${it.imageUrl}')` }
@@ -66,7 +86,7 @@ export default function CartPage() {
   const menuPath = menuPathOf(slug, branchId, tableToken, orderType);
   const cartKey = cartKeyOf(slug, branchId, tableToken, orderType);
   const cart = useCart(cartKey);
-  const { bump, setNote, clear } = useCartStore();
+  const { bump, setNote, clear, add } = useCartStore();
 
   // At checkout they're firmly "ordering"; share the cart so staff can see it coming.
   usePresence(branchId, tableToken ?? 'car', true,
@@ -90,6 +110,65 @@ export default function CartPage() {
     data?.categories.forEach((c) => c.items.forEach((i) => m.set(i.id, i)));
     return m;
   }, [data]);
+
+  // "Goes well with your order": items other customers ordered alongside what's in this cart.
+  // The list is keyed on the (sorted, de-duped) cart item ids, so it re-fetches as the cart
+  // changes but stays cached when only quantities or notes move. Ids come back from the server;
+  // we render them from the menu already loaded above, and drop anything no longer sellable.
+  const cartItemIds = useMemo(
+    () => [...new Set(cart.map((l) => l.id))].sort((a, b) => a - b),
+    [cart],
+  );
+  const { data: suggestionIds } = useQuery({
+    queryKey: ['menu-suggestions', slug, cartItemIds],
+    queryFn: () => api.post<number[]>(
+      `/api/public/restaurants/${encodeURIComponent(slug!)}/menu/suggestions`,
+      { itemIds: cartItemIds }, { auth: false }),
+    enabled: !!slug && cartItemIds.length > 0,
+    staleTime: 60_000,
+  });
+  const inCartIds = useMemo(() => new Set(cart.map((l) => l.id)), [cart]);
+  const suggestions = useMemo(
+    () => (suggestionIds ?? [])
+      .map((id) => itemsById.get(id))
+      .filter((it): it is PublicItem => !!it && !inCartIds.has(it.id) && sellable(it))
+      .slice(0, 6),
+    [suggestionIds, itemsById, inCartIds],
+  );
+  // Item awaiting an option choice (size, etc.) before it can join the cart.
+  const [pickItem, setPickItem] = useState<PublicItem | null>(null);
+  // Which line was added from a suggestion — carried onto the order so its revenue is attributed.
+  const addSuggestion = (it: PublicItem) => {
+    if ((it.optionGroups?.length ?? 0) > 0) { setPickItem(it); return; }
+    add(cartKey, it.id, null, true);
+    track('ADD_TO_CART', { restaurantSlug: slug!, branchId: branchId ?? null, qrTableToken: tableToken ?? null }, { menuItemId: it.id });
+    toast(`${pick(it, 'name', lang)} · ${t('added')}`);
+  };
+
+  // The shop chooses where the upsell appears: under the items, before checkout, or as a
+  // pop-up on the Place-order tap. Same chips reused in all three.
+  const placement = data?.restaurant?.suggestionsPlacement ?? 'UNDER_ITEMS';
+  const [popupOpen, setPopupOpen] = useState(false);
+  const popupSeen = useRef(false);   // only interrupt the checkout tap once
+  const suggestChips = suggestions.length > 0 ? (
+    <div className="c-suggest">
+      <h4 className="c-suggest-hd">{t('suggTitle')}</h4>
+      <div className="c-suggest-row">
+        {suggestions.map((it) => (
+          <button type="button" className="c-sugg" key={it.id}
+            onClick={() => addSuggestion(it)}
+            aria-label={`${t('suggAdd')} ${pick(it, 'name', lang)}`}>
+            <SuggPhoto item={it} lang={lang} />
+            <span className="c-sugg-name">{pick(it, 'name', lang)}</span>
+            <span className="c-sugg-price num">
+              {(it.optionGroups?.length ?? 0) > 0 && <span className="c-from">{t('from')}</span>}
+              {omr(it.salePrice ?? it.price)}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null;
 
   // Autofill from the last order placed on this device (saved on success below).
   const saved = useMemo(() => getStoredProfile(), []);
@@ -189,6 +268,7 @@ export default function CartPage() {
         items: cart.map((l) => ({
           menuItemId: l.id, quantity: l.qty, note: l.note || null,
           selectedOptions: l.selectedOptions?.length ? l.selectedOptions : null,
+          fromSuggestion: l.fromSuggestion || undefined,
         })),
       };
       return api.post<OrderTracking>('/api/public/orders', payload, { auth: false });
@@ -231,6 +311,13 @@ export default function CartPage() {
     setErrors(nextErrors);
     if (nextErrors.name) { nameRef.current?.focus(); return; }
     if (nextErrors.phone) { phoneRef.current?.focus(); return; }
+    // Pop-up placement: the first Place-order tap surfaces the suggestions once, then a second
+    // tap (or the sheet's own button) actually orders. Nothing to add? fall straight through.
+    if (placement === 'POPUP' && suggestions.length > 0 && !popupSeen.current) {
+      popupSeen.current = true;
+      setPopupOpen(true);
+      return;
+    }
     place.mutate();
   };
 
@@ -290,20 +377,25 @@ export default function CartPage() {
                       </div>
                     )}
                     <div className="lp"><span className="num">{omr(lineUnitPrice(it, l.selectedOptions))}</span> {t('cur')}</div>
-                    <textarea className="c-notein" rows={1} placeholder={t('itemNote')} value={l.note}
-                      onChange={(e) => setNote(cartKey, l.key, e.target.value)} />
                   </div>
                   <div className="c-line-side">
+                    {/* Same order as every other stepper on the menu — minus, count, plus. */}
                     <div className="c-qty">
-                      <button onClick={() => useCartStore.getState().add(cartKey, l.id, l.selectedOptions)}>+</button>
+                      <button aria-label={t('qtyMinus')} onClick={() => bump(cartKey, l.key, -1)}>−</button>
                       <span className="n num">{l.qty}</span>
-                      <button onClick={() => bump(cartKey, l.key, -1)}>−</button>
+                      <button aria-label={t('qtyPlus')} onClick={() => useCartStore.getState().add(cartKey, l.id, l.selectedOptions)}>+</button>
                     </div>
                     <div className="lt"><span className="num">{omr(lineUnitPrice(it, l.selectedOptions) * l.qty)}</span></div>
                   </div>
+                  {/* Its own row across the whole line. Wedged in the middle column it was
+                      122px wide, so "Note for this item…" wrapped before it was even typed in. */}
+                  <textarea className="c-notein" rows={1} placeholder={t('itemNote')} value={l.note}
+                    onChange={(e) => setNote(cartKey, l.key, e.target.value)} />
                 </div>
               );
             })}
+
+            {placement === 'UNDER_ITEMS' && suggestChips}
 
             {orderType === 'CAR' && (
               <>
@@ -386,13 +478,14 @@ export default function CartPage() {
               )}
             </div>
 
+            {/* Reads as progress, not as a link. Tapping it used to leave the cart for the
+                loyalty portal, which is the last place someone mid-checkout wants to go. */}
             {loyalty?.enabled && loyalty.availableRewards < 1 && (
-              <div className="loy-strip" style={loyaltyCardStyle(loyalty.cardColor)}
-                onClick={() => nav('/loyalty', { state: { from: loc.pathname } })} role="button" tabIndex={0}
-                onKeyDown={(e) => e.key === 'Enter' && nav('/loyalty', { state: { from: loc.pathname } })}>
+              <div className="loy-strip is-static" style={loyaltyCardStyle(loyalty.cardColor)}>
                 <span className="loy-spark">🎟️</span>
                 <div className="loy-strip-main">
-                  <b><span className="num">{loyalty.stamps}</span> / <span className="num">{loyalty.stampsRequired}</span> {t('loyStamps')}</b>
+                  {/* isolated for the same reason as the menu's strip — see MenuPage */}
+                  <b><Ltr>{loyalty.stamps} / {loyalty.stampsRequired}</Ltr> {t('loyStamps')}</b>
                   <span>{loyalty.rewardLabel}</span>
                 </div>
                 <div className="loy-mini" aria-hidden="true">
@@ -449,6 +542,8 @@ export default function CartPage() {
 
             <div className="field"><label>{t('note')}</label><textarea rows={2} value={note} onChange={(e) => setOrderNote(e.target.value)} placeholder={t('notePh')} /></div>
 
+            {placement === 'BEFORE_CHECKOUT' && suggestChips}
+
             <div className="c-totals">
               <div className="row"><span>{t('subtotal')}</span><span className="num">{omr(subtotal)} {t('cur')}</span></div>
               {vatEnabled && <div className="row"><span>{t('vat')} ({restaurant?.vatRate}%)</span><span className="num">{omr(vatCharged)} {t('cur')}</span></div>}
@@ -466,6 +561,36 @@ export default function CartPage() {
             </button>
           </div>
         </>
+      )}
+
+      {pickItem && (
+        <ItemDetailModal
+          item={pickItem}
+          restaurantSlug={slug!}
+          branchId={branchId ?? undefined}
+          qrTableToken={tableToken ?? undefined}
+          itemsById={itemsById}
+          onClose={() => setPickItem(null)}
+          onAdd={(qty, options) => {
+            useCartStore.getState().addWithQty(cartKey, pickItem.id, options, qty, true);
+            track('ADD_TO_CART', { restaurantSlug: slug!, branchId: branchId ?? null, qrTableToken: tableToken ?? null }, { menuItemId: pickItem.id, quantity: qty });
+            toast(`${pick(pickItem, 'name', lang)} · ${t('added')}`);
+            setPickItem(null);
+          }}
+        />
+      )}
+
+      {popupOpen && (
+        <div className="modal-bg c-sugg-sheet-bg" onClick={(e) => { if (e.target === e.currentTarget) setPopupOpen(false); }}>
+          <div className="c-sugg-sheet" role="dialog" aria-label={t('suggTitle')}>
+            <button className="c-modal-x" onClick={() => setPopupOpen(false)} aria-label={t('close')}>×</button>
+            {suggestChips ?? <p className="c-sugg-sheet-empty">{t('suggTitle')}</p>}
+            <button className="btn full" disabled={place.isPending}
+              onClick={() => { setPopupOpen(false); place.mutate(); }}>
+              {place.isPending ? t('placing') : <>{t('place')} · <span className="num">{omr(grandTotal)}</span></>}
+            </button>
+          </div>
+        </div>
       )}
     </CustomerFrame>
   );

@@ -45,6 +45,14 @@ public class Order extends BaseEntity {
     @Column(name = "customer_phone")
     private String customerPhone;
 
+    /**
+     * The numbered buzzer handed to the customer at the counter, when the café hands them out
+     * (see Restaurant#padAskPager). Text, not a number: "07" and "A3" are labels printed on
+     * plastic, and a leading zero is part of the label.
+     */
+    @Column(name = "pager_number", length = 10)
+    private String pagerNumber;
+
     @Column(name = "car_plate")
     private String carPlate;
 
@@ -95,6 +103,20 @@ public class Order extends BaseEntity {
 
     @Column(name = "loyalty_reward_discount")
     private BigDecimal loyaltyRewardDiscount;
+
+    /**
+     * The coupon spent on this order (snapshot), and what it took off. Like the loyalty reward
+     * above, the stored total already has it deducted — these three say why it is lower, and
+     * keep saying it after the coupon is renamed or switched off.
+     */
+    @Column(name = "coupon_code", length = 24)
+    private String couponCode;
+
+    @Column(name = "coupon_label", length = 80)
+    private String couponLabel;
+
+    @Column(name = "coupon_discount")
+    private BigDecimal couponDiscount;
 
     @Column(name = "accepted_at")
     private Instant acceptedAt;
@@ -193,6 +215,14 @@ public class Order extends BaseEntity {
 
     public void setCustomerPhone(String customerPhone) {
         this.customerPhone = customerPhone;
+    }
+
+    public String getPagerNumber() {
+        return pagerNumber;
+    }
+
+    public void setPagerNumber(String pagerNumber) {
+        this.pagerNumber = pagerNumber;
     }
 
     public String getCarPlate() {
@@ -313,6 +343,30 @@ public class Order extends BaseEntity {
 
     public void setLoyaltyRewardDiscount(BigDecimal loyaltyRewardDiscount) {
         this.loyaltyRewardDiscount = loyaltyRewardDiscount;
+    }
+
+    public String getCouponCode() {
+        return couponCode;
+    }
+
+    public void setCouponCode(String couponCode) {
+        this.couponCode = couponCode;
+    }
+
+    public String getCouponLabel() {
+        return couponLabel;
+    }
+
+    public void setCouponLabel(String couponLabel) {
+        this.couponLabel = couponLabel;
+    }
+
+    public BigDecimal getCouponDiscount() {
+        return couponDiscount;
+    }
+
+    public void setCouponDiscount(BigDecimal couponDiscount) {
+        this.couponDiscount = couponDiscount;
     }
 
     public Instant getAcceptedAt() {

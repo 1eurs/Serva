@@ -1,5 +1,6 @@
 package com.cafeqr.auth.security;
 
+import com.cafeqr.auth.ApiKeyService;
 import com.cafeqr.common.config.AppProperties;
 import com.cafeqr.users.domain.Permission;
 import com.cafeqr.users.domain.User;
@@ -37,7 +38,8 @@ class JwtAuthenticationFilterTest {
     private final User account = account(true);
     private final UserRepository users = mock(UserRepository.class);
     private final JwtAuthenticationFilter filter = new JwtAuthenticationFilter(
-            jwtService, tickets, new CustomUserDetailsService(users));
+            jwtService, tickets, new CustomUserDetailsService(users),
+            mock(ApiKeyService.class), mock(RestAccessDeniedHandler.class));
 
     private final String token = jwtService.generateAccessToken(new CustomUserDetails(
             42L, "owner@cafe.com", "hash", EnumSet.of(Permission.ORDERS), true, 7L, null, true));

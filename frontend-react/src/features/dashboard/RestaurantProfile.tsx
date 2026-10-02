@@ -20,7 +20,7 @@ import ReceiptSheet from './ReceiptSheet';
 import { SettingsShell, PaneSection, Specimen, MiniQr } from './SettingsShell';
 import { useFeatures } from '../../lib/plan';
 import { FEATURES } from '../../lib/types';
-import type { Restaurant, Subscription, BranchResponse, OrderResponse, StationStatus } from '../../lib/types';
+import type { Restaurant, Subscription, BranchResponse, OrderResponse, StationStatus, SuggestionsPlacement } from '../../lib/types';
 
 /* This file used to render one long "Restaurant profile" page (hero + 4 numbered
  * sections + an aside). Settings now houses each section as its own pane, so the
@@ -52,6 +52,14 @@ const DICT: Dict = {
     houseEditHint: 'نص البطاقة يُكتب في صفحة «المقهى».',
     currency: 'العملة', vatEnabled: 'تفعيل الضريبة', vatRate: 'نسبة الضريبة', logo: 'شعار المطعم',
     paymentSelection: 'اختيار طريقة الدفع عند التحصيل', paymentSelectionSub: 'عند التفعيل، يختار الموظف نقداً أو بطاقة قبل إنهاء الطلب. عند الإيقاف، تُسجّل البطاقة افتراضياً.',
+    padTitle: 'حقول شاشة الطلب الجديد', padSub: 'ما يُطلب من الموظف عند أخذ الطلب على الكاشير. أوقف ما لا يملؤه مقهاك.',
+    padName: 'اسم العميل', padNameSub: 'اسم تنادي به عند جاهزية الطلب.',
+    padPhone: 'رقم الهاتف', padPhoneSub: 'به يجد الختم بطاقته — أبقه مُفعّلاً إن كان لديك برنامج ولاء.',
+    padPager: 'رقم جهاز النداء', padPagerSub: 'الجهاز المرقّم الذي تسلّمه للعميل. يظهر بجانب رقم الطلب في الشاشة المباشرة ويُطبع على الفاتورة.',
+    sugTitle: 'اقتراحات السلة', sugSub: 'مكان عرض أصناف "أضِف لمسة أخيرة" في سلة العميل. جرّب مكاناً وراقب إيراداته في التحليلات.',
+    sugUnder: 'أسفل الأصناف', sugUnderSub: 'شرائح صغيرة تحت أصناف السلة مباشرة.',
+    sugBefore: 'قبل الدفع', sugBeforeSub: 'فوق الإجمالي وزر إرسال الطلب مباشرة.',
+    sugPopup: 'نافذة قبل الطلب', sugPopupSub: 'تظهر عند الضغط على إرسال الطلب.',
     uploadLogo: 'رفع الشعار', removeLogo: 'إزالة الشعار', logoRemoved: 'تم إزالة الشعار', uploading: 'جارٍ الرفع...', save: 'حفظ الملف', saved: 'تم الحفظ', openMenu: 'فتح القائمة',
     slug: 'رابط القائمة', active: 'نشط',
     subscription: 'الاشتراك', plan: 'الباقة', sstatus: 'الحالة', renews: 'يتجدد', ended: 'انتهى',
@@ -208,6 +216,14 @@ const DICT: Dict = {
     houseEditHint: 'The words are written on the Café page.',
     currency: 'Currency', vatEnabled: 'Enable VAT', vatRate: 'VAT rate', logo: 'Restaurant logo',
     paymentSelection: 'Choose payment method at collection', paymentSelectionSub: 'When enabled, staff choose Cash or Card before completing an order. When off, Card is recorded by default.',
+    padTitle: 'What the order pad asks for', padSub: 'The boxes staff fill in when they take an order at the counter. Switch off the ones your café never uses.',
+    padName: 'Customer name', padNameSub: 'A name to call out when the order is ready.',
+    padPhone: 'Phone number', padPhoneSub: 'How a stamp finds its card — leave this on if you run a loyalty programme.',
+    padPager: 'Pager number', padPagerSub: 'The numbered buzzer you hand over the counter. It shows beside the order number on the live board, and prints on the ticket.',
+    sugTitle: 'Cart suggestions', sugSub: 'Where the "finish it off" add-ons show in the customer cart. Try a spot and watch its revenue in Analytics.',
+    sugUnder: 'Under the items', sugUnderSub: 'Small chips right below the cart items.',
+    sugBefore: 'Before checkout', sugBeforeSub: 'Just above the total and the Place-order button.',
+    sugPopup: 'Pop-up before ordering', sugPopupSub: 'Slides up when the customer taps Place order.',
     uploadLogo: 'Upload logo', removeLogo: 'Remove logo', logoRemoved: 'Logo removed', uploading: 'Uploading...', save: 'Save profile', saved: 'Saved', openMenu: 'Open menu',
     slug: 'Menu link', active: 'Active',
     subscription: 'Subscription', plan: 'Plan', sstatus: 'Status', renews: 'Renews', ended: 'Ended',
@@ -385,6 +401,10 @@ export function CafeSection({ branchId }: { branchId?: number }) {
     vatEnabled: true,
     vatRate: '5',
     paymentMethodSelectionEnabled: false,
+    padAskName: true,
+    padAskPhone: true,
+    padAskPager: false,
+    suggestionsPlacement: 'UNDER_ITEMS' as SuggestionsPlacement,
   });
 
   const restaurantQ = useQuery({
@@ -406,6 +426,10 @@ export function CafeSection({ branchId }: { branchId?: number }) {
       vatEnabled: r.vatEnabled,
       vatRate: String(r.vatRate ?? 5),
       paymentMethodSelectionEnabled: r.paymentMethodSelectionEnabled ?? false,
+      padAskName: r.padAskName ?? true,
+      padAskPhone: r.padAskPhone ?? true,
+      padAskPager: r.padAskPager ?? false,
+      suggestionsPlacement: r.suggestionsPlacement ?? 'UNDER_ITEMS',
     });
   }, [restaurantQ.data?.id]);
 
@@ -427,6 +451,10 @@ export function CafeSection({ branchId }: { branchId?: number }) {
       vatEnabled: form.vatEnabled,
       vatRate: Number(form.vatRate) || 0,
       paymentMethodSelectionEnabled: form.paymentMethodSelectionEnabled,
+      padAskName: form.padAskName,
+      padAskPhone: form.padAskPhone,
+      padAskPager: form.padAskPager,
+      suggestionsPlacement: form.suggestionsPlacement,
     }),
     onSuccess: (r) => {
       qc.setQueryData(['restaurant', rid], r);
@@ -558,6 +586,46 @@ export function CafeSection({ branchId }: { branchId?: number }) {
         </div>
       </PaneSection>
 
+      {/* Its own section rather than three more rows under "Orders and tax": these three
+          switches decide what a staff member is asked for a hundred times a day, and the
+          café that has no stamp card and no buzzers should be able to find them. */}
+      <PaneSection no="03" title={t('padTitle')} sub={t('padSub')}>
+        <div className="profile-settings">
+          {([
+            ['padAskName', 'padName', 'padNameSub'],
+            ['padAskPhone', 'padPhone', 'padPhoneSub'],
+            ['padAskPager', 'padPager', 'padPagerSub'],
+          ] as const).map(([key, label, help]) => (
+            <div className="profile-setting profile-pad-setting" key={key}>
+              <div><b>{t(label)}</b><span>{t(help)}</span></div>
+              <button type="button" className={'switch' + (form[key] ? ' on' : '')}
+                role="switch" aria-checked={form[key]} aria-label={t(label)}
+                onClick={() => set(key, !form[key])}><span /></button>
+            </div>
+          ))}
+        </div>
+      </PaneSection>
+
+      <PaneSection no="04" title={t('sugTitle')} sub={t('sugSub')}>
+        <div className="profile-settings" role="radiogroup" aria-label={t('sugTitle')}>
+          {([
+            ['UNDER_ITEMS', 'sugUnder', 'sugUnderSub'],
+            ['BEFORE_CHECKOUT', 'sugBefore', 'sugBeforeSub'],
+            ['POPUP', 'sugPopup', 'sugPopupSub'],
+          ] as const).map(([value, label, help]) => {
+            const on = form.suggestionsPlacement === value;
+            return (
+              <button type="button" key={value} role="radio" aria-checked={on}
+                className={'profile-setting profile-choice' + (on ? ' on' : '')}
+                onClick={() => set('suggestionsPlacement', value as SuggestionsPlacement)}>
+                <div><b>{t(label)}</b><span>{t(help)}</span></div>
+                <span className="profile-choice-dot" aria-hidden="true" />
+              </button>
+            );
+          })}
+        </div>
+      </PaneSection>
+
       <HouseCardSection />
 
     </SettingsShell>
@@ -612,7 +680,7 @@ export function HouseCardSection() {
   const { house, setHouse, save } = useHouseCard();
 
   return (
-    <PaneSection no="03" title={t('houseTitle')} sub={t('houseSub')}>
+    <PaneSection no="05" title={t('houseTitle')} sub={t('houseSub')}>
       <div className="profile-fields">
         <label className="field"><span>{t('houseNoteAr')}</span>
           <textarea rows={3} lang="ar" dir="rtl" maxLength={NOTE_MAX} value={house.noteAr}
@@ -729,6 +797,8 @@ export function BranchPrinterSection({ branchId }: { branchId?: number }) {
      toggle — and asks the owner for the one fact only paper can answer. With Cleanter the
      bridge answers, so the guide shows the printer's real state instead. */
   const android = useMemo(isAndroidDevice, []);
+  // Shown as text beside the QR so a tablet that cannot scan can type the link instead.
+  const stationApkUrl = `${location.origin}${STATION_APK_PATH}`;
   const [app, setApp] = useState<PrintApp>(getPrintApp);
   const [paper, setPaper] = useState<PaperWidth>(getPaperWidth);
   const [station, setStation] = useState(false);
@@ -1045,8 +1115,8 @@ export function BranchPrinterSection({ branchId }: { branchId?: number }) {
               </div>
               {!android && (
                 <div className="stg-step-scan">
-                  <MiniQr value={`${location.origin}${STATION_APK_PATH}`} className="stg-step-qr" />
-                  <span>{t('s1Qr')}</span>
+                  <MiniQr value={stationApkUrl} className="stg-step-qr" />
+                  <span>{t('s1Qr')}<a className="stg-step-url" href={STATION_APK_PATH}>{stationApkUrl}</a></span>
                 </div>
               )}
             </div>
@@ -1065,8 +1135,8 @@ export function BranchPrinterSection({ branchId }: { branchId?: number }) {
                 </div>
               ) : (
                 <div className="stg-step-scan">
-                  <MiniQr value={`${location.origin}${STATION_APK_PATH}`} className="stg-step-qr" />
-                  <span>{t('s1Qr')}</span>
+                  <MiniQr value={stationApkUrl} className="stg-step-qr" />
+                  <span>{t('s1Qr')}<a className="stg-step-url" href={STATION_APK_PATH}>{stationApkUrl}</a></span>
                 </div>
               )}
               <p className="stg-step-note">{t('s1Unknown')}</p>

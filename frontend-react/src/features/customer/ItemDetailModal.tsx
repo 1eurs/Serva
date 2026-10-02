@@ -6,17 +6,29 @@ import { effectiveBasePrice } from '../../lib/cart';
 import { useI18n, useT, pick, Ltr, type Dict } from '../../lib/i18n';
 import { sellable } from '../../lib/types';
 import type { PublicItem, SelectedOption } from '../../lib/types';
+import { IconTimer } from './icons';
+import { ComboArt, comboParts, separateTotal } from './combo';
 
 const DICT: Dict = {
   ar: { cur: 'ر.ع', add: 'أضف للسلة', from: 'يبدأ من', req: 'يرجى اختيار', choose: 'اختر', optional: 'اختياري',
         regular: 'عادي', noExtra: 'بدون إضافة',
         qty: 'الكمية', close: 'إغلاق', chooseOne: 'اختر واحداً', chooseAny: 'اختر أي منها', soldout: 'غير متوفر',
-        min: 'د', prep: 'وقت التحضير', qtyMinus: 'إنقاص الكمية', qtyPlus: 'زيادة الكمية' },
+        min: 'د', prep: 'وقت التحضير', qtyMinus: 'إنقاص الكمية', qtyPlus: 'زيادة الكمية',
+        inCombo: 'في هذا الكومبو', save: 'وفّر' },
   en: { cur: 'OMR', add: 'Add to cart', from: 'from', req: 'Please choose', choose: 'Choose', optional: 'optional',
         regular: 'Regular', noExtra: 'no extra',
         qty: 'Quantity', close: 'Close', chooseOne: 'Choose one', chooseAny: 'Choose any', soldout: 'Sold out',
-        min: 'min', prep: 'Prep time', qtyMinus: 'Decrease quantity', qtyPlus: 'Increase quantity' },
+        min: 'min', prep: 'Prep time', qtyMinus: 'Decrease quantity', qtyPlus: 'Increase quantity',
+        inCombo: 'In this combo', save: 'Save' },
 };
+
+// Hoisted so an item with no option groups keeps one array identity: inline `?? []` handed
+// the price and selection memos a new array every render, so neither ever hit its cache.
+const NO_GROUPS: NonNullable<PublicItem['optionGroups']> = [];
+
+/** A photo filename may hold a quote or a backslash; either one ends the CSS url() early. */
+const cssUrl = (src: string) =>
+  `url("${src.replace(/["\\]/g, (c) => '%' + c.charCodeAt(0).toString(16))}")`;
 
 interface Props {
   item: PublicItem;
@@ -25,11 +37,13 @@ interface Props {
   qrTableToken?: string | null;
   /** Browse-only menus (no table / not the car route) show item details but no add control. */
   orderable?: boolean;
+  /** The menu's items, so a combo can show what it holds. Absent = shown as a plain item. */
+  itemsById?: Map<number, PublicItem>;
   onClose: () => void;
   onAdd: (qty: number, options: SelectedOption[]) => void;
 }
 
-export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, orderable = true, onClose, onAdd }: Props) {
+export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, orderable = true, itemsById, onClose, onAdd }: Props) {
   const { lang } = useI18n();
   const t = useT(DICT);
   const [qty, setQty] = useState(1);
@@ -38,6 +52,16 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
   const [multi, setMulti] = useState<Record<number, Set<number>>>({});
   const sentViewRef = useRef(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  // Which photo is in view. The dots used to be decoration — every one of them lit, whatever
+  // the customer had swiped to — so a four-photo cake looked like a one-photo cake.
+  // scrollLeft runs negative in RTL, hence the abs().
+  const [slide, setSlide] = useState(0);
+  const onSliderScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    if (el.clientWidth === 0) return;
+    const i = Math.round(Math.abs(el.scrollLeft) / el.clientWidth);
+    setSlide((cur) => (cur === i ? cur : i));
+  };
 
   // Fire ITEM_VIEW once when the modal opens — feeds the Pro conversion radar + funnel.
   useEffect(() => {
@@ -79,7 +103,7 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onClose]);
 
-  const groups = item.optionGroups ?? [];
+  const groups = item.optionGroups ?? NO_GROUPS;
   // Nothing is chosen until the customer chooses it. This used to pre-select the first option of
   // an optional group "so the customer sees a default price" — which, on a latte whose first
   // option is Almond Milk (+0.300), made every latte an almond latte with no way back to regular.
@@ -133,6 +157,10 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
   const name = pick(item, 'name', lang);
   const description = pick(item, 'description', lang);
   const photos = item.images?.length ? item.images : (item.imageUrl ? [item.imageUrl] : []);
+  const parts = useMemo(() => (itemsById ? comboParts(item, itemsById) : []), [item, itemsById]);
+  const apart = parts.length ? separateTotal(parts) : 0;
+  const base = item.salePrice ?? item.price;
+  const saves = parts.length > 0 && apart - base >= 0.001;
 
   return (
     <div className="modal-bg c-modal" onClick={onClose} role="dialog" aria-modal="true" aria-label={name}>
@@ -142,16 +170,18 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
         <div className="c-modal-scroll">
           {photos.length > 0 ? (
             <div className="c-slider">
-              <div className="c-slider-track">
+              <div className="c-slider-track" onScroll={onSliderScroll}>
                 {photos.map((src, i) => (
-                  <div className="c-slider-slide" key={i} style={{ backgroundImage: `url('${src}')` }} />
+                  <div className="c-slider-slide" key={i} style={{ backgroundImage: cssUrl(src) }} />
                 ))}
               </div>
               {photos.length > 1 && (
-                <div className="c-slider-dots">
-                  {photos.map((_, i) => <span key={i} />)}</div>
+                <div className="c-slider-dots" aria-hidden="true">
+                  {photos.map((_, i) => <span key={i} className={i === slide ? 'on' : ''} />)}</div>
               )}
             </div>
+          ) : parts.length > 0 ? (
+            <div className="c-slider c-slider-combo"><ComboArt parts={parts} lang={lang} eager /></div>
           ) : (
             <div className="c-slider c-slider-empty">
               <span className="glyph">{name.charAt(0)}</span>
@@ -163,13 +193,36 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
             {lang === 'ar' && item.nameEn && item.nameEn !== name && <div className="c-modal-sub">{item.nameEn}</div>}
             {description && <p className="c-modal-desc">{description}</p>}
             <div className="c-modal-pricerow">
+              {saves ? (
+                <span className="c-modal-unit">
+                  <Money value={apart + (unitPrice - base)} className="c-was num" />
+                  <Money value={unitPrice} className="num c-sale" />
+                  <span className="c-off c-save">{t('save')} <Money value={apart - base} className="num" /></span>
+                </span>
+              ) : (
               <span className="c-modal-unit">
                 {item.salePrice != null && <Money value={item.price} className="c-was num" />}
                 <Money value={unitPrice} className={'num' + (item.salePrice != null ? ' c-sale' : '')} />
                 {item.salePrice != null && <span className="c-off"><Ltr>−{discountPercent(item.price, item.salePrice)}%</Ltr></span>}
               </span>
-              {item.preparationTimeMinutes ? <span className="c-modal-prep">⏱ {item.preparationTimeMinutes} {t('min')}</span> : null}
+              )}
+              {item.preparationTimeMinutes ? <span className="c-modal-prep"><IconTimer size={14} /> {item.preparationTimeMinutes} {t('min')}</span> : null}
             </div>
+
+            {parts.length > 0 && (
+              <div className="c-combo-list">
+                <h3>{t('inCombo')}</h3>
+                {parts.map(({ item: p, count }) => (
+                  <div className="c-combo-row" key={p.id}>
+                    <span className={'c-combo-dot' + (p.imageUrl ? '' : ' is-empty')} aria-hidden="true">
+                      {p.imageUrl ? <img src={p.imageUrl} alt="" loading="lazy" decoding="async" /> : <span className="glyph">{pick(p, 'name', lang).charAt(0)}</span>}
+                    </span>
+                    <span className="c-combo-row-name">{pick(p, 'name', lang)}</span>
+                    {count > 1 && <span className="c-combo-row-n num"><Ltr>×{count}</Ltr></span>}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {groups.map((g) => (
               <div className="c-opt-group" key={g.id}>
@@ -228,7 +281,7 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
             <button className="btn c-modal-add" disabled={!canAdd} onClick={submit}>
               {!sellable(item) ? t('soldout')
                 : missingRequired ? t('choose')
-                : <>{t('add')} · <Money value={lineTotal} className="num" /></>}
+                : <><span className="c-modal-add-lbl">{t('add')}</span><Money value={lineTotal} className="num" /></>}
             </button>
           </div>
         )}

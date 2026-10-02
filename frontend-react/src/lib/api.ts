@@ -330,6 +330,61 @@ export async function upload<T = { url: string }>(path: string, file: File, retr
 }
 
 /**
+ * Pulls an authed binary response (e.g. a PDF) as a Blob. A browser tab can't carry the JWT,
+ * so anything behind auth has to be fetched here and then handed to the page as an object URL.
+ * A failed request still carries the JSON error envelope, so it surfaces the same ApiError a
+ * normal call would. Refreshes ahead of expiry and retries once on 401, like {@link upload}.
+ */
+export async function fetchBlob(path: string, retry = true): Promise<Blob> {
+  if (retry) await ensureFreshAccess();
+  const res = await fetch(path, {
+    method: 'GET',
+    headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+  });
+  if (res.status === 401 && retry && refreshToken) {
+    const outcome = await tryRefresh();
+    if (outcome === 'ok') return fetchBlob(path, false);
+    if (outcome === 'rejected') clearSession();
+  }
+  if (!res.ok) {
+    let message = 'Request failed';
+    let code: string | undefined;
+    try { const env = (await res.json()) as ApiEnvelope<unknown>; message = env.message || message; code = env.errorCode; } catch { /* not JSON */ }
+    throw new ApiError(message, res.status, code);
+  }
+  return res.blob();
+}
+
+/** Fetches an authed file and saves it to disk under {@code filename}. */
+export async function download(path: string, filename: string): Promise<void> {
+  const url = URL.createObjectURL(await fetchBlob(path));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Fetches an authed file and shows it in a browser tab the caller already opened. The tab must
+ * be opened synchronously in the click handler (before the await) or the pop-up blocker eats it;
+ * this just points it at the fetched object URL once the bytes arrive.
+ */
+export async function openBlobInTab(path: string, tab: Window | null): Promise<void> {
+  try {
+    const url = URL.createObjectURL(await fetchBlob(path));
+    if (tab) tab.location.href = url; else window.open(url, '_blank');
+    // The tab holds the blob open; reclaim it after it's had time to load.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (e) {
+    if (tab) tab.close();
+    throw e;
+  }
+}
+
+/**
  * Re-syncs the signed-in user with the server (permissions, branch, profile). Permissions
  * are claims baked into the access token at issue time, so when they changed since login a
  * plain /me fetch would update the UI but leave API calls carrying the old claims — in that

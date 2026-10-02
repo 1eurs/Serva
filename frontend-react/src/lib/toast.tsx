@@ -17,8 +17,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={toast}>
       {children}
-      <div className="toast">
-        <div className="pill" style={{ transform: show ? 'none' : 'translateY(20px)', opacity: show ? 1 : 0, transition: '.3s' }}>
+      {/* A live region: "Added ✓" is the only confirmation a customer gets that a tap
+          landed, so it has to reach a screen reader too, not just the screen. */}
+      <div className="toast" aria-live="polite" aria-atomic="true">
+        <div className="pill" style={{ transform: show ? 'none' : 'translateY(20px)', opacity: show ? 1 : 0, transition: 'transform .3s, opacity .3s' }}>
           {msg}
         </div>
       </div>

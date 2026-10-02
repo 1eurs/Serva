@@ -21,6 +21,8 @@ public enum ErrorCode {
     RESTAURANT_INACTIVE,
     BRANCH_INACTIVE,
     BRANCH_NOT_ACCEPTING_ORDERS,
+    /** The drawer is closed, so nothing can be sold. Staff-facing: the reader can open it. */
+    TILL_CLOSED,
     TABLE_INVALID,
     MENU_ITEM_UNAVAILABLE,
     PHONE_BLOCKED,

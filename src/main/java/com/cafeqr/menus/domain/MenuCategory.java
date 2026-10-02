@@ -2,6 +2,8 @@ package com.cafeqr.menus.domain;
 
 import com.cafeqr.common.domain.BaseEntity;
 import jakarta.persistence.Column;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 
@@ -33,6 +35,11 @@ public class MenuCategory extends BaseEntity {
 
     @Column(name = "active", nullable = false)
     private boolean active = true;
+
+    /** DRINK / FOOD / DESSERT, or null when the owner hasn't tagged this category. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "course_type")
+    private CourseType courseType;
 
     public Long getRestaurantId() {
         return restaurantId;
@@ -96,5 +103,13 @@ public class MenuCategory extends BaseEntity {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public CourseType getCourseType() {
+        return courseType;
+    }
+
+    public void setCourseType(CourseType courseType) {
+        this.courseType = courseType;
     }
 }

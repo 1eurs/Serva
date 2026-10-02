@@ -29,6 +29,8 @@ public record MenuItemResponse(
         int displayOrder,
         List<String> images,
         List<OptionGroup> optionGroups,
+        /** Items this combo bundles, repeats included; empty for a plain item. */
+        List<Long> comboItemIds,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -44,6 +46,7 @@ public record MenuItemResponse(
                 i.getDisplayOrder(),
                 i.getImages().stream().map(MenuItemImage::getUrl).toList(),
                 i.getOptionGroups().stream().map(OptionGroup::from).toList(),
+                i.getComboItemIds(),
                 i.getCreatedAt(), i.getUpdatedAt());
     }
 
